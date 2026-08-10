@@ -91,6 +91,10 @@ class Painel {
     this.elLocal.textContent = nomeCurto(this.cwd);
     this.elLocal.title = this.cwd;
 
+    // Responde "por que meu dev subiu em outra porta?" sem abrir documentacao.
+    this.elPorta = document.createElement('span');
+    this.elPorta.className = 'painel-porta';
+
     this.elRender = document.createElement('span');
     this.elRender.className = 'painel-render';
 
@@ -103,7 +107,7 @@ class Painel {
       this.destruir();
     });
 
-    cab.append(this.elBolinha, elFeature, this.elLocal, this.elRender, btnFechar);
+    cab.append(this.elBolinha, elFeature, this.elLocal, this.elPorta, this.elRender, btnFechar);
 
     this.elTerm = document.createElement('div');
     this.elTerm.className = 'painel-term';
@@ -230,6 +234,21 @@ class Painel {
     this._marcarUso();
     this.term.focus();
     if (this.aoFocarExterno) this.aoFocarExterno(this.id);
+  }
+
+  definirPortas(portas) {
+    this.portas = portas || [];
+    if (!this.portas.length) {
+      this.elPorta.textContent = '';
+      this.elPorta.title = '';
+      return;
+    }
+    this.elPorta.textContent = `:${this.portas[0]}`;
+    this.elPorta.title =
+      `Portas reservadas so para este painel: ${this.portas.join(', ')}\n\n` +
+      `PORT=${this.portas[0]}\nORQ_PORTA=${this.portas[0]}\nORQ_PORTAS=${this.portas.join(',')}\n\n` +
+      'O projeto precisa ler a variavel: Next e Express leem PORT sozinhos, ' +
+      'o Vite exige --port %PORT%.';
   }
 
   definirStatus(status, rotulo) {

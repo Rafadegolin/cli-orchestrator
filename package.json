@@ -19,6 +19,7 @@
     "teste:fase2": "node testes/fase2.js",
     "teste:fase45": "node testes/fase45.js",
     "teste:projetos": "node testes/projetos.js",
+    "teste:portas": "node testes/portas.js",
     "teste:metas": "node testes/metas.js",
     "teste:empacotado": "node testes/empacotado.js",
     "teste:atualizacao": "node testes/atualizacao.js"

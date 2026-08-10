@@ -384,6 +384,18 @@ html, body {
   padding: 0 4px;
 }
 
+.painel-porta {
+  font-size: 10px;
+  color: var(--terminou);
+  border: 1px solid var(--borda);
+  border-radius: 3px;
+  padding: 0 4px;
+  cursor: help;
+  flex: 0 0 auto;
+}
+
+.painel-porta:empty { display: none; }
+
 .render-webgl { color: var(--rodando); }
 
 .painel-fechar {

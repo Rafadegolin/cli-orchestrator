@@ -52,13 +52,14 @@ async function criarPainel({ cwd, feature, comandoInicial }) {
 
   try {
     window.OrqLateral?.registrar({ id, feature: painel.feature, cwd });
-    await window.orq.abrirTerminal({
+    const aberto = await window.orq.abrirTerminal({
       id,
       cwd,
       feature: painel.feature,
       cols: painel.term.cols,
       rows: painel.term.rows,
     });
+    painel.definirPortas(aberto?.portas);
     painel.definirStatus('rodando', 'shell aberto');
   } catch (err) {
     painel.definirStatus('encerrada', String(err));

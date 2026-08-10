@@ -13,9 +13,10 @@ ha quanto tempo), e ordenar por urgencia em vez de por repositorio.
 segue sendo a fonte do raciocinio por tras de cada regra. Este arquivo registra o que foi construido
 e o que foi **medido** — onde os dois divergem, vale o que esta aqui.
 
-**Estado:** Fases 0, 1, 2, 4 e 5 implementadas, mais o cadastro de projetos (abaixo). Fora do escopo
-por ora: Fase 3 (o app criar e arquivar worktree pela interface), Fase 6 (otimizacoes sob carga),
-Fase 7 (restaurar sessoes ao reabrir) e Fase 8 (instalador).
+**Estado:** Fases 0, 1, 2, 4, 5 e 8 implementadas, mais o cadastro de projetos e a faixa de portas
+por painel (a "regra de ouro do isolamento" da Fase 3). Falta: o resto da Fase 3 (listar worktrees
+existentes para retomar, e arquivar removendo worktree e branch), Fase 6 (painel fora da tela nao
+desenha, teto de sessoes simultaneas) e Fase 7 (restaurar painéis ao reabrir).
 
 ## Comandos
 
@@ -26,6 +27,7 @@ npm run teste:fase1       # 1 painel: PTY, lote de IPC, resize, enxurrada
 npm run teste:fase2       # 8 painéis: grade, orcamento WebGL, RAM/CPU (leva ~90s)
 npm run teste:fase45      # hooks -> bolinha -> lateral ordenada
 npm run teste:projetos    # cadastro, dedupe, comando inicial, sanitizacao
+npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
 npm run teste:metas       # latencia de tecla e CPU sob carga (leva ~90s)
 node testes/arvore.js     # fechar painel mata a arvore de processos
 
@@ -99,6 +101,35 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
 - Desinstalar roda `--remover-hooks` pelo `recursos/instalador.nsh`. Sem isso os hooks ficariam no
   `settings.json` para sempre e toda sessao pagaria ~310ms por evento falando com um app que nao
   existe mais.
+
+## Uma faixa de portas por painel
+
+Isolar arquivos em worktree nao basta: duas features do mesmo projeto rodando `npm run dev` disputam
+a mesma porta e a segunda morre com `EADDRINUSE`. `src/main/portas.js` reserva **5 portas livres
+consecutivas por painel** a partir de 3100 e injeta no ambiente do PTY.
+
+- **Livre e testado com `listen()` de verdade**, nao com uma lista interna de "ja entreguei" — um
+  processo de fora pode estar segurando a porta, e e justamente esse o caso que mata o dev server.
+- O socket de teste fecha na hora (quem precisa escutar e o dev server). Sobra uma janela de corrida
+  minima; a contabilidade por painel garante o que importa, que e nunca entregar o mesmo bloco duas
+  vezes.
+- Base 3100 foge do 3000/3001 do Next e do 5173 do Vite.
+- Cinco portas porque `turbo run dev` sobe varios apps de uma vez, e uma so recolocaria a colisao.
+- Reservar acontece **antes** de criar o PTY: a variavel tem de existir desde o nascimento do
+  processo, senao o dev ja subiu na porta errada.
+
+Variaveis exportadas: **`PORT`** (a convencao que Next, Nest e Express leem sozinhos), `ORQ_PORTA`
+(nome explicito) e `ORQ_PORTAS` (o bloco inteiro, separado por virgula).
+
+**Metade do trabalho fica no outro repositorio** — o app garante a porta, mas o projeto precisa
+le-la:
+
+| Stack | O que fazer |
+|---|---|
+| Next | `next dev` sozinho ja respeita `PORT`. Uma flag `-p 3001` fixa no script **vence a env** e precisa sair. |
+| Vite | Ignora `PORT`. Use `vite --port %PORT%` no script, ou `server: { port: Number(process.env.PORT) \|\| 5173 }` no `vite.config`. |
+| Nest / Express | Garantir `app.listen(process.env.PORT ?? 3000)`. |
+| Turborepo | Cada app pega uma posicao de `ORQ_PORTAS`. |
 
 ## Cadastro de projetos
 

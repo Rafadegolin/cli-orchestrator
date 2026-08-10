@@ -10,6 +10,7 @@ const estado = require('./estado');
 const instalarHooks = require('./instalar-hooks');
 const projetos = require('./projetos');
 const atualizacao = require('./atualizacao');
+const portas = require('./portas');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -111,9 +112,14 @@ ipcMain.handle('app:escolherPasta', async () => {
 
 ipcMain.handle('app:pastaPadrao', () => os.homedir());
 
-ipcMain.handle('terminal:abrir', (_e, { id, cwd, cols, rows, comando, args, env, feature }) => {
+ipcMain.handle('terminal:abrir', async (_e, { id, cwd, cols, rows, comando, args, env, feature }) => {
   const pasta = cwd || os.homedir();
   estado.registrar(id, { feature: feature || id, cwd: pasta });
+
+  // Reserva ANTES de criar o PTY: as variaveis precisam existir no ambiente do
+  // processo desde o nascimento, senao o dev server ja subiu na porta errada.
+  const bloco = await portas.reservar(id);
+
   const r = terminais.abrir({
     id,
     cwd: pasta,
@@ -121,10 +127,10 @@ ipcMain.handle('terminal:abrir', (_e, { id, cwd, cols, rows, comando, args, env,
     args: args || [],
     cols,
     rows,
-    env,
+    env: { ...portas.comoEnv(bloco), ...env },
   });
   estado.definirStatus(id, 'rodando', 'shell aberto');
-  return r;
+  return { ...r, portas: bloco };
 });
 
 ipcMain.on('terminal:escrever', (_e, { id, texto }) => terminais.escrever(id, texto));
@@ -132,6 +138,7 @@ ipcMain.on('terminal:redimensionar', (_e, { id, cols, rows }) => terminais.redim
 ipcMain.on('terminal:fechar', (_e, { id }) => {
   terminais.fechar(id);
   estado.remover(id);
+  portas.liberar(id);
 });
 
 ipcMain.handle('estado:todas', () => estado.todas());
