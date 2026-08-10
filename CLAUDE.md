@@ -14,9 +14,12 @@ segue sendo a fonte do raciocinio por tras de cada regra. Este arquivo registra 
 e o que foi **medido** — onde os dois divergem, vale o que esta aqui.
 
 **Estado:** **todas as fases da spec (0 a 8) implementadas**, mais o cadastro de projetos. O que
-resta sao os extras da Fase 9, em ordem de retorno: ver o diff da sessao sem sair do app, aprovar
-permissao pelo proprio card, layouts salvos, colar prompt em varias sessoes, historico de tempo por
-feature.
+resta sao os extras da Fase 9, detalhados em `docs/fase-9-extras.md` — incluindo um que nao esta na
+spec original: **visao de mapa com ligacoes entre sessoes**, para uma feature que atravessa
+repositorios (backend e frontend em repos separados).
+
+Ali ja esta levantado o que o CLI oferece para isso: `--add-dir` como flag **e** `/add-dir` como
+comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma delas.
 
 ## Comandos
 
