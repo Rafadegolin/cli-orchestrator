@@ -61,3 +61,9 @@ publish:
   provider: github
   owner: Rafadegolin
   repo: cli-orchestrator
+  # O padrao do electron-builder e `draft`, e isso deixaria a auto-atualizacao
+  # MORTA em silencio: o electron-updater le o latest.yml da release publicada,
+  # e rascunho nao e servido. Pior, o publisher reaproveita um rascunho
+  # existente para a mesma tag sem nunca promove-lo (`if (release.draft) return
+  # release`), entao o erro nao se corrige sozinho numa nova execucao.
+  releaseType: release
