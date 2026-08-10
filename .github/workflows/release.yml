@@ -43,8 +43,51 @@ jobs:
           ls -la node_modules/node-pty/prebuilds/win32-x64/*.node
           node -e "require('node-pty'); console.log('node-pty OK')"
 
+      # Cria a release ANTES do electron-builder, e isto nao e detalhe.
+      #
+      # O publisher dele sobe os assets em paralelo, e cada upload chama
+      # getOrCreateRelease por conta propria. Sem uma release ja existente para
+      # a tag, duas chamadas correm juntas e o GitHub acaba com DUAS releases
+      # com o mesmo nome de tag -- os assets se dividem entre elas e a URL
+      # /releases/download/<tag>/latest.yml passa a apontar para a que nao tem
+      # o latest.yml. Resultado: 404 e auto-atualizacao morta em silencio.
+      #
+      # Com a release ja criada, todos os uploads a encontram e caem no mesmo
+      # lugar.
+      - name: Criar a release (se ainda nao existir)
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG ja existe"
+          else
+            gh release create "$TAG" --title "$TAG" --notes "Instalador para Windows. Baixe o .exe abaixo."
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Empacotar e publicar
         run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Sem esta conferencia, uma release quebrada passa despercebida: o build
+      # fica verde e so o usuario descobre, quando a atualizacao nunca chega.
+      - name: Conferir que a release serve o latest.yml
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/latest.yml"
+          for i in $(seq 1 10); do
+            CODE=$(curl -sL -o /tmp/latest.yml -w "%{http_code}" "$URL")
+            if [ "$CODE" = "200" ]; then
+              echo "latest.yml disponivel:"; cat /tmp/latest.yml; exit 0
+            fi
+            echo "tentativa $i: http=$CODE"; sleep 15
+          done
+          echo "ERRO: $URL nao respondeu 200. A auto-atualizacao nao funcionaria."
+          gh release view "$TAG" --json assets
+          exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
