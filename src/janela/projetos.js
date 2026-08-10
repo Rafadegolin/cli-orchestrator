@@ -19,6 +19,12 @@ const ACENTOS = new RegExp('[\u0300-\u036f]', 'g');
 
 let projetosCache = [];
 
+// Declarados aqui em cima, junto do resto do estado: desenharProjetos() os usa
+// e ficar dependendo da ordem de avaliacao para nao cair na zona morta e o tipo
+// de coisa que quebra na primeira reordenacao inocente.
+const expandidos = new Set();
+const detalhes = new Map(); // id -> { carregando, worktrees, include }
+
 // Transforma o nome digitado em algo seguro para DOIS destinos perigosos ao
 // mesmo tempo:
 //   1. uma linha de comando de shell -- "feature & shutdown -s" executaria o
@@ -93,11 +99,177 @@ function desenharProjetos() {
       if (r.projetos) { projetosCache = r.projetos; desenharProjetos(); }
     });
 
-    li.append(nome, marca, btnRemover);
-    li.title = p.caminho;
-    li.addEventListener('click', () => abrirProjeto(p.id));
+    // Seta de expandir: so faz sentido em repositorio git, que e onde existe
+    // worktree para listar.
+    const btnAbrir = document.createElement('button');
+    btnAbrir.className = 'projeto-expandir';
+    btnAbrir.textContent = expandidos.has(p.id) ? '▾' : '▸';
+    btnAbrir.title = 'Ver os worktrees deste projeto';
+    btnAbrir.hidden = !p.git || !p.existe;
+    btnAbrir.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (expandidos.has(p.id)) expandidos.delete(p.id);
+      else expandidos.add(p.id);
+      desenharProjetos();
+      if (expandidos.has(p.id)) carregarDetalhes(p.id);
+    });
+
+    const linha = document.createElement('div');
+    linha.className = 'projeto-linha';
+    linha.append(btnAbrir, nome, marca, btnRemover);
+    linha.title = p.caminho;
+    linha.addEventListener('click', () => abrirProjeto(p.id));
+
+    li.append(linha);
+
+    if (expandidos.has(p.id)) {
+      const caixa = document.createElement('div');
+      caixa.className = 'projeto-detalhe';
+      caixa.dataset.para = p.id;
+      caixa.append(desenharDetalhe(p));
+      li.append(caixa);
+    }
+
     return li;
   }));
+}
+
+// Ler worktree custa varios comandos git por projeto, entao so acontece quando
+// voce expande -- nao no desenho da lista.
+function desenharDetalhe(p) {
+  const frag = document.createDocumentFragment();
+  const d = detalhes.get(p.id);
+
+  if (!d || d.carregando) {
+    const carregando = document.createElement('p');
+    carregando.className = 'wt-vazio';
+    carregando.textContent = 'lendo os worktrees...';
+    frag.append(carregando);
+    return frag;
+  }
+
+  // Aviso do .worktreeinclude: sem ele o worktree nasce sem .env e a aplicacao
+  // nao sobe la dentro.
+  if (d.include && d.include.faltando) {
+    const aviso = document.createElement('div');
+    aviso.className = 'wt-aviso';
+
+    const txt = document.createElement('span');
+    txt.textContent = `${d.include.candidatos.join(', ')} fica de fora dos worktrees novos`;
+    txt.title = 'Um worktree e um checkout limpo: arquivos ignorados pelo git nao vao junto, '
+      + 'e sem eles a aplicacao nao sobe.';
+
+    const btn = document.createElement('button');
+    btn.textContent = 'criar .worktreeinclude';
+    btn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const r = await window.orq.includeCriar(p.caminho, d.include.candidatos);
+      if (r.ok) carregarDetalhes(p.id);
+    });
+
+    aviso.append(txt, btn);
+    frag.append(aviso);
+  }
+
+  if (!d.worktrees.length) {
+    const vazio = document.createElement('p');
+    vazio.className = 'wt-vazio';
+    vazio.textContent = 'Nenhum worktree. Digite o nome de uma feature e clique no projeto.';
+    frag.append(vazio);
+    return frag;
+  }
+
+  const ol = document.createElement('ol');
+  ol.className = 'wt-lista';
+
+  for (const w of d.worktrees) {
+    const li = document.createElement('li');
+    li.className = 'wt';
+    li.title = `${w.caminho}\nbranch: ${w.branch}`;
+
+    const nome = document.createElement('span');
+    nome.className = 'wt-nome';
+    nome.textContent = w.nome;
+
+    // A etiqueta e o que responde "posso arquivar isto?" sem tentar e falhar.
+    const etiqueta = document.createElement('span');
+    etiqueta.className = 'wt-marca';
+    let impedimento = '';
+    if (w.sessaoViva) {
+      etiqueta.textContent = 'aberto agora';
+      etiqueta.classList.add('wt-viva');
+      impedimento = `Sessao do Claude rodando (pid ${w.pid}).`;
+    } else if (!w.limpo) {
+      etiqueta.textContent = `${w.sujos} alterado${w.sujos === 1 ? '' : 's'}`;
+      etiqueta.classList.add('wt-sujo');
+      impedimento = 'Ha alteracao sem commit.';
+    } else if (w.naoMesclados > 0) {
+      etiqueta.textContent = `${w.naoMesclados} commit${w.naoMesclados === 1 ? '' : 's'}`;
+      etiqueta.classList.add('wt-sujo');
+      impedimento = `Ha commit fora de ${w.baseBranch}.`;
+    }
+
+    const btnArquivar = document.createElement('button');
+    btnArquivar.className = 'wt-arquivar';
+    btnArquivar.textContent = '×';
+    btnArquivar.disabled = Boolean(impedimento);
+    btnArquivar.title = impedimento
+      ? `Nao da para arquivar: ${impedimento}`
+      : `Arquivar: remove a pasta e o branch ${w.branch}`;
+    btnArquivar.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      const r = await window.orq.worktreesArquivar(p.caminho, w.caminho);
+      if (!r.ok && r.texto) btnArquivar.title = r.texto;
+      carregarDetalhes(p.id);
+    });
+
+    li.append(nome, etiqueta, btnArquivar);
+    li.addEventListener('click', (ev) => { ev.stopPropagation(); retomar(p, w); });
+    ol.append(li);
+  }
+
+  frag.append(ol);
+  return frag;
+}
+
+async function carregarDetalhes(id) {
+  const p = projetosCache.find((x) => x.id === id);
+  if (!p) return;
+
+  detalhes.set(id, { carregando: true, worktrees: [], include: null });
+  desenharProjetos();
+
+  const [worktrees, include] = await Promise.all([
+    window.orq.worktreesListar(p.caminho),
+    window.orq.includeSituacao(p.caminho),
+  ]);
+
+  detalhes.set(id, { carregando: false, worktrees, include });
+  desenharProjetos();
+}
+
+// Retomar o trabalho de ontem: painel na pasta do worktree, continuando a
+// ultima conversa dali. `claude -c` sem conversa anterior nao falha -- ele
+// simplesmente abre uma sessao nova (medido contra o CLI 2.1.220), por isso
+// nao ha fallback aqui.
+const COMANDO_RETOMAR = 'cls && claude -c';
+
+function retomar(projeto, w, { comandoInicial } = {}) {
+  if (w.sessaoViva) {
+    // Ja existe sessao viva: se o painel for deste app, focar em vez de abrir
+    // outro em cima.
+    for (const [id, painel] of window.OrqPainel.painelPorId) {
+      if (String(painel.cwd || '').toLowerCase() === w.caminho.toLowerCase()) {
+        window.OrqGrade.focarPainel(id);
+        return null;
+      }
+    }
+  }
+  return window.OrqGrade.criarPainel({
+    cwd: w.caminho,
+    feature: w.nome,
+    comandoInicial: comandoInicial || COMANDO_RETOMAR,
+  });
 }
 
 async function abrirProjeto(id, { comandoInicial } = {}) {
@@ -138,5 +310,10 @@ window.OrqProjetos = {
   carregarProjetos,
   abrirProjeto,
   cadastrarProjeto,
+  carregarDetalhes,
+  retomar,
+  COMANDO_RETOMAR,
+  expandidos,
+  detalhes,
   lista: () => projetosCache,
 };

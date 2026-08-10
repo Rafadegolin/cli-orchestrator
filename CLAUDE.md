@@ -13,10 +13,9 @@ ha quanto tempo), e ordenar por urgencia em vez de por repositorio.
 segue sendo a fonte do raciocinio por tras de cada regra. Este arquivo registra o que foi construido
 e o que foi **medido** — onde os dois divergem, vale o que esta aqui.
 
-**Estado:** Fases 0, 1, 2, 4, 5 e 8 implementadas, mais o cadastro de projetos e a faixa de portas
-por painel (a "regra de ouro do isolamento" da Fase 3). Falta: o resto da Fase 3 (listar worktrees
-existentes para retomar, e arquivar removendo worktree e branch), Fase 6 (painel fora da tela nao
-desenha, teto de sessoes simultaneas) e Fase 7 (restaurar painéis ao reabrir).
+**Estado:** Fases 0, 1, 2, 3, 4, 5 e 8 implementadas, mais o cadastro de projetos. Falta a Fase 6
+(painel fora da tela nao desenha, teto de sessoes simultaneas) e a Fase 7 (restaurar painéis ao
+reabrir — a lista de projetos ja persiste, os painéis nao).
 
 ## Comandos
 
@@ -28,6 +27,8 @@ npm run teste:fase2       # 8 painéis: grade, orcamento WebGL, RAM/CPU (leva ~9
 npm run teste:fase45      # hooks -> bolinha -> lateral ordenada
 npm run teste:projetos    # cadastro, dedupe, comando inicial, sanitizacao
 npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
+npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
+npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
 npm run teste:metas       # latencia de tecla e CPU sob carga (leva ~90s)
 node testes/arvore.js     # fechar painel mata a arvore de processos
 
@@ -101,6 +102,42 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
 - Desinstalar roda `--remover-hooks` pelo `recursos/instalador.nsh`. Sem isso os hooks ficariam no
   `settings.json` para sempre e toda sessao pagaria ~310ms por evento falando com um app que nao
   existe mais.
+
+## Worktrees: listar, retomar e arquivar
+
+`src/main/worktrees.js`. Mecanica real do `claude -w`, medida contra o CLI 2.1.220 e nao presumida:
+
+```
+worktree <projeto>/.claude/worktrees/feat-x
+branch   refs/heads/worktree-feat-x
+locked   claude session feat-x (pid 24172 start 639219707467220630)
+```
+
+- **O Claude tranca o worktree e grava o PID da sessao no motivo do lock.** E dai que sai o sinal
+  mais util do modulo: PID vivo (`process.kill(pid, 0)`) significa "aberto agora"; PID morto
+  significa lock orfao, que e justamente o lixo a limpar. Worktree trancado **recusa**
+  `git worktree remove`, entao arquivar exige `unlock` antes — e so quando o lock e comprovadamente
+  orfao.
+- **`git branch -d` minusculo, NUNCA `-D`.** O `-d` se recusa a apagar branch com commit nao
+  mesclado, e essa recusa e a ultima rede antes de perder codigo.
+- **`arquivar` revalida tudo na hora**, ignorando o que a interface achava: a lista da tela pode ter
+  minutos e uma sessao pode ter subido nesse meio tempo.
+- **Nenhum caminho de recusa pode deixar residuo.** Se o `remove` falhar depois do `unlock`, o
+  worktree e retrancado — meio-arquivamento silencioso e pior que nao arquivar.
+- Quatro portoes antes de apagar: sessao viva, alteracao sem commit, commit fora da base, e painel
+  deste app aberto na pasta (`terminais.cwdDe`). Cada recusa diz **qual** deles impediu — um "nao
+  deu" generico obrigaria a ir descobrir no terminal, que e o que este app existe para evitar.
+- Todos os comandos usam `execFile` com argumentos em **array**: os caminhos vem do usuario e podem
+  conter espaco ou `&`.
+
+**Retomar** abre painel na pasta do worktree com `cls && claude -c`. Sem fallback de proposito:
+medido, `claude -c` num diretorio sem conversa anterior sai com codigo **0** e simplesmente abre
+sessao nova, entao um `|| claude` nunca dispararia.
+
+**`.worktreeinclude`**: o worktree e um checkout limpo, entao arquivo ignorado pelo git nao vai
+junto e a aplicacao nao sobe la dentro — o sintoma e a feature nova parecer "quebrada" sem motivo.
+O app detecta arquivos de ambiente que existam **e** estejam ignorados (`git check-ignore`) e oferece
+criar o arquivo, sempre com dialogo: e um arquivo novo no repositorio do usuario.
 
 ## Uma faixa de portas por painel
 

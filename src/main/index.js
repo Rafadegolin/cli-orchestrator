@@ -11,6 +11,7 @@ const instalarHooks = require('./instalar-hooks');
 const projetos = require('./projetos');
 const atualizacao = require('./atualizacao');
 const portas = require('./portas');
+const worktrees = require('./worktrees');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -153,6 +154,79 @@ ipcMain.handle('projetos:listar', () => projetos.listar());
 ipcMain.handle('projetos:adicionar', (_e, caminho) => {
   const r = projetos.adicionar(caminho);
   return { ...r, projetos: projetos.listar() };
+});
+
+// ------------------------------------------------------------- worktrees
+
+ipcMain.handle('worktrees:listar', (_e, projeto) => worktrees.listar(projeto));
+
+ipcMain.handle('worktrees:situacaoInclude', (_e, projeto) => worktrees.situacaoInclude(projeto));
+
+// Arquivar apaga trabalho de forma irreversivel. Tres portoes antes de mexer em
+// qualquer coisa, e cada recusa diz QUAL deles impediu.
+ipcMain.handle('worktrees:arquivar', async (_e, { projeto, caminho, confirmar = true } = {}) => {
+  const norm = (p) => path.resolve(String(p || '')).toLowerCase();
+
+  // Portao extra que o modulo nao tem como saber: painel deste app aberto na
+  // pasta. O lock do Claude cobre a sessao; este cobre o terminal.
+  const emUso = terminais.idsAbertos().some((id) => norm(terminais.cwdDe(id)) === norm(caminho));
+  if (emUso) {
+    return {
+      ok: false,
+      motivo: 'painel-aberto',
+      texto: 'Ha um painel deste app aberto nesta pasta. Feche o painel antes de arquivar.',
+    };
+  }
+
+  const alvo = worktrees.listar(projeto).find((w) => norm(w.caminho) === norm(caminho));
+  const veredito = worktrees.podeArquivar(alvo);
+  if (!veredito.pode) return { ok: false, ...veredito };
+
+  if (confirmar) {
+    const { response } = await dialog.showMessageBox(janela, {
+      type: 'warning',
+      buttons: ['Arquivar', 'Cancelar'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Arquivar worktree',
+      message: `Arquivar "${alvo.nome}"?`,
+      detail:
+        `Isto remove a pasta ${alvo.caminho}\n` +
+        `e o branch ${alvo.branch}.\n\n` +
+        'Conferido agora: nao ha sessao aberta, nao ha alteracao sem commit e nao ha commit ' +
+        'fora da base. Ainda assim, isto nao tem desfazer.',
+    });
+    if (response !== 0) return { ok: false, motivo: 'cancelado', texto: '' };
+  }
+
+  return worktrees.arquivar(projeto, caminho);
+});
+
+// Cria arquivo novo no repositorio do usuario -- vai aparecer no git status
+// dele, entao sempre pergunta antes.
+ipcMain.handle('worktrees:criarInclude', async (_e, { projeto, linhas, confirmar = true } = {}) => {
+  const alvo = (linhas && linhas.length) ? linhas : worktrees.situacaoInclude(projeto).candidatos;
+  if (!alvo.length) return { ok: false, texto: 'Nada de ambiente ignorado para copiar.' };
+
+  if (confirmar) {
+    const { response } = await dialog.showMessageBox(janela, {
+      type: 'question',
+      buttons: ['Criar', 'Cancelar'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Criar .worktreeinclude',
+      message: 'Criar o .worktreeinclude neste projeto?',
+      detail:
+        `Arquivo: ${path.join(projeto, '.worktreeinclude')}\n\n` +
+        `Vai listar: ${alvo.join(', ')}\n\n` +
+        'Sem ele, cada worktree novo nasce sem esses arquivos e a aplicacao nao sobe la dentro. ' +
+        'E um arquivo novo no seu repositorio e vai aparecer no git status.',
+    });
+    if (response !== 0) return { ok: false, cancelado: true };
+  }
+
+  const r = worktrees.criarInclude(projeto, alvo);
+  return { ok: true, ...r };
 });
 
 ipcMain.handle('projetos:remover', async (_e, { id, confirmar = true } = {}) => {

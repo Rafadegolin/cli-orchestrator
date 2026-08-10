@@ -1,6 +1,6 @@
 {
   "name": "orquestrador-clis",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Orquestrador de sessoes do Claude Code em grade",
   "author": "Rafael Degolin <rafaeldegolin26@hotmail.com>",
@@ -20,6 +20,8 @@
     "teste:fase45": "node testes/fase45.js",
     "teste:projetos": "node testes/projetos.js",
     "teste:portas": "node testes/portas.js",
+    "teste:worktrees": "node testes/worktrees.js",
+    "teste:worktrees-ui": "node testes/worktrees-ui.js",
     "teste:metas": "node testes/metas.js",
     "teste:empacotado": "node testes/empacotado.js",
     "teste:atualizacao": "node testes/atualizacao.js"

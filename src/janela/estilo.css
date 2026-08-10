@@ -94,7 +94,9 @@ html, body {
   flex: 0 0 auto;
 }
 
-.projeto {
+.projeto { border-radius: 6px; }
+
+.projeto-linha {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -104,7 +106,122 @@ html, body {
   border: 1px solid transparent;
 }
 
-.projeto:hover { background: var(--fundo-3); }
+.projeto-linha:hover { background: var(--fundo-3); }
+
+.projeto-expandir {
+  background: none;
+  border: none;
+  color: var(--texto-fraco);
+  font-size: 10px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.projeto-expandir:hover { color: var(--realce); }
+.projeto-expandir[hidden] { display: none; }
+
+/* ----------------------------------------------------------- worktrees */
+
+.projeto-detalhe {
+  padding: 2px 0 6px 22px;
+}
+
+.wt-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.wt:hover { background: var(--fundo-3); }
+
+.wt-nome {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--texto-fraco);
+}
+
+.wt:hover .wt-nome { color: var(--texto); }
+
+.wt-marca {
+  font-size: 10px;
+  color: var(--texto-fraco);
+  border: 1px solid var(--borda);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.wt-marca:empty { display: none; }
+.wt-marca.wt-viva { color: var(--rodando); border-color: rgba(152, 195, 121, .4); }
+.wt-marca.wt-sujo { color: var(--esperando); border-color: rgba(229, 192, 123, .4); }
+
+.wt-arquivar {
+  background: none;
+  border: none;
+  color: transparent;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.wt:hover .wt-arquivar { color: var(--texto-fraco); }
+.wt-arquivar:hover:not(:disabled) { color: var(--esperando); }
+.wt-arquivar:disabled { cursor: not-allowed; }
+.wt:hover .wt-arquivar:disabled { color: var(--encerrada); }
+
+.wt-vazio {
+  margin: 2px 0;
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--encerrada);
+}
+
+.wt-aviso {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 6px;
+  padding: 5px 8px;
+  border: 1px solid rgba(229, 192, 123, .35);
+  border-radius: 5px;
+  font-size: 11px;
+  color: var(--esperando);
+}
+
+.wt-aviso span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.wt-aviso button {
+  background: var(--fundo-3);
+  border: 1px solid var(--borda);
+  border-radius: 4px;
+  color: var(--texto);
+  font: inherit;
+  font-size: 10px;
+  padding: 2px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wt-aviso button:hover { border-color: var(--esperando); }
 
 .projeto-nome {
   flex: 1;
