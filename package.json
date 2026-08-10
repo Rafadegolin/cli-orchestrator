@@ -20,7 +20,8 @@
     "teste:fase45": "node testes/fase45.js",
     "teste:projetos": "node testes/projetos.js",
     "teste:metas": "node testes/metas.js",
-    "teste:empacotado": "node testes/empacotado.js"
+    "teste:empacotado": "node testes/empacotado.js",
+    "teste:atualizacao": "node testes/atualizacao.js"
   },
   "devDependencies": {
     "electron": "^43.3.0",

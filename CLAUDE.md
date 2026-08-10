@@ -31,8 +31,12 @@ node testes/arvore.js     # fechar painel mata a arvore de processos
 
 npm run empacotar         # instalador em dist/, sem publicar
 npm run teste:empacotado  # roda o app EMPACOTADO (nao precisa do npm run dev)
+npm run teste:atualizacao # app empacotado antigo detecta e baixa a release nova
 npm run icone             # regenera recursos/icone.ico
 ```
+
+Publicar versao nova: `npm version patch` e depois `git push --follow-tags`. A tag `v*` dispara o
+workflow, que empacota e publica a release.
 
 Os testes dirigem o app **de fora** via CDP (`testes/cdp.js`), sem instrumentar o codigo de producao.
 Suba o app com `npm run dev` antes de rodar qualquer `teste:*`. **Uma instancia por vez** — duas
