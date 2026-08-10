@@ -63,6 +63,7 @@ class Painel {
     // Comeca visivel: o IntersectionObserver so corrige no primeiro quadro, e
     // ate la e melhor desenhar a mais do que engolir saida.
     this.visivel = true;
+    this.dormindo = false;
     this.pendentes = [];
     this.pendentesBytes = 0;
     // Quanto ja foi jogado fora por estouro do teto. Serve para o teste provar
@@ -132,6 +133,16 @@ class Painel {
 
     this.elTerm = document.createElement('div');
     this.elTerm.className = 'painel-term';
+
+    // Convite do painel restaurado: fica por cima do terminal ate voce mandar
+    // retomar. A spec e explicita em nao religar seis sessoes sozinho no
+    // arranque -- e caro e ninguem pediu.
+    this.elDormindo = document.createElement('div');
+    this.elDormindo.className = 'painel-dormindo';
+    this.elDormindo.hidden = true;
+    // Dentro do elTerm, e nao do painel: assim ele cobre exatamente a area do
+    // terminal, sem depender de adivinhar a altura do cabecalho.
+    this.elTerm.append(this.elDormindo);
 
     raiz.append(cab, this.elTerm);
 
@@ -310,6 +321,49 @@ class Painel {
     if (this.aoFocarExterno) this.aoFocarExterno(this.id);
   }
 
+  // Painel restaurado da sessao anterior: sem PTY, esperando voce mandar
+  // retomar. `indisponivel` cobre a pasta que sumiu enquanto o app esteve
+  // fechado (worktree arquivado, projeto movido).
+  mostrarDormindo({ aoRetomar, indisponivel, aoRemover } = {}) {
+    this.dormindo = true;
+    this.elDormindo.hidden = false;
+    this.elDormindo.replaceChildren();
+
+    const titulo = document.createElement('p');
+    titulo.className = 'dormindo-titulo';
+    titulo.textContent = indisponivel ? 'Pasta nao encontrada' : 'Sessao anterior';
+
+    const onde = document.createElement('p');
+    onde.className = 'dormindo-onde';
+    onde.textContent = this.cwd;
+    onde.title = this.cwd;
+
+    const botao = document.createElement('button');
+    if (indisponivel) {
+      botao.textContent = 'Remover painel';
+      botao.className = 'dormindo-remover';
+      botao.addEventListener('click', (ev) => { ev.stopPropagation(); (aoRemover || (() => this.destruir()))(); });
+    } else {
+      botao.textContent = 'Retomar';
+      botao.className = 'dormindo-retomar';
+      botao.addEventListener('click', (ev) => { ev.stopPropagation(); if (aoRetomar) aoRetomar(); });
+    }
+
+    this.elDormindo.append(titulo, onde, botao);
+    this.definirStatus(indisponivel ? 'encerrada' : 'iniciando',
+      indisponivel ? 'pasta nao encontrada' : 'aguardando voce retomar');
+
+    // Nao desenha nada: nao pode segurar vaga de WebGL.
+    rebalancearRenderizadores();
+  }
+
+  acordou() {
+    this.dormindo = false;
+    this.elDormindo.hidden = true;
+    this.elDormindo.replaceChildren();
+    rebalancearRenderizadores();
+  }
+
   // posicao 0 esconde a etiqueta. `aoForcar` e o escape manual.
   definirFila(posicao, aoForcar) {
     if (!this.elFila) return;
@@ -418,7 +472,10 @@ function rebalancearRenderizadores() {
   ordenados.forEach((x, i) => {
     // Fora da vista nao desenha nada, entao nao precisa nem de canvas ativo --
     // mas trocar de renderizador custa; so o que importa e nao segurar WebGL.
-    x.p.usarRenderizador(x.p.visivel && i < TETO_WEBGL ? 'webgl' : 'canvas');
+    // Painel dormindo idem: cinco painéis restaurados nao podem tomar as vagas
+    // dos que voce esta realmente usando.
+    const querWebgl = x.p.visivel && !x.p.dormindo && i < TETO_WEBGL;
+    x.p.usarRenderizador(querWebgl ? 'webgl' : 'canvas');
   });
 }
 

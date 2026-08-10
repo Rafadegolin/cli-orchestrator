@@ -26,6 +26,10 @@ contextBridge.exposeInMainWorld('orq', {
   projetosAdicionar: (caminho) => ipcRenderer.invoke('projetos:adicionar', caminho),
   projetosRemover: (id, confirmar = true) => ipcRenderer.invoke('projetos:remover', { id, confirmar }),
 
+  sessaoCarregar: () => ipcRenderer.invoke('sessao:carregar'),
+  sessaoSalvar: (paineis) => ipcRenderer.invoke('sessao:salvar', paineis),
+  sessaoRodando: () => ipcRenderer.invoke('sessao:rodando'),
+
   worktreesListar: (projeto) => ipcRenderer.invoke('worktrees:listar', projeto),
   worktreesArquivar: (projeto, caminho, confirmar = true) =>
     ipcRenderer.invoke('worktrees:arquivar', { projeto, caminho, confirmar }),

@@ -13,8 +13,10 @@ ha quanto tempo), e ordenar por urgencia em vez de por repositorio.
 segue sendo a fonte do raciocinio por tras de cada regra. Este arquivo registra o que foi construido
 e o que foi **medido** — onde os dois divergem, vale o que esta aqui.
 
-**Estado:** Fases 0 a 6 e 8 implementadas, mais o cadastro de projetos. Falta so a Fase 7 (restaurar
-painéis ao reabrir — a lista de projetos ja persiste, os painéis nao) e os extras da Fase 9.
+**Estado:** **todas as fases da spec (0 a 8) implementadas**, mais o cadastro de projetos. O que
+resta sao os extras da Fase 9, em ordem de retorno: ver o diff da sessao sem sair do app, aprovar
+permissao pelo proprio card, layouts salvos, colar prompt em varias sessoes, historico de tempo por
+feature.
 
 ## Comandos
 
@@ -29,6 +31,7 @@ npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo 
 npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
 npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
+npm run teste:fase7       # sessao salva, painel dormindo, retomar
 npm run perfil            # CPU/RAM POR PROCESSO (use -Json para consumir em script)
 npm run teste:metas       # latencia de tecla e CPU sob carga (leva ~90s)
 node testes/arvore.js     # fechar painel mata a arvore de processos
@@ -103,6 +106,35 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
 - Desinstalar roda `--remover-hooks` pelo `recursos/instalador.nsh`. Sem isso os hooks ficariam no
   `settings.json` para sempre e toda sessao pagaria ~310ms por evento falando com um app que nao
   existe mais.
+
+## Sobreviver ao fechar e reabrir (Fase 7)
+
+`src/main/sessao.js` grava o arranjo em `~/.orquestrador/sessao.json` (feature, cwd,
+`comandoInicial`, ordem). `src/main/arquivo.js` concentra a gravacao atomica (`.tmp` + `rename`) que
+antes existia so no `projetos.js` — duplicar isso em dois lugares e o tipo de coisa que diverge em
+silencio.
+
+- **Nao guarda a saida dos terminais** (3000 linhas por painel), e **nao mantem processo vivo com o
+  app fechado**. A spec e explicita: isso viraria servico em segundo plano, com processo orfao e
+  sessao zumbi.
+- **Painel restaurado volta dormindo**, com botao de retomar. Religar seis sessoes sozinho no
+  arranque e caro e ninguem pediu. O botao "retomar todas" existe porque a fila da Fase 6 espaca as
+  partidas.
+- Quem sabe o arranjo e a **janela**, nao o processo principal: painel dormindo nao tem PTY e
+  portanto nao aparece em `terminais`. O renderer manda um retrato a cada mudanca, com debounce de
+  500ms, mais uma gravacao imediata no `beforeunload` (fechar dentro da janela do debounce perderia
+  justo o arranjo que voce acabou de montar).
+- **`restaurarSessao` roda no evento `load`, nao no carregamento do script.** `grade.js` e avaliado
+  antes de `lateral.js`; restaurar direto deixava `window.OrqLateral` indefinido, os painéis
+  restaurados nao entravam na lista de sessoes e o botao "retomar todas" nunca aparecia.
+- Painel dormindo **nunca pega vaga de WebGL** — cinco painéis restaurados nao podem tomar as vagas
+  dos que voce esta usando.
+- Pasta que sumiu (worktree arquivado com o app fechado) volta como indisponivel, com "remover" no
+  lugar de "retomar": abrir PTY ali so produz erro cru de spawn.
+
+**Fechar com sessao rodando pede confirmacao**, dizendo quantas serao interrompidas. A trava
+`fechamentoAutorizado` existe porque o `quitAndInstall` do updater tambem fecha a janela — sem ela,
+aplicar atualizacao pediria confirmacao no meio do reinicio.
 
 ## Grade rolavel, painel invisivel e fila de partida (Fase 6)
 

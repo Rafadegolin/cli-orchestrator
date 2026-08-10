@@ -27,7 +27,7 @@ function ajustarColunas() {
   elVazio.hidden = n > 0;
 }
 
-async function criarPainel({ cwd, feature, comandoInicial }) {
+async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponivel }) {
   const id = novoId();
 
   const painel = new OrqP.Painel({
@@ -41,14 +41,31 @@ async function criarPainel({ cwd, feature, comandoInicial }) {
       // Painel fechado antes de partir nao pode deixar entrada presa na fila.
       window.OrqFila?.remover(id);
       window.OrqFila?.reavaliar();
+      salvarSessao();
     },
   });
+
+  painel.comandoInicial = comandoInicial || '';
 
   elGrade.append(painel.el);
   ajustarColunas();
 
   // O fit precisa do elemento ja no DOM e com tamanho para calcular cols/rows.
   painel.ajustar();
+
+  // Painel restaurado: monta tudo menos o PTY, e espera voce mandar retomar.
+  if (dormindo) {
+    painel.mostrarDormindo({
+      indisponivel,
+      aoRetomar: () => despertar(id),
+      aoRemover: () => painel.destruir(),
+    });
+    window.OrqLateral?.registrar({ id, feature: painel.feature, cwd });
+    window.OrqLateral?.definirStatus(id, indisponivel ? 'encerrada' : 'iniciando',
+      indisponivel ? 'pasta nao encontrada' : 'aguardando voce retomar');
+    salvarSessao();
+    return painel;
+  }
 
   // Registrar ANTES de abrir o terminal: o primeiro byte pode voltar do PTY
   // enquanto o await ainda esta pendente, e ai o gancho chegaria tarde.
@@ -82,7 +99,96 @@ async function criarPainel({ cwd, feature, comandoInicial }) {
   }
 
   painel.focar();
+  salvarSessao();
   return painel;
+}
+
+// ------------------------------------------------------ sessao e retomada
+
+// Retrato do arranjo atual. Painel dormindo entra igual: ele faz parte do que
+// voce quer de volta amanha.
+function retratoSessao() {
+  return [...elGrade.children].map((el, ordem) => {
+    const p = porId.get(el.dataset.id);
+    return p ? { feature: p.feature, cwd: p.cwd, comandoInicial: p.comandoInicial || '', ordem } : null;
+  }).filter(Boolean);
+}
+
+// Debounce: abrir oito painéis nao pode virar oito gravacoes em disco.
+let timerSessao = null;
+function salvarSessao({ agora = false } = {}) {
+  clearTimeout(timerSessao);
+  if (agora) {
+    window.orq.sessaoSalvar(retratoSessao());
+    return;
+  }
+  timerSessao = setTimeout(() => window.orq.sessaoSalvar(retratoSessao()), 500);
+}
+
+// Fechar dentro da janela do debounce perderia a ultima mudanca -- justo o
+// arranjo que voce acabou de montar.
+window.addEventListener('beforeunload', () => salvarSessao({ agora: true }));
+
+async function despertar(id) {
+  const painel = porId.get(id);
+  if (!painel || !painel.dormindo) return null;
+
+  painel.acordou();
+  painel.ajustar();
+
+  const comando = painel.comandoInicial;
+  if (comando) {
+    painel.aoPrimeiroDado(() => {
+      const enviar = () => window.orq.escrever(id, `${comando}\r`);
+      if (window.OrqFila) window.OrqFila.pedirVaga(id, enviar);
+      else enviar();
+    });
+  }
+
+  try {
+    const aberto = await window.orq.abrirTerminal({
+      id,
+      cwd: painel.cwd,
+      feature: painel.feature,
+      cols: painel.term.cols,
+      rows: painel.term.rows,
+    });
+    painel.definirPortas(aberto?.portas);
+    painel.definirStatus('rodando', 'shell aberto');
+  } catch (err) {
+    painel.definirStatus('encerrada', String(err));
+    painel.term.write(`\r\n\x1b[31mfalhou ao retomar: ${String(err)}\x1b[0m\r\n`);
+  }
+
+  painel.focar();
+  return painel;
+}
+
+// Restaura o arranjo salvo: painéis dormindo, na ordem, SEM subir PTY nenhum.
+async function restaurarSessao() {
+  const salvos = await window.orq.sessaoCarregar();
+  for (const s of salvos) {
+    await criarPainel({
+      cwd: s.cwd,
+      feature: s.feature,
+      comandoInicial: s.comandoInicial,
+      dormindo: true,
+      indisponivel: !s.existe,
+    });
+  }
+  window.OrqLateral?.atualizarRetomarTodas?.();
+  return salvos.length;
+}
+
+function dormindos() {
+  return [...porId.values()].filter((p) => p.dormindo && p.status !== 'encerrada');
+}
+
+async function retomarTodas() {
+  // A fila da Fase 6 espaca as partidas, entao pedir todas de uma vez deixou de
+  // ser a rajada que a spec temia.
+  for (const p of dormindos()) await despertar(p.id);
+  window.OrqLateral?.atualizarRetomarTodas?.();
 }
 
 function marcarFocado() {
@@ -128,4 +234,15 @@ window.addEventListener('resize', () => {
   for (const p of porId.values()) p.agendarAjuste();
 });
 
-window.OrqGrade = { criarPainel, focarPainel, painelPorId: porId };
+window.OrqGrade = {
+  criarPainel, focarPainel, painelPorId: porId,
+  despertar, restaurarSessao, retomarTodas, dormindos, retratoSessao, salvarSessao,
+};
+
+// No evento `load`, e NAO no carregamento deste script: grade.js e avaliado
+// antes de lateral.js, entao restaurar aqui direto deixava window.OrqLateral
+// indefinido -- os painéis restaurados nao entravam na lista de sessoes e o
+// botao "retomar todas" nunca aparecia.
+//
+// Painéis dormindo nao custam PTY, entao isto nao briga com a meta de abertura.
+window.addEventListener('load', () => restaurarSessao());

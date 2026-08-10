@@ -12,6 +12,7 @@ const projetos = require('./projetos');
 const atualizacao = require('./atualizacao');
 const portas = require('./portas');
 const worktrees = require('./worktrees');
+const sessao = require('./sessao');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -39,6 +40,11 @@ const SHELL_PADRAO = process.platform === 'win32'
 
 let janela = null;
 
+// Trava para o dialogo de confirmacao nao aparecer quando quem esta fechando
+// nao e o usuario. O quitAndInstall do updater tambem fecha a janela: sem isto,
+// aplicar atualizacao pediria confirmacao no meio do reinicio.
+let fechamentoAutorizado = false;
+
 function criarJanela() {
   janela = new BrowserWindow({
     width: 1400,
@@ -56,6 +62,33 @@ function criarJanela() {
   });
 
   janela.once('ready-to-show', () => janela.show());
+
+  // Fechar mata todas as sessoes em andamento. Um clique no X nao pode custar
+  // uma tarde de trabalho sem nem avisar.
+  janela.on('close', (ev) => {
+    if (fechamentoAutorizado) return;
+
+    const rodando = estado.todas().filter((s) => s.status === 'rodando').length;
+    if (rodando === 0) return;
+
+    ev.preventDefault();
+    dialog.showMessageBox(janela, {
+      type: 'warning',
+      buttons: ['Fechar mesmo assim', 'Cancelar'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Fechar o orquestrador',
+      message: `${rodando} ${rodando === 1 ? 'sessao esta' : 'sessoes estao'} rodando agora.`,
+      detail: 'Fechar interrompe todas elas.\n\n'
+        + 'O arranjo de painéis fica salvo: ao reabrir, eles voltam com um botao de retomar.',
+    }).then(({ response }) => {
+      if (response === 0) {
+        fechamentoAutorizado = true;
+        janela.close();
+      }
+    });
+  });
+
   janela.on('closed', () => {
     terminais.fecharTodos();
     janela = null;
@@ -94,7 +127,10 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
+// Sair pelo menu, pelo updater ou por Alt+F4 do sistema tambem chega aqui: a
+// partir deste ponto o fechamento ja foi decidido e nao cabe mais perguntar.
 app.on('before-quit', () => {
+  fechamentoAutorizado = true;
   terminais.fecharTodos();
   eventos.parar();
   atualizacao.parar();
@@ -143,6 +179,15 @@ ipcMain.on('terminal:fechar', (_e, { id }) => {
 });
 
 ipcMain.handle('estado:todas', () => estado.todas());
+
+// --------------------------------------------------------------- sessao
+
+ipcMain.handle('sessao:carregar', () => sessao.carregar());
+ipcMain.handle('sessao:salvar', (_e, paineis) => sessao.salvar(paineis));
+
+// Quantas sessoes estao efetivamente trabalhando. E o numero que decide se
+// fechar o app precisa de confirmacao.
+ipcMain.handle('sessao:rodando', () => estado.todas().filter((s) => s.status === 'rodando').length);
 
 // -------------------------------------------------------------- projetos
 

@@ -1,0 +1,63 @@
+'use strict';
+
+// O arranjo de painéis, para fechar o app e voltar ao mesmo lugar.
+//
+// NAO guarda a saida dos terminais. Seriam 3000 linhas por painel, e restaurar
+// texto morto daria a impressao falsa de uma sessao viva -- pior que voltar com
+// o painel visivelmente vazio esperando voce retomar.
+//
+// Tambem NAO mantem processo vivo com o app fechado: isso viraria um servico em
+// segundo plano, com uma classe inteira de problemas nova (processo orfao,
+// sessao zumbi comendo CPU). A spec e explicita em deixar isso de fora.
+
+const fs = require('fs');
+const path = require('path');
+
+const arquivo = require('./arquivo');
+
+const NOME = 'sessao.json';
+const VERSAO = 1;
+
+function carregar() {
+  const bruto = arquivo.lerJson(NOME, {});
+  const paineis = Array.isArray(bruto.paineis) ? bruto.paineis : [];
+
+  return paineis
+    .filter((p) => p && p.cwd)
+    .map((p, i) => ({
+      feature: String(p.feature || ''),
+      cwd: String(p.cwd),
+      comandoInicial: p.comandoInicial ? String(p.comandoInicial) : '',
+      ordem: Number.isFinite(p.ordem) ? p.ordem : i,
+      // A pasta pode ter sumido enquanto o app estava fechado (worktree
+      // arquivado, projeto movido). Abrir PTY ali so produz erro cru de spawn,
+      // entao a janela precisa saber disso antes de tentar.
+      existe: fs.existsSync(p.cwd),
+    }))
+    .sort((a, b) => a.ordem - b.ordem);
+}
+
+function salvar(paineis) {
+  const limpos = (Array.isArray(paineis) ? paineis : [])
+    .filter((p) => p && p.cwd)
+    .map((p, i) => ({
+      feature: String(p.feature || path.basename(String(p.cwd))),
+      cwd: path.resolve(String(p.cwd)),
+      comandoInicial: p.comandoInicial ? String(p.comandoInicial) : '',
+      ordem: Number.isFinite(p.ordem) ? p.ordem : i,
+    }));
+
+  arquivo.gravarJson(NOME, {
+    versao: VERSAO,
+    salvoEm: new Date().toISOString(),
+    paineis: limpos,
+  });
+
+  return { quantidade: limpos.length };
+}
+
+function limpar() {
+  return salvar([]);
+}
+
+module.exports = { NOME, ARQUIVO: arquivo.caminho(NOME), carregar, salvar, limpar };

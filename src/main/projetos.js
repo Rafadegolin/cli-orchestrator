@@ -7,13 +7,13 @@
 // a porta do servidor.
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 
-// ORQ_DADOS existe para os testes apontarem para uma pasta descartavel em vez
-// de sujar a lista real do usuario.
-const PASTA = process.env.ORQ_DADOS || path.join(os.homedir(), '.orquestrador');
-const ARQUIVO = path.join(PASTA, 'projetos.json');
+const arquivo = require('./arquivo');
+
+const NOME = 'projetos.json';
+const PASTA = arquivo.PASTA;
+const ARQUIVO = arquivo.caminho(NOME);
 
 const VERSAO = 1;
 
@@ -28,26 +28,12 @@ function nomeCurto(caminho) {
 }
 
 function ler() {
-  try {
-    const bruto = JSON.parse(fs.readFileSync(ARQUIVO, 'utf8'));
-    return Array.isArray(bruto.projetos) ? bruto.projetos : [];
-  } catch (err) {
-    if (err.code !== 'ENOENT') {
-      // JSON corrompido nao pode derrubar o app nem apagar o resto: segue com
-      // lista vazia e preserva o arquivo para inspecao.
-      console.error('[projetos] arquivo ilegivel, ignorando:', err.message);
-    }
-    return [];
-  }
+  const bruto = arquivo.lerJson(NOME, {});
+  return Array.isArray(bruto.projetos) ? bruto.projetos : [];
 }
 
-// Escrita atomica: grava ao lado e renomeia. Sem isso, o app morrer no meio de
-// um writeFile deixa o arquivo truncado e a lista inteira se perde.
 function gravar(projetos) {
-  fs.mkdirSync(PASTA, { recursive: true });
-  const tmp = `${ARQUIVO}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify({ versao: VERSAO, projetos }, null, 2) + '\n', 'utf8');
-  fs.renameSync(tmp, ARQUIVO);
+  arquivo.gravarJson(NOME, { versao: VERSAO, projetos });
 }
 
 function ehRepositorio(caminho) {

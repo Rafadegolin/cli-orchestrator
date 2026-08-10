@@ -7,6 +7,7 @@ const elLista = document.getElementById('lateral-lista');
 const elContagem = document.getElementById('lateral-contagem');
 const btnHooks = document.getElementById('btn-hooks');
 const btnAtualizar = document.getElementById('btn-atualizar');
+const btnRetomarTodas = document.getElementById('btn-retomar-todas');
 const elVersao = document.getElementById('lateral-versao');
 
 // Ordem de urgencia, nao de projeto: quem espera ha mais tempo primeiro, depois
@@ -162,6 +163,29 @@ async function atualizarBotaoHooks() {
 
 atualizarBotaoHooks();
 
+// -------------------------------------------------------- sessao anterior
+
+// So aparece quando ha o que retomar. A fila da Fase 6 espaca as partidas, e e
+// isso que torna "todas de uma vez" aceitavel.
+function atualizarRetomarTodas() {
+  if (!btnRetomarTodas) return;
+  const n = window.OrqGrade?.dormindos?.().length || 0;
+  btnRetomarTodas.hidden = n === 0;
+  btnRetomarTodas.textContent = `Retomar todas (${n})`;
+  btnRetomarTodas.title = 'Religa as sessoes da ultima vez que voce fechou o app. '
+    + 'As partidas sao espacadas pela fila.';
+}
+
+btnRetomarTodas?.addEventListener('click', async () => {
+  btnRetomarTodas.disabled = true;
+  try {
+    await window.OrqGrade.retomarTodas();
+  } finally {
+    btnRetomarTodas.disabled = false;
+    atualizarRetomarTodas();
+  }
+});
+
 // ------------------------------------------------------------ atualizacao
 
 // O botao so existe quando ha o que aplicar. Atualizacao nunca deve interromper
@@ -203,4 +227,5 @@ window.orq.aoMudarAtualizacao(mostrarAtualizacao);
 
 window.OrqLateral = {
   registrar, remover, definirStatus, pularParaMaisAntigo, cards, ordenadas, mostrarAtualizacao,
+  atualizarRetomarTodas,
 };
