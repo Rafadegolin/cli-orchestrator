@@ -1,0 +1,59 @@
+name: release
+
+# Publica quando voce cria uma tag de versao:
+#   npm version patch && git push --follow-tags
+#
+# Assim a versao do package.json e a tag ficam sempre casadas, e commit de
+# trabalho em progresso nao vira release nem dispara aviso de atualizacao.
+on:
+  push:
+    tags:
+      - 'v*'
+  # Para reprocessar uma tag existente sem precisar recria-la.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # O allowScripts do package.json ja libera o node-pty. Sem esse campo
+      # commitado, o npm 11 bloquearia o script de install e o build sairia sem
+      # o modulo nativo -- o app instalado abriria sem nenhum terminal.
+      - name: Instalar dependencias
+        run: npm ci
+
+      # O Electron 43 removeu o postinstall: o binario nao vem no npm ci.
+      - name: Baixar o binario do Electron
+        run: npx --no-install install-electron
+
+      - name: Conferir que o node-pty tem binario nativo
+        shell: bash
+        run: |
+          ls -la node_modules/node-pty/prebuilds/win32-x64/*.node
+          node -e "require('node-pty'); console.log('node-pty OK')"
+
+      - name: Empacotar e publicar
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Guardar o instalador como artefato
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instalador-windows
+          path: |
+            dist/*.exe
+            dist/latest.yml
+          if-no-files-found: warn

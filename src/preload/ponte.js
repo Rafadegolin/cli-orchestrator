@@ -30,6 +30,12 @@ contextBridge.exposeInMainWorld('orq', {
   hooksInstalar: () => ipcRenderer.invoke('hooks:instalar'),
   hooksDesinstalar: () => ipcRenderer.invoke('hooks:desinstalar'),
 
+  versao: () => ipcRenderer.invoke('app:versao'),
+  atualizacaoSituacao: () => ipcRenderer.invoke('atualizacao:situacao'),
+  atualizacaoVerificar: () => ipcRenderer.invoke('atualizacao:verificar'),
+  atualizacaoAplicar: () => ipcRenderer.invoke('atualizacao:aplicar'),
+  aoMudarAtualizacao: (fn) => ipcRenderer.on('atualizacao:estado', (_e, s) => fn(s)),
+
   notificar: (titulo, corpo) => ipcRenderer.send('app:notificar', { titulo, corpo }),
   estaFocado: () => ipcRenderer.invoke('app:estaFocado'),
   focarJanela: () => ipcRenderer.send('app:focar'),

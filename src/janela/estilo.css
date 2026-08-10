@@ -218,6 +218,35 @@ html, body {
   color: var(--texto-fraco);
 }
 
+.lateral-versao {
+  margin: 6px 0 0;
+  font-size: 10px;
+  color: var(--encerrada);
+}
+
+#btn-atualizar {
+  width: 100%;
+  padding: 5px 8px;
+  margin-bottom: 6px;
+  background: var(--fundo-3);
+  border: 1px solid var(--borda);
+  border-radius: 5px;
+  color: var(--texto-fraco);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#btn-atualizar[hidden] { display: none; }
+#btn-atualizar:disabled { cursor: default; }
+
+#btn-atualizar.atualizar-pronta {
+  color: var(--terminou);
+  border-color: rgba(97, 175, 239, .45);
+}
+
+#btn-atualizar.atualizar-pronta:hover { border-color: var(--terminou); }
+
 /* ------------------------------------------------------------ bolinhas */
 
 .bolinha {

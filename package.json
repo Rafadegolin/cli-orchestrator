@@ -3,25 +3,35 @@
   "version": "0.1.0",
   "private": true,
   "description": "Orquestrador de sessoes do Claude Code em grade",
+  "author": "Rafael Degolin <rafaeldegolin26@hotmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Rafadegolin/cli-orchestrator.git"
+  },
   "main": "src/main/index.js",
   "scripts": {
     "start": "electron .",
+    "icone": "node recursos/gerar-icone.js",
+    "empacotar": "electron-builder --win --publish never",
+    "publicar": "electron-builder --win --publish always",
     "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File testes/subir.ps1",
     "teste:fase1": "node testes/fase1.js",
     "teste:fase2": "node testes/fase2.js",
     "teste:fase45": "node testes/fase45.js",
     "teste:projetos": "node testes/projetos.js",
-    "teste:metas": "node testes/metas.js"
+    "teste:metas": "node testes/metas.js",
+    "teste:empacotado": "node testes/empacotado.js"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.2.0",
-    "electron": "^43.3.0"
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3"
   },
   "dependencies": {
     "@xterm/addon-canvas": "^0.7.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-webgl": "0.18.0",
     "@xterm/xterm": "^5.5.0",
+    "electron-updater": "^6.8.9",
     "node-pty": "^1.1.0"
   },
   "allowScripts": {

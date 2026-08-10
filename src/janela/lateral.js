@@ -6,6 +6,8 @@
 const elLista = document.getElementById('lateral-lista');
 const elContagem = document.getElementById('lateral-contagem');
 const btnHooks = document.getElementById('btn-hooks');
+const btnAtualizar = document.getElementById('btn-atualizar');
+const elVersao = document.getElementById('lateral-versao');
 
 // Ordem de urgencia, nao de projeto: quem espera ha mais tempo primeiro, depois
 // quem terminou e precisa de revisao, depois quem esta rodando, por ultimo
@@ -157,4 +159,45 @@ async function atualizarBotaoHooks() {
 
 atualizarBotaoHooks();
 
-window.OrqLateral = { registrar, remover, definirStatus, pularParaMaisAntigo, cards, ordenadas };
+// ------------------------------------------------------------ atualizacao
+
+// O botao so existe quando ha o que aplicar. Atualizacao nunca deve interromper
+// o trabalho: ela espera voce olhar para a lateral.
+function mostrarAtualizacao(s) {
+  if (!btnAtualizar) return;
+
+  if (s.baixada) {
+    btnAtualizar.hidden = false;
+    btnAtualizar.disabled = false;
+    btnAtualizar.textContent = `Atualizar para ${s.disponivel} e reiniciar`;
+    btnAtualizar.title = 'Fecha os painéis abertos e reinicia o app na versao nova';
+    btnAtualizar.className = 'atualizar-pronta';
+  } else if (s.disponivel) {
+    btnAtualizar.hidden = false;
+    btnAtualizar.disabled = true;
+    btnAtualizar.textContent = `Baixando ${s.disponivel}... ${s.percentual || 0}%`;
+    btnAtualizar.title = 'A atualizacao esta sendo baixada em segundo plano';
+    btnAtualizar.className = '';
+  } else {
+    btnAtualizar.hidden = true;
+  }
+}
+
+btnAtualizar?.addEventListener('click', async () => {
+  btnAtualizar.disabled = true;
+  const r = await window.orq.atualizacaoAplicar();
+  // Se o usuario desistiu no dialogo, o botao volta a valer.
+  if (!r?.aplicado) btnAtualizar.disabled = false;
+});
+
+window.orq.aoMudarAtualizacao(mostrarAtualizacao);
+
+(async () => {
+  const v = await window.orq.versao();
+  if (elVersao) elVersao.textContent = `v${v}`;
+  mostrarAtualizacao(await window.orq.atualizacaoSituacao());
+})();
+
+window.OrqLateral = {
+  registrar, remover, definirStatus, pularParaMaisAntigo, cards, ordenadas, mostrarAtualizacao,
+};

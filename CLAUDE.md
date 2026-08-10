@@ -28,6 +28,10 @@ npm run teste:fase45      # hooks -> bolinha -> lateral ordenada
 npm run teste:projetos    # cadastro, dedupe, comando inicial, sanitizacao
 npm run teste:metas       # latencia de tecla e CPU sob carga (leva ~90s)
 node testes/arvore.js     # fechar painel mata a arvore de processos
+
+npm run empacotar         # instalador em dist/, sem publicar
+npm run teste:empacotado  # roda o app EMPACOTADO (nao precisa do npm run dev)
+npm run icone             # regenera recursos/icone.ico
 ```
 
 Os testes dirigem o app **de fora** via CDP (`testes/cdp.js`), sem instrumentar o codigo de producao.
@@ -66,6 +70,31 @@ Code; o Canal 2 existe exatamente para isso.
 Arquivos: `src/main/{index,terminais,eventos,estado,instalar-hooks,projetos}.js`,
 `src/preload/ponte.js`, `src/janela/{index.html,painel,grade,lateral,projetos}.js`. Nomes de arquivo
 e de funcao em portugues.
+
+## Empacotamento e atualizacao
+
+Instalador NSIS de um clique, por usuario (`%LOCALAPPDATA%`, sem UAC nem na instalacao nem nas
+atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
+`npm version patch` seguido de `git push --follow-tags`.
+
+- **`asarUnpack` do `node-pty` e a armadilha n1.** Modulo nativo dentro do asar nao carrega: a janela
+  abre normalmente e **nenhum terminal funciona**, enquanto em desenvolvimento esta tudo perfeito.
+  `testes/empacotado.js` existe para pegar exatamente isso.
+- **`npmRebuild: false`.** Sem isso o electron-builder chama o `@electron/rebuild`, que cai no
+  node-gyp e falha com `Could not find any Python installation to use`. Nao ha o que recompilar — o
+  binario do `node-pty` e Node-API.
+- **`verifyUpdateCodeSignature: false`.** O padrao e `true` e, sem certificado, rejeitaria toda
+  atualizacao baixada. O preco de nao assinar e o aviso de "aplicativo desconhecido" do Windows.
+- **A janela carrega o xterm por `<script src="../../node_modules/...">`**, caminho que no app
+  empacotado resolve **dentro do asar**. Funciona, mas e frageis a mudancas em `files:` — se a janela
+  subir em branco no instalador, e aqui.
+- **O updater nunca reinicia sozinho.** Este app hospeda sessoes vivas; o download acontece em
+  segundo plano, mas aplicar e decisao do usuario, e o dialogo diz quantos painéis serao fechados.
+  `autoInstallOnAppQuit` cobre o caso tranquilo: fechou o app, aplica na saida.
+- Erro de atualizacao **nunca** vira dialogo — sem internet ou GitHub fora do ar, so log.
+- Desinstalar roda `--remover-hooks` pelo `recursos/instalador.nsh`. Sem isso os hooks ficariam no
+  `settings.json` para sempre e toda sessao pagaria ~310ms por evento falando com um app que nao
+  existe mais.
 
 ## Cadastro de projetos
 

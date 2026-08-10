@@ -1,0 +1,63 @@
+appId: com.pronixtech.orquestrador
+productName: Orquestrador
+copyright: Copyright (c) 2026 Rafael Degolin
+
+directories:
+  output: dist
+  buildResources: recursos
+
+# So o que roda. Sem isto, testes/ e docs/ iriam junto no instalador.
+files:
+  - src/**/*
+  - package.json
+  - '!**/*.map'
+
+asar: true
+
+# O electron-builder recompila dependencias nativas por padrao, e isso aqui cai
+# direto no node-gyp -> "Could not find any Python installation to use".
+#
+# Nao ha o que recompilar: o node-pty 1.1.0 distribui binario Node-API pronto,
+# e N-API e ABI-estavel entre Node e Electron. Recompilar exigiria Python e as
+# Build Tools do Visual Studio no CI e na sua maquina, sem ganho nenhum.
+npmRebuild: false
+
+# A ARMADILHA Nº 1 DA FASE 8. Modulo nativo dentro do asar nao carrega: o app
+# instalado abre a janela normalmente e NENHUM terminal funciona, enquanto na
+# maquina de desenvolvimento esta tudo perfeito. O node-pty precisa ficar
+# desempacotado para o .node ser carregavel do disco.
+asarUnpack:
+  - '**/node_modules/node-pty/**'
+
+win:
+  target: nsis
+  icon: recursos/icone.ico
+  artifactName: ${productName}-${version}-instalador.${ext}
+  # Sem certificado de assinatura, a verificacao rejeitaria toda atualizacao
+  # baixada (o padrao desta opcao e true). O preco de nao assinar e o aviso de
+  # "aplicativo desconhecido" do Windows na primeira execucao.
+  verifyUpdateCodeSignature: false
+
+nsis:
+  # Um clique, por usuario: instala em %LOCALAPPDATA% sem pedir UAC, e por isso
+  # as atualizacoes tambem se aplicam sem prompt de administrador.
+  oneClick: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Orquestrador
+  uninstallDisplayName: Orquestrador de CLIs
+  runAfterFinish: true
+  # A lista de projetos e a porta vivem em ~/.orquestrador, fora do appData,
+  # entao nao ha o que apagar aqui -- e apagar dados do usuario por padrao
+  # seria hostil de qualquer forma.
+  deleteAppDataOnUninstall: false
+  # Roda `--remover-hooks` antes de apagar os arquivos: sem isso, desinstalar o
+  # app deixa os hooks no settings.json do Claude para sempre, e toda sessao
+  # passa a pagar ~310ms por evento falando com um app que nao existe mais.
+  include: recursos/instalador.nsh
+
+publish:
+  provider: github
+  owner: Rafadegolin
+  repo: cli-orchestrator

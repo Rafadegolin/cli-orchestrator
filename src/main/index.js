@@ -9,6 +9,25 @@ const eventos = require('./eventos');
 const estado = require('./estado');
 const instalarHooks = require('./instalar-hooks');
 const projetos = require('./projetos');
+const atualizacao = require('./atualizacao');
+
+// Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
+// arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
+// usuario esta olhando a barra de progresso do desinstalador.
+//
+// Sem isto, desinstalar o app deixaria os hooks no settings.json do Claude para
+// sempre, e toda sessao passaria a pagar ~310ms por evento tentando falar com
+// um app que nao existe mais.
+if (process.argv.includes('--remover-hooks')) {
+  try {
+    instalarHooks.desinstalar();
+    console.log('hooks removidos');
+  } catch (err) {
+    console.error('falhou ao remover hooks:', err.message);
+  }
+  app.quit();
+  process.exit(0);
+}
 
 // cmd.exe abre em dezenas de ms; o PowerShell leva algumas centenas e sozinho
 // comeria boa parte da meta de 1,5s ate o primeiro terminal.
@@ -42,6 +61,7 @@ function criarJanela() {
 
   terminais.definirJanela(janela);
   estado.definirJanela(janela);
+  atualizacao.iniciar(janela);
   janela.loadFile(path.join(__dirname, '..', 'janela', 'index.html'));
 }
 
@@ -75,6 +95,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   terminais.fecharTodos();
   eventos.parar();
+  atualizacao.parar();
 });
 
 // ---------------------------------------------------------------- IPC
@@ -149,6 +170,12 @@ ipcMain.handle('projetos:remover', async (_e, { id, confirmar = true } = {}) => 
 });
 
 ipcMain.handle('app:estaFocado', () => Boolean(janela && janela.isFocused()));
+
+ipcMain.handle('app:versao', () => app.getVersion());
+
+ipcMain.handle('atualizacao:situacao', () => ({ ...atualizacao.situacao }));
+ipcMain.handle('atualizacao:verificar', () => { atualizacao.verificar(); return true; });
+ipcMain.handle('atualizacao:aplicar', () => atualizacao.aplicar());
 
 ipcMain.on('app:focar', () => {
   if (!janela) return;
