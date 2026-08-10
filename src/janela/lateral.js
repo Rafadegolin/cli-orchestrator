@@ -48,6 +48,9 @@ function definirStatus(id, status, motivo = '', desde = Date.now()) {
   if (status === 'esperando') avisar(c);
   else jaAvisado.delete(id);
 
+  // Sessao que saiu de 'rodando' pode ter aberto vaga para quem esta na fila.
+  window.OrqFila?.reavaliar();
+
   redesenhar();
 }
 

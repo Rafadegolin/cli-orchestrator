@@ -45,10 +45,17 @@ const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
 
   // Resize: mexe na COLUNA DO GRID do pai -- mudar a largura da aside sozinha
   // nao altera o tamanho do painel.
-  const antes = info.cols;
+  const antes = await cdp.avaliar(`window.__p.term.cols`);
   await cdp.avaliar(`document.getElementById('app').style.gridTemplateColumns = '560px 1fr'`);
-  await esperar(700);
-  const depois = await cdp.avaliar(`window.__p.term.cols`);
+
+  // Espera pela condicao em vez de dormir um tanto fixo: o reflow passa por
+  // ResizeObserver mais debounce de 100ms, e tempo fixo aqui vira teste
+  // intermitente.
+  let depois = antes;
+  for (let i = 0; i < 40 && depois >= antes; i++) {
+    await esperar(150);
+    depois = await cdp.avaliar(`window.__p.term.cols`);
+  }
   checar('resize refluiu o terminal', depois < antes && depois > 10, `${antes} -> ${depois}`);
   await cdp.avaliar(`document.getElementById('app').style.gridTemplateColumns = ''`);
   await esperar(600);

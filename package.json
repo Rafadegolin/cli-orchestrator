@@ -20,6 +20,8 @@
     "teste:fase45": "node testes/fase45.js",
     "teste:projetos": "node testes/projetos.js",
     "teste:portas": "node testes/portas.js",
+    "teste:fase6": "node testes/fase6.js",
+    "perfil": "powershell -NoProfile -ExecutionPolicy Bypass -File testes/perfil.ps1",
     "teste:worktrees": "node testes/worktrees.js",
     "teste:worktrees-ui": "node testes/worktrees-ui.js",
     "teste:metas": "node testes/metas.js",

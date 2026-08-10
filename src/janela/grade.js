@@ -35,7 +35,13 @@ async function criarPainel({ cwd, feature, comandoInicial }) {
     feature: feature || OrqP.nomeCurto(cwd),
     cwd,
     aoFocar: (pid) => { focado = pid; marcarFocado(); },
-    aoFechar: () => { ajustarColunas(); window.OrqLateral?.remover(id); },
+    aoFechar: () => {
+      ajustarColunas();
+      window.OrqLateral?.remover(id);
+      // Painel fechado antes de partir nao pode deixar entrada presa na fila.
+      window.OrqFila?.remover(id);
+      window.OrqFila?.reavaliar();
+    },
   });
 
   elGrade.append(painel.el);
@@ -46,8 +52,16 @@ async function criarPainel({ cwd, feature, comandoInicial }) {
 
   // Registrar ANTES de abrir o terminal: o primeiro byte pode voltar do PTY
   // enquanto o await ainda esta pendente, e ai o gancho chegaria tarde.
+  //
+  // A fila entra DEPOIS do primeiro dado, nao antes: o shell precisa estar
+  // pronto de qualquer jeito, e segurar antes disso so atrasaria a checagem de
+  // vaga sem economizar nada.
   if (comandoInicial) {
-    painel.aoPrimeiroDado(() => window.orq.escrever(id, `${comandoInicial}\r`));
+    painel.aoPrimeiroDado(() => {
+      const enviar = () => window.orq.escrever(id, `${comandoInicial}\r`);
+      if (window.OrqFila) window.OrqFila.pedirVaga(id, enviar);
+      else enviar();
+    });
   }
 
   try {

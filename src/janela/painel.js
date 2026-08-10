@@ -20,6 +20,11 @@ const SCROLLBACK = 3000;
 
 const MS_DEBOUNCE_RESIZE = 100;
 
+// Painel fora da area visivel nao desenha: os bytes ficam num buffer ate ele
+// voltar. 200 KB sao muito mais do que as 3000 linhas de scrollback conseguem
+// mostrar, entao o teto so corta o que seria descartado de qualquer jeito.
+const TETO_INVISIVEL_BYTES = 200 * 1024;
+
 const TEMA = {
   background: '#14161a',
   foreground: '#d6dae0',
@@ -54,6 +59,16 @@ class Painel {
     this.encerrado = false;
     this.pendentePrimeiroDado = null;
     this.timerPrimeiroDado = null;
+
+    // Comeca visivel: o IntersectionObserver so corrige no primeiro quadro, e
+    // ate la e melhor desenhar a mais do que engolir saida.
+    this.visivel = true;
+    this.pendentes = [];
+    this.pendentesBytes = 0;
+    // Quanto ja foi jogado fora por estouro do teto. Serve para o teste provar
+    // que o corte aconteceu, em vez de inferir por numero de linha -- e ajuda a
+    // responder "por que falta saida no comeco?" sem adivinhacao.
+    this.descartadosBytes = 0;
 
     // Registra ANTES de montar o terminal: _aplicarRenderizador() decide entre
     // WebGL e canvas pela posicao em ordemDeUso, e um id ainda nao registrado
@@ -91,6 +106,12 @@ class Painel {
     this.elLocal.textContent = nomeCurto(this.cwd);
     this.elLocal.title = this.cwd;
 
+    // Etiqueta da fila de partida. Clicavel de proposito: o app nunca deve
+    // deixar voce preso atras da propria heuristica dele.
+    this.elFila = document.createElement('button');
+    this.elFila.className = 'painel-fila';
+    this.elFila.hidden = true;
+
     // Responde "por que meu dev subiu em outra porta?" sem abrir documentacao.
     this.elPorta = document.createElement('span');
     this.elPorta.className = 'painel-porta';
@@ -107,7 +128,7 @@ class Painel {
       this.destruir();
     });
 
-    cab.append(this.elBolinha, elFeature, this.elLocal, this.elPorta, this.elRender, btnFechar);
+    cab.append(this.elBolinha, elFeature, this.elLocal, this.elFila, this.elPorta, this.elRender, btnFechar);
 
     this.elTerm = document.createElement('div');
     this.elTerm.className = 'painel-term';
@@ -142,6 +163,17 @@ class Painel {
 
     this.observer = new ResizeObserver(() => this.agendarAjuste());
     this.observer.observe(this.elTerm);
+
+    // Com a grade rolavel, painel pode sair da area visivel. O root e a propria
+    // grade porque e ela que rola, nao a janela -- e e buscada por id, nao por
+    // parentElement: na hora que isto roda o painel ainda nao foi anexado.
+    this.observerVista = new IntersectionObserver(
+      (entradas) => {
+        for (const e of entradas) this.definirVisivel(e.isIntersecting);
+      },
+      { root: document.getElementById('grade'), threshold: 0 }
+    );
+    this.observerVista.observe(this.el);
   }
 
   // ------------------------------------------------------- renderizador
@@ -198,8 +230,50 @@ class Painel {
 
   escreverBytes(bytes) {
     if (this.encerrado) return;
+
+    // Fora da vista, nao paga o custo de parsear e desenhar: guarda e escreve
+    // de uma vez quando o painel voltar.
+    if (!this.visivel) {
+      this.pendentes.push(bytes);
+      this.pendentesBytes += bytes.length;
+      // Descarta PEDACOS INTEIROS do inicio, nunca por offset de byte: cortar
+      // no meio de um Uint8Array parte sequencia UTF-8 e o painel volta com
+      // caractere quebrado. Mesma regra da fila do processo principal.
+      while (this.pendentesBytes > TETO_INVISIVEL_BYTES && this.pendentes.length > 1) {
+        const fora = this.pendentes.shift().length;
+        this.pendentesBytes -= fora;
+        this.descartadosBytes += fora;
+      }
+      // O gancho do comando inicial nao pode depender de estar visivel.
+      this._dispararPrimeiroDado();
+      return;
+    }
+
     this.term.write(bytes);
     this._dispararPrimeiroDado();
+  }
+
+  definirVisivel(visivel) {
+    if (this.encerrado || this.visivel === visivel) return;
+    this.visivel = visivel;
+    if (visivel) this._descarregarPendentes();
+    // A visibilidade manda no orcamento de WebGL: nao faz sentido um painel
+    // fora da vista segurar contexto enquanto um visivel desenha em canvas.
+    rebalancearRenderizadores();
+  }
+
+  _descarregarPendentes() {
+    if (!this.pendentes.length) return;
+    const total = this.pendentesBytes;
+    const junto = new Uint8Array(total);
+    let off = 0;
+    for (const p of this.pendentes) {
+      junto.set(p, off);
+      off += p.length;
+    }
+    this.pendentes.length = 0;
+    this.pendentesBytes = 0;
+    this.term.write(junto);
   }
 
   // Avisa quando o primeiro byte volta do PTY -- ou seja, quando o prompt
@@ -234,6 +308,25 @@ class Painel {
     this._marcarUso();
     this.term.focus();
     if (this.aoFocarExterno) this.aoFocarExterno(this.id);
+  }
+
+  // posicao 0 esconde a etiqueta. `aoForcar` e o escape manual.
+  definirFila(posicao, aoForcar) {
+    if (!this.elFila) return;
+    if (!posicao) {
+      this.elFila.hidden = true;
+      this.elFila.onclick = null;
+      return;
+    }
+    this.elFila.hidden = false;
+    this.elFila.textContent = `na fila (${posicao})`;
+    this.elFila.title =
+      `Ja ha ${window.OrqFila?.TETO_RODANDO ?? 4} sessoes rodando. Este comando parte quando abrir vaga.\n` +
+      'Clique para comecar agora mesmo assim.';
+    this.elFila.onclick = (ev) => {
+      ev.stopPropagation();
+      if (aoForcar) aoForcar();
+    };
   }
 
   definirPortas(portas) {
@@ -287,7 +380,10 @@ class Painel {
     clearTimeout(this.timerResize);
     clearTimeout(this.timerPrimeiroDado);
     this.pendentePrimeiroDado = null;
+    this.pendentes.length = 0;
+    this.pendentesBytes = 0;
     this.observer?.disconnect();
+    this.observerVista?.disconnect();
     window.orq.fecharTerminal(this.id);
 
     try { this.addonRender?.dispose(); } catch { /* ja disposto */ }
@@ -307,10 +403,22 @@ class Painel {
   }
 }
 
+// Visivel primeiro, e entre os visiveis o mais recentemente usado.
+//
+// Antes da grade rolar isto era so ordemDeUso, e funcionava porque todo painel
+// estava sempre a vista. Agora nao: um painel focado ha tres minutos e rolado
+// para fora seguraria uma vaga de WebGL enquanto um painel que voce esta
+// olhando desenha em canvas.
 function rebalancearRenderizadores() {
-  ordemDeUso.forEach((id, pos) => {
-    const p = painelPorId.get(id);
-    if (p) p.usarRenderizador(pos < TETO_WEBGL ? 'webgl' : 'canvas');
+  const ordenados = ordemDeUso
+    .map((id, pos) => ({ id, pos, p: painelPorId.get(id) }))
+    .filter((x) => x.p)
+    .sort((a, b) => (Number(b.p.visivel) - Number(a.p.visivel)) || (a.pos - b.pos));
+
+  ordenados.forEach((x, i) => {
+    // Fora da vista nao desenha nada, entao nao precisa nem de canvas ativo --
+    // mas trocar de renderizador custa; so o que importa e nao segurar WebGL.
+    x.p.usarRenderizador(x.p.visivel && i < TETO_WEBGL ? 'webgl' : 'canvas');
   });
 }
 

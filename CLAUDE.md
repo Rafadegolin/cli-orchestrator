@@ -13,9 +13,8 @@ ha quanto tempo), e ordenar por urgencia em vez de por repositorio.
 segue sendo a fonte do raciocinio por tras de cada regra. Este arquivo registra o que foi construido
 e o que foi **medido** — onde os dois divergem, vale o que esta aqui.
 
-**Estado:** Fases 0, 1, 2, 3, 4, 5 e 8 implementadas, mais o cadastro de projetos. Falta a Fase 6
-(painel fora da tela nao desenha, teto de sessoes simultaneas) e a Fase 7 (restaurar painéis ao
-reabrir — a lista de projetos ja persiste, os painéis nao).
+**Estado:** Fases 0 a 6 e 8 implementadas, mais o cadastro de projetos. Falta so a Fase 7 (restaurar
+painéis ao reabrir — a lista de projetos ja persiste, os painéis nao) e os extras da Fase 9.
 
 ## Comandos
 
@@ -29,6 +28,8 @@ npm run teste:projetos    # cadastro, dedupe, comando inicial, sanitizacao
 npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
 npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
+npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
+npm run perfil            # CPU/RAM POR PROCESSO (use -Json para consumir em script)
 npm run teste:metas       # latencia de tecla e CPU sob carga (leva ~90s)
 node testes/arvore.js     # fechar painel mata a arvore de processos
 
@@ -102,6 +103,49 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
 - Desinstalar roda `--remover-hooks` pelo `recursos/instalador.nsh`. Sem isso os hooks ficariam no
   `settings.json` para sempre e toda sessao pagaria ~310ms por evento falando com um app que nao
   existe mais.
+
+## Grade rolavel, painel invisivel e fila de partida (Fase 6)
+
+- **A grade rola** (`grid-auto-rows: minmax(220px, 1fr)` + `overflow-y: auto`). Antes usava
+  `overflow: hidden` com `1fr` puro, e 16 painéis viravam faixas de ~110px. E este e o pre-requisito
+  do item 6.1: sem rolagem, **nenhum painel ficava fora da tela** e o `IntersectionObserver` nao
+  teria o que observar.
+- **Painel fora da vista nao desenha**: os bytes vao para um buffer de 200 KB e sao escritos de uma
+  vez quando ele volta. O corte descarta **pedacos inteiros** do inicio, nunca por offset de byte --
+  cortar no meio de um `Uint8Array` parte sequencia UTF-8. `painel.descartadosBytes` conta o que foi
+  jogado fora, e e por ele que o teste prova que o corte aconteceu (inferir por numero de linha da
+  falso negativo quando a enchente para antes de encher o buffer).
+- **O orcamento de WebGL segue a visibilidade**, nao so o `ordemDeUso`. Com grade rolavel, um painel
+  focado ha tres minutos e fora da vista seguraria uma vaga enquanto um painel que voce esta olhando
+  desenha em canvas.
+
+### O ganho real do 6.1 nesta maquina, medido
+
+Com 8 painéis cuspindo log, metade rolada para fora:
+
+| | todos a vista | metade fora |
+|---|---|---|
+| renderer | 0,34% | **0,16%** |
+| principal | 13,83% | 12,23% |
+
+O renderer de fato **cai pela metade**, como a spec promete. So que ele e 0,3% de uma maquina de 12
+nucleos: o ganho absoluto e de ~0,2 ponto percentual. **O custo do app sob carga esta no processo
+principal lendo o ConPTY, nao no desenho.** O valor do 6.1 aqui e memoria e escala (painel fora da
+vista nao segura contexto WebGL nem cresce buffer), nao CPU. Nao vale "otimizar o render" de novo.
+
+### Fila de partida (`src/janela/fila.js`)
+
+Teto de 4 sessoes com bolinha verde; acima disso o comando fica retido e o painel mostra `na fila`.
+
+- **Uma sessao recem-partida so vira 'rodando' quando o hook reporta**, cerca de um segundo depois.
+  Sem contabilizar esse intervalo (`partindo`), liberar UMA vaga esvaziava a fila INTEIRA -- a cada
+  volta do laco a conta ainda dizia que havia espaco. Era exatamente a rajada que o teto existe para
+  evitar, e foi o teste que pegou.
+- **Nada pode ser retido para sempre**: escape por tempo (60s), escape manual (clicar na etiqueta), e
+  a partida so segura vaga por 8s sem confirmacao. Sem hooks instalados nenhuma sessao reporta
+  `rodando`, e esse prazo de 8s vira o proprio espacamento entre partidas.
+- `liberarItem` executa **sempre**. Condicionar a existir o objeto do painel fazia o comando ser
+  descartado em silencio: a sessao nunca comecava e nada explicava por que.
 
 ## Worktrees: listar, retomar e arquivar
 

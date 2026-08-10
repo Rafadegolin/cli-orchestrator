@@ -443,12 +443,18 @@ html, body {
 #grade {
   display: grid;
   grid-template-columns: repeat(var(--colunas), minmax(0, 1fr));
-  grid-auto-rows: minmax(0, 1fr);
+  /* Altura minima em vez de so 1fr: com 16 painéis, `1fr` puro os espremia em
+     faixas de ~110px, ilegiveis. 220px sao o cabecalho mais umas 12 linhas de
+     terminal -- abaixo disso o painel deixa de servir para ler saida.
+     Poucos painéis continuam esticando; muitos fazem a grade rolar, e ai
+     existe "painel fora da tela" para o IntersectionObserver otimizar. */
+  grid-auto-rows: minmax(220px, 1fr);
   gap: 8px;
   padding: 8px;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .painel {
@@ -500,6 +506,21 @@ html, body {
   border-radius: 3px;
   padding: 0 4px;
 }
+
+.painel-fila {
+  font-size: 10px;
+  color: var(--esperando);
+  background: none;
+  border: 1px solid rgba(229, 192, 123, .4);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-family: inherit;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.painel-fila:hover { border-color: var(--esperando); }
+.painel-fila[hidden] { display: none; }
 
 .painel-porta {
   font-size: 10px;
