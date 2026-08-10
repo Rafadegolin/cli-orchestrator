@@ -1,0 +1,52 @@
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'" />
+<title>Orquestrador</title>
+
+<link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css" />
+<link rel="stylesheet" href="estilo.css" />
+
+<div id="app">
+  <aside id="lateral">
+    <div class="lateral-topo">
+      <h1>Projetos</h1>
+      <span id="projetos-contagem">0</span>
+      <button id="btn-projeto-add" title="Cadastrar pasta de um projeto">+</button>
+    </div>
+    <ol id="projetos-lista"></ol>
+
+    <div class="lateral-topo">
+      <h1>Sessoes</h1>
+      <span id="lateral-contagem">0</span>
+    </div>
+    <ol id="lateral-lista"></ol>
+    <div class="lateral-pe">
+      <button id="btn-hooks">Hooks: verificando...</button>
+      <p class="lateral-dica">Ctrl+Enter pula para quem espera ha mais tempo</p>
+    </div>
+  </aside>
+
+  <main id="principal">
+    <div id="barra">
+      <input id="nome-feature" type="text" placeholder="nome da feature (opcional)" spellcheck="false" />
+      <button id="btn-novo">Novo painel</button>
+      <span id="barra-dica">clique num projeto ao lado para abrir com <code>claude</code> ja rodando</span>
+    </div>
+
+    <div id="grade" style="--colunas: 1"></div>
+
+    <div id="vazio">
+      <p>Nenhum painel aberto.</p>
+      <p class="fraco">Escolha a pasta de um projeto para comecar.</p>
+    </div>
+  </main>
+</div>
+
+<script src="../../node_modules/@xterm/xterm/lib/xterm.js"></script>
+<script src="../../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+<script src="../../node_modules/@xterm/addon-webgl/lib/addon-webgl.js"></script>
+<script src="../../node_modules/@xterm/addon-canvas/lib/addon-canvas.js"></script>
+<script src="painel.js"></script>
+<script src="grade.js"></script>
+<script src="lateral.js"></script>
+<script src="projetos.js"></script>

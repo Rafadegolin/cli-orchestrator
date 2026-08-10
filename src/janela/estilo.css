@@ -1,0 +1,396 @@
+:root {
+  --fundo: #14161a;
+  --fundo-2: #1b1e24;
+  --fundo-3: #22262e;
+  --borda: #2c313a;
+  --texto: #d6dae0;
+  --texto-fraco: #7f8794;
+  --realce: #7cc4ff;
+
+  --esperando: #e5c07b;
+  --rodando: #98c379;
+  --terminou: #61afef;
+  --encerrada: #6b7280;
+  --iniciando: #4b5563;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--fundo);
+  color: var(--texto);
+  font: 13px/1.4 "Segoe UI", system-ui, sans-serif;
+}
+
+#app {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  height: 100vh;
+}
+
+/* ------------------------------------------------------------- lateral */
+
+#lateral {
+  display: flex;
+  flex-direction: column;
+  background: var(--fundo-2);
+  border-right: 1px solid var(--borda);
+  min-height: 0;
+}
+
+.lateral-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--borda);
+}
+
+.lateral-topo h1 {
+  margin: 0;
+  margin-right: auto;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--texto-fraco);
+}
+
+.lateral-topo + .lateral-topo,
+#projetos-lista + .lateral-topo {
+  border-top: 1px solid var(--borda);
+}
+
+#lateral-contagem {
+  font-size: 11px;
+  color: var(--texto-fraco);
+  background: var(--fundo-3);
+  border-radius: 10px;
+  padding: 1px 8px;
+}
+
+#lateral-lista {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ------------------------------------------------------------ projetos */
+
+/* Altura limitada com rolagem propria: uma lista longa de projetos nao pode
+   espremer a lista de sessoes, que e a informacao urgente. */
+#projetos-lista {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  max-height: 34vh;
+  flex: 0 0 auto;
+}
+
+.projeto {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.projeto:hover { background: var(--fundo-3); }
+
+.projeto-nome {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projeto-marca {
+  font-size: 10px;
+  color: var(--texto-fraco);
+  border: 1px solid var(--borda);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.projeto-marca:empty { display: none; }
+
+.projeto-sumiu .projeto-nome { color: var(--encerrada); text-decoration: line-through; }
+.projeto-sumiu .projeto-marca { color: var(--esperando); border-color: rgba(229, 192, 123, .45); }
+
+.projeto-remover {
+  background: none;
+  border: none;
+  color: transparent;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.projeto:hover .projeto-remover { color: var(--texto-fraco); }
+.projeto-remover:hover { color: var(--esperando); }
+
+.projeto-vazio {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--encerrada);
+}
+
+#btn-projeto-add {
+  background: var(--fundo-3);
+  border: 1px solid var(--borda);
+  border-radius: 5px;
+  color: var(--texto);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+#btn-projeto-add:hover { border-color: var(--realce); color: var(--realce); }
+
+.card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: start;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.card:hover { background: var(--fundo-3); }
+.card-atencao { border-color: rgba(229, 192, 123, .45); }
+
+.card-nome {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-sub {
+  grid-column: 2;
+  font-size: 11px;
+  color: var(--texto-fraco);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-tempo { color: var(--esperando); }
+
+.lateral-pe {
+  border-top: 1px solid var(--borda);
+  padding: 8px 12px;
+}
+
+#btn-hooks {
+  width: 100%;
+  padding: 5px 8px;
+  margin-bottom: 6px;
+  background: var(--fundo-3);
+  border: 1px solid var(--borda);
+  border-radius: 5px;
+  color: var(--texto);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#btn-hooks:hover { border-color: var(--realce); }
+#btn-hooks.hooks-ok { color: var(--rodando); border-color: rgba(152, 195, 121, .35); }
+
+.lateral-dica {
+  margin: 0;
+  font-size: 11px;
+  color: var(--texto-fraco);
+}
+
+/* ------------------------------------------------------------ bolinhas */
+
+.bolinha {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  margin-top: 4px;
+  background: var(--iniciando);
+}
+
+.bolinha-esperando { background: var(--esperando); }
+.bolinha-rodando   { background: var(--rodando); }
+.bolinha-terminou  { background: var(--terminou); }
+.bolinha-encerrada { background: var(--encerrada); }
+.bolinha-iniciando { background: var(--iniciando); }
+
+/* ----------------------------------------------------------- principal */
+
+#principal {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+}
+
+#barra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--borda);
+  background: var(--fundo-2);
+}
+
+#nome-feature {
+  width: 220px;
+  padding: 5px 9px;
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 5px;
+  color: var(--texto);
+  font: inherit;
+}
+
+#nome-feature:focus {
+  outline: none;
+  border-color: var(--realce);
+}
+
+#btn-novo {
+  padding: 5px 12px;
+  background: var(--fundo-3);
+  border: 1px solid var(--borda);
+  border-radius: 5px;
+  color: var(--texto);
+  font: inherit;
+  cursor: pointer;
+}
+
+#btn-novo:hover { border-color: var(--realce); }
+
+#barra-dica {
+  font-size: 11px;
+  color: var(--texto-fraco);
+}
+
+#barra-dica code {
+  background: var(--fundo-3);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* --------------------------------------------------------------- grade */
+
+#grade {
+  display: grid;
+  grid-template-columns: repeat(var(--colunas), minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.painel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--fundo);
+  border: 1px solid var(--borda);
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.painel-focado { border-color: var(--realce); }
+
+.painel-cab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  background: var(--fundo-2);
+  border-bottom: 1px solid var(--borda);
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.painel-cab .bolinha { margin-top: 0; }
+
+.painel-feature {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.painel-local {
+  color: var(--texto-fraco);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.painel-render {
+  font-size: 10px;
+  color: var(--texto-fraco);
+  border: 1px solid var(--borda);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.render-webgl { color: var(--rodando); }
+
+.painel-fechar {
+  background: none;
+  border: none;
+  color: var(--texto-fraco);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.painel-fechar:hover { color: var(--esperando); }
+
+.painel-term {
+  flex: 1;
+  min-height: 0;
+  padding: 4px 0 0 6px;
+  overflow: hidden;
+}
+
+.painel-term .xterm { height: 100%; }
+
+/* --------------------------------------------------------------- vazio */
+
+#vazio {
+  position: absolute;
+  inset: 45px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none;
+  color: var(--texto-fraco);
+}
+
+#vazio[hidden] { display: none; }
+.fraco { color: var(--encerrada); font-size: 12px; margin: 0; }
