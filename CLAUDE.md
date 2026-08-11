@@ -100,7 +100,14 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
   node-gyp e falha com `Could not find any Python installation to use`. Nao ha o que recompilar — o
   binario do `node-pty` e Node-API.
 - **`verifyUpdateCodeSignature: false`.** O padrao e `true` e, sem certificado, rejeitaria toda
-  atualizacao baixada. O preco de nao assinar e o aviso de "aplicativo desconhecido" do Windows.
+  atualizacao baixada.
+- **O app NAO e assinado, e no Windows 11 com Smart App Control ligado isso BLOQUEIA a instalacao** —
+  sem botao de contornar. Nao e o SmartScreen: o log do Code Integrity acusa
+  `did not meet the Enterprise signing level requirements`. Certificado autoassinado **nao** resolve
+  (o SAC so aceita CA do Microsoft Trusted Root Program, e so RSA), e o Azure Trusted Signing nao
+  atende o Brasil. Diagnostico com `npm run diagnostico`; opcoes em
+  `docs/instalacao-e-assinatura.md`. O build ja aceita `CSC_LINK`/`CSC_KEY_PASSWORD` quando houver
+  certificado.
 - **A janela carrega o xterm por `<script src="../../node_modules/...">`**, caminho que no app
   empacotado resolve **dentro do asar**. Funciona, mas e frageis a mudancas em `files:` — se a janela
   subir em branco no instalador, e aqui.

@@ -33,9 +33,27 @@ win:
   target: nsis
   icon: recursos/icone.ico
   artifactName: ${productName}-${version}-instalador.${ext}
-  # Sem certificado de assinatura, a verificacao rejeitaria toda atualizacao
-  # baixada (o padrao desta opcao e true). O preco de nao assinar e o aviso de
-  # "aplicativo desconhecido" do Windows na primeira execucao.
+
+  # ASSINATURA -- ver docs/instalacao-e-assinatura.md
+  #
+  # Sem assinar, o Smart App Control do Windows 11 BLOQUEIA a instalacao, e nao
+  # e o aviso do SmartScreen que da para contornar: o log do Code Integrity diz
+  # "did not meet the Enterprise signing level requirements" e a caixa nao tem
+  # botao de "executar assim mesmo".
+  #
+  # Certificado AUTOASSINADO NAO resolve: o SAC so aceita certificado emitido
+  # por CA do Microsoft Trusted Root Program, e nao consulta a loja de confianca
+  # local. Tambem precisa ser RSA -- o SAC nao suporta ECC.
+  #
+  # Para assinar, basta definir as variaveis de ambiente antes do build:
+  #   CSC_LINK          caminho (ou base64) do .pfx
+  #   CSC_KEY_PASSWORD  senha do .pfx
+  # O electron-builder as usa sozinho; nenhuma opcao a mais e necessaria aqui.
+  #
+  # Com certificado em TOKEN DE HARDWARE (obrigatorio para OV/EV desde 2023) nao
+  # ha .pfx para exportar: aí a assinatura sai por `signtoolOptions` com
+  # `certificateSubjectName`, e SO funciona na maquina com o token plugado --
+  # o build do CI nao consegue assinar. Ver o documento.
   verifyUpdateCodeSignature: false
 
 nsis:

@@ -70,6 +70,15 @@ jobs:
         run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Assina se os secrets existirem; sem eles o build sai sem assinatura
+          # e o Smart App Control bloqueia a instalacao no Windows 11.
+          # Ver docs/instalacao-e-assinatura.md.
+          #
+          # Só serve para certificado em arquivo (.pfx em base64). Certificado
+          # em token de hardware nao pode ser usado aqui: exige o token fisico
+          # plugado, e nesse caso a assinatura tem de ser feita localmente.
+          CSC_LINK: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
 
       # Sem esta conferencia, uma release quebrada passa despercebida: o build
       # fica verde e so o usuario descobre, quando a atualizacao nunca chega.
