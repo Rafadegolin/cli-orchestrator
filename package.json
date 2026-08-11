@@ -1,6 +1,6 @@
 {
   "name": "orquestrador-clis",
-  "version": "0.1.16",
+  "version": "0.1.17",
   "private": true,
   "description": "Orquestrador de sessoes do Claude Code em grade",
   "author": "Rafael Degolin <rafaeldegolin26@hotmail.com>",
