@@ -81,10 +81,38 @@ function encerrar(rotulo) {
 
 const esperar = (ms) => new Promise((s) => setTimeout(s, ms));
 
+// Traz a janela para frente e espera ela realmente estar desenhando.
+//
+// OBRIGATORIO em qualquer teste que dependa de layout. O Chromium PAUSA os
+// passos de renderizacao quando a janela esta em segundo plano, e junto com
+// eles para de entregar IntersectionObserver e ResizeObserver -- entao painel
+// rolado para fora nunca e marcado invisivel, e resize nunca reflui. O sintoma
+// e um teste que falha sem nada ter mudado no app.
+//
+// E a mesma familia do clamp de setTimeout para ~1/s em segundo plano.
+async function aoFrente(cdp, ms = 6000) {
+  await cdp.enviar('Page.enable').catch(() => {});
+  await cdp.enviar('Page.bringToFront').catch(() => {});
+  await cdp.avaliar('window.orq.focarJanela()').catch(() => {});
+
+  const limite = Date.now() + ms;
+  while (Date.now() < limite) {
+    // Timer nao limitado e o sinal de que a renderizacao voltou a rodar.
+    const clamp = await cdp.avaliar(`(async () => {
+      const t0 = performance.now();
+      for (let i = 0; i < 4; i++) await new Promise(r => setTimeout(r, 2));
+      return (performance.now() - t0) / 4;
+    })()`);
+    if (clamp < 100) return true;
+    await esperar(300);
+  }
+  return false;
+}
+
 // Limpa a grade entre testes.
 async function zerarGrade(cdp) {
   await cdp.avaliar(`(() => { for (const p of [...window.OrqGrade.painelPorId.values()]) p.destruir(); return 'ok'; })()`);
   await esperar(1500);
 }
 
-module.exports = { conectar, checar, encerrar, esperar, zerarGrade, PORTA_CDP };
+module.exports = { conectar, checar, encerrar, esperar, zerarGrade, aoFrente, PORTA_CDP };

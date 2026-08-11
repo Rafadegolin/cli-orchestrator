@@ -41,6 +41,8 @@ projeto não brigam pelos arquivos nem pela porta 3000.
 
 4. Rode **`Orquestrador.exe`**. Se quiser atalho no menu iniciar, crie um manualmente.
 
+Na primeira vez, **F1** abre o manual completo dentro do próprio app.
+
 Requisitos: Windows 10 ou 11, e o [Claude Code](https://claude.com/claude-code) instalado e
 autenticado. O app não precisa de Node.
 
@@ -76,6 +78,14 @@ cursor lá. Quando o app não está em primeiro plano, você recebe notificaçã
 
 **Feche sem medo.** O arranjo é salvo. Ao reabrir, os painéis voltam adormecidos com um botão de
 retomar — e um "Retomar todas" na lateral.
+
+### Ajuda dentro do app
+
+**F1**, ou o botão **Ajuda** no rodapé da lateral. É o manual completo — cada recurso, os atalhos, as
+portas, os hooks e uma seção de problemas comuns com sintoma e causa.
+
+Os números que ela cita (portas, limites, caminho da pasta de dados) são lidos do app em execução, não
+copiados à mão, então não envelhecem quando o código muda.
 
 ### Portas
 
@@ -130,6 +140,7 @@ npm run teste:fase7         # sessao salva, painel dormindo, retomar
 npm run teste:projetos      # cadastro e comando inicial
 npm run teste:portas        # dois servidores no ar ao mesmo tempo
 npm run teste:worktrees     # listar, recusar e arquivar
+npm run teste:ajuda         # a ajuda, e se os numeros dela batem com o codigo
 npm run teste:ligacoes      # mecanica das ligacoes
 npm run diagnostico         # por que o Windows bloqueou o instalador
 npm run perfil              # CPU e RAM por processo

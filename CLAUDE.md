@@ -35,6 +35,7 @@ npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
 npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
 npm run teste:fase7       # sessao salva, painel dormindo, retomar
+npm run teste:ajuda       # a ajuda no app, e se os numeros dela batem com o codigo
 npm run teste:ligacoes    # mecanica das ligacoes, sem invocar o Claude
 npm run teste:ligacoes-reais # com Claude de verdade: ~3min e consome tokens
 npm run perfil            # CPU/RAM POR PROCESSO (use -Json para consumir em script)
@@ -125,6 +126,19 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
 - Desinstalar roda `--remover-hooks` pelo `recursos/instalador.nsh`. Sem isso os hooks ficariam no
   `settings.json` para sempre e toda sessao pagaria ~310ms por evento falando com um app que nao
   existe mais.
+
+## A ajuda dentro do app
+
+`src/janela/ajuda.js`, aberta pelo botao na lateral ou por **F1**.
+
+O conteudo e uma **estrutura de dados**, nao HTML solto, e isso resolve dois problemas de uma vez:
+
+- **O indice se monta a partir das mesmas secoes que o corpo**, entao nao ha como um ficar sem o
+  outro. O teste confere que a contagem bate e que nenhum item aponta para secao inexistente.
+- **Os numeros vem das constantes reais** (`{portaBase}`, `{tetoFila}`, `{pastaDados}`…), servidas
+  pelo IPC `app:constantes`. Documentacao que repete constante a mao vira mentira na primeira
+  mudanca de codigo, e ninguem percebe. `npm run teste:ajuda` compara o texto renderizado com os
+  valores que o app usa de verdade, e falha se divergirem ou se algum `{marcador}` escapar.
 
 ## Ligar sessoes entre repositorios
 
@@ -435,9 +449,15 @@ Perfile por processo antes de mexer no pipeline de render.
 
 Tres formas de obter numero falso, todas ja encontradas:
 
-1. **Janela em segundo plano.** O Chromium limita `setTimeout`/rAF a ~1/s e **toda** latencia abaixo
-   de 1s le exatamente ~1000ms. Meca por evento (`onWriteParsed`), nao por polling; `testes/metas.js`
-   traz a janela para frente e aborta se os timers ainda estiverem limitados.
+1. **Janela em segundo plano — a armadilha que mais custa tempo.** O Chromium PAUSA os passos de
+   renderizacao, e com eles:
+   - `setTimeout`/rAF caem para ~1/s, entao **toda** latencia abaixo de 1s le exatamente ~1000ms;
+   - **`IntersectionObserver` e `ResizeObserver` param de ser entregues** — painel rolado para fora
+     nunca e marcado invisivel, resize nunca reflui, e o teste falha sem nada ter mudado no app.
+
+   Use `aoFrente(cdp)` de `testes/cdp.js` em qualquer suite que dependa de layout (`fase1`, `fase6`,
+   `metas` ja usam). Ele traz a janela para frente e **confirma** que os timers voltaram ao normal
+   antes de seguir. Meca latencia por evento (`onWriteParsed`), nunca por polling.
 2. **`spawnSync` mentindo sobre o custo do hook.** Com args em array (`['cmd.exe','/c',cmd]`) o Node
    reescapa a string e destroi as aspas do `-H` (o curl descarta o cabecalho calado); com o corpo em
    `input:` (stdin em pipe) o curl espera EOF ate estourar o `-m`. Use um `.cmd` com o corpo por

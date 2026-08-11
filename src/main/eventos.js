@@ -96,30 +96,45 @@ function tratar(req, res) {
   req.on('error', finalizar);
 }
 
-function iniciar(callback) {
+// A porta e fixa (o comando do hook a leva embutida), entao reabrir o app antes
+// do processo anterior soltar o socket da EADDRINUSE -- e o usuario que so
+// fechou e abriu de novo cai num aviso de porta ocupada e fica sem bolinhas.
+// A instancia velha some em menos de um segundo; esperar por ela e mais honesto
+// que reclamar.
+const TENTATIVAS = 8;
+const MS_ENTRE_TENTATIVAS = 250;
+
+function tentarEscutar() {
+  return new Promise((ok, falha) => {
+    const s = http.createServer(tratar);
+    s.once('error', (err) => { s.close(); falha(err); });
+    s.listen(PORTA, ENDERECO, () => { servidor = s; ok(PORTA); });
+  });
+}
+
+async function iniciar(callback) {
   aoEvento = callback || null;
 
-  return new Promise((ok, falha) => {
-    servidor = http.createServer(tratar);
-
-    servidor.on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        falha(new Error(`porta ${PORTA} ocupada`));
-      } else {
-        falha(err);
-      }
-    });
-
-    servidor.listen(PORTA, ENDERECO, () => {
+  for (let i = 0; i < TENTATIVAS; i++) {
+    try {
+      await tentarEscutar();
       try {
         fs.mkdirSync(PASTA_CONFIG, { recursive: true });
         fs.writeFileSync(ARQ_PORTA, String(PORTA), 'utf8');
       } catch {
         // sem o arquivo o hook ainda funciona: a porta vai embutida no comando
       }
-      ok(PORTA);
-    });
-  });
+      return PORTA;
+    } catch (err) {
+      const ultima = i === TENTATIVAS - 1;
+      if (err.code !== 'EADDRINUSE' || ultima) {
+        throw err.code === 'EADDRINUSE'
+          ? new Error(`porta ${PORTA} ocupada por outro programa`)
+          : err;
+      }
+      await new Promise((s) => setTimeout(s, MS_ENTRE_TENTATIVAS));
+    }
+  }
 }
 
 function parar() {

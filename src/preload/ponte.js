@@ -42,6 +42,7 @@ contextBridge.exposeInMainWorld('orq', {
   hooksDesinstalar: () => ipcRenderer.invoke('hooks:desinstalar'),
 
   versao: () => ipcRenderer.invoke('app:versao'),
+  constantes: () => ipcRenderer.invoke('app:constantes'),
   atualizacaoSituacao: () => ipcRenderer.invoke('atualizacao:situacao'),
   atualizacaoVerificar: () => ipcRenderer.invoke('atualizacao:verificar'),
   atualizacaoAplicar: () => ipcRenderer.invoke('atualizacao:aplicar'),

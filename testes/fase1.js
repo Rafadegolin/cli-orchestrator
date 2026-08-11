@@ -3,7 +3,7 @@
 // enxurrada nao derruba nada.
 
 const path = require('path');
-const { conectar, checar, encerrar, esperar, zerarGrade } = require('./cdp');
+const { conectar, checar, encerrar, esperar, zerarGrade, aoFrente } = require('./cdp');
 const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
 
 (async () => {
@@ -45,6 +45,10 @@ const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
 
   // Resize: mexe na COLUNA DO GRID do pai -- mudar a largura da aside sozinha
   // nao altera o tamanho do painel.
+  // O reflow passa por ResizeObserver, que so e entregue com a janela em
+  // primeiro plano -- em segundo plano o Chromium pausa a renderizacao inteira.
+  await aoFrente(cdp);
+
   const antes = await cdp.avaliar(`window.__p.term.cols`);
   await cdp.avaliar(`document.getElementById('app').style.gridTemplateColumns = '560px 1fr'`);
 

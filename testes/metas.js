@@ -9,7 +9,7 @@
 
 const path = require('path');
 const { execSync } = require('child_process');
-const { conectar, esperar, zerarGrade } = require('./cdp');
+const { conectar, esperar, zerarGrade, aoFrente } = require('./cdp');
 const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
 
 function medir(seg = 0) {
@@ -21,26 +21,18 @@ function medir(seg = 0) {
 
 (async () => {
   const cdp = await conectar();
-  await cdp.enviar('Page.enable').catch(() => {});
-  await cdp.enviar('Page.bringToFront').catch(() => {});
-  await cdp.avaliar(`window.orq.focarJanela()`);
-  await esperar(1200);
+  await aoFrente(cdp);
 
   await zerarGrade(cdp);
   await cdp.avaliar(`(async () => { window.__p = await window.OrqGrade.criarPainel(
     { cwd: ${JSON.stringify(RAIZ)}, feature: 'metas' }); return 'ok'; })()`);
   await esperar(2500);
 
-  // Confere o clamp AQUI, e nao so no inicio: a janela pode ter perdido o
+  // Confere DE NOVO aqui, e nao so no inicio: a janela pode ter perdido o
   // primeiro plano no meio do caminho, e ai o callback do term.write() cai num
   // rAF limitado e a medida vira ~1000ms sem nenhum aviso.
-  const clamp = await cdp.avaliar(`(async () => {
-    const t0 = performance.now();
-    for (let i = 0; i < 5; i++) await new Promise(r => setTimeout(r, 2));
-    return (performance.now() - t0) / 5;
-  })()`);
-  if (clamp > 100) {
-    console.log(`\nCusto proprio do app: INDETERMINADO -- janela em segundo plano (setTimeout(2) = ${clamp.toFixed(0)}ms).`);
+  if (!(await aoFrente(cdp))) {
+    console.log('\nCusto proprio do app: INDETERMINADO -- janela em segundo plano (setTimeout limitado).');
     console.log('Traga a janela para frente e rode de novo; a ida e volta abaixo e medida por evento e continua valida.\n');
   }
 

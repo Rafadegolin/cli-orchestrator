@@ -13,6 +13,7 @@ const atualizacao = require('./atualizacao');
 const portas = require('./portas');
 const worktrees = require('./worktrees');
 const sessao = require('./sessao');
+const arquivo = require('./arquivo');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -298,6 +299,16 @@ ipcMain.handle('projetos:remover', async (_e, { id, confirmar = true } = {}) => 
 ipcMain.handle('app:estaFocado', () => Boolean(janela && janela.isFocused()));
 
 ipcMain.handle('app:versao', () => app.getVersion());
+
+// Os numeros que a tela de ajuda cita saem daqui, e nao digitados no texto:
+// documentacao que repete constante a mao vira mentira na primeira mudanca.
+ipcMain.handle('app:constantes', () => ({
+  portaBase: portas.BASE,
+  portasPorPainel: portas.POR_PAINEL,
+  portaEventos: eventos.PORTA,
+  pastaDados: arquivo.PASTA,
+  arquivoHooks: instalarHooks.ARQ_SETTINGS,
+}));
 
 ipcMain.handle('atualizacao:situacao', () => ({ ...atualizacao.situacao }));
 ipcMain.handle('atualizacao:verificar', () => { atualizacao.verificar(); return true; });

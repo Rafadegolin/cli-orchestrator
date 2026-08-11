@@ -24,6 +24,7 @@
       <button id="btn-retomar-todas" hidden></button>
       <button id="btn-atualizar" hidden></button>
       <button id="btn-hooks">Hooks: verificando...</button>
+      <button id="btn-ajuda">Como usar (F1)</button>
       <p class="lateral-dica">Ctrl+Enter pula para quem espera ha mais tempo</p>
       <p class="lateral-versao" id="lateral-versao"></p>
     </div>
@@ -54,7 +55,21 @@
 
     <div id="vazio">
       <p>Nenhum painel aberto.</p>
-      <p class="fraco">Escolha a pasta de um projeto para comecar.</p>
+      <p class="fraco">Cadastre um projeto na barra lateral para comecar.</p>
+      <p class="fraco"><a href="#" id="vazio-ajuda">Ver como usar o app</a></p>
+    </div>
+
+    <div id="ajuda" hidden>
+      <div class="ajuda-caixa">
+        <div class="ajuda-topo">
+          <h2>Como usar o Orquestrador</h2>
+          <button id="ajuda-fechar" title="Fechar (Esc)">×</button>
+        </div>
+        <div class="ajuda-conteudo">
+          <ol id="ajuda-indice"></ol>
+          <div id="ajuda-corpo"></div>
+        </div>
+      </div>
     </div>
   </main>
 </div>
@@ -70,3 +85,4 @@
 <script src="lateral.js"></script>
 <script src="projetos.js"></script>
 <script src="seletor-ligacoes.js"></script>
+<script src="ajuda.js"></script>

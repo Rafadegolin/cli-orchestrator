@@ -7,7 +7,7 @@
 // intermitente -- que e pior que teste nenhum.
 
 const path = require('path');
-const { conectar, checar, encerrar, esperar, zerarGrade } = require('./cdp');
+const { conectar, checar, encerrar, esperar, zerarGrade, aoFrente } = require('./cdp');
 
 const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
 
@@ -38,6 +38,12 @@ const buffer = (id) => `(() => {
 
 (async () => {
   const cdp = await conectar();
+
+  // Sem isto o IntersectionObserver nao e entregue e NADA aqui funciona: o
+  // Chromium pausa a renderizacao com a janela em segundo plano.
+  const frente = await aoFrente(cdp);
+  checar('a janela esta em primeiro plano (os observers dependem disso)', frente, '');
+
   await zerarGrade(cdp);
 
   // --- 1. grade rolavel ---------------------------------------------------

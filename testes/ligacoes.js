@@ -95,8 +95,15 @@ async function ateQue(cdp, expr, ms = 8000) {
   checar('o cabecalho mostra a contagem', etiqueta === '1 ligado', etiqueta);
 
   // --- 3. persistencia ----------------------------------------------------
-  await esperar(1200);
-  const salvos = lerSessao();
+  // Espera pela CONDICAO: a gravacao passa por um debounce de 500ms mais o IPC
+  // e a escrita atomica, e com a janela em segundo plano o timer do debounce
+  // ainda e limitado pelo Chromium. Tempo fixo aqui vira teste intermitente.
+  let salvos = [];
+  for (let i = 0; i < 40; i++) {
+    salvos = lerSessao();
+    if (salvos.filter((p) => (p.ligacoes || []).length > 0).length === 2) break;
+    await esperar(200);
+  }
   const comLig = salvos.filter((p) => (p.ligacoes || []).length > 0);
   checar('as ligacoes dos DOIS lados foram para o JSON', comLig.length === 2,
     JSON.stringify(salvos.map((p) => ({ f: p.feature, l: (p.ligacoes || []).length }))));
