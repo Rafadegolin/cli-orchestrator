@@ -39,6 +39,7 @@ npm run teste:ui          # tokens, tema, densidade, fontes e regras de compress
 npm run teste:ajuda       # a ajuda no app, e se os numeros dela batem com o codigo
 npm run teste:ligacoes    # mecanica das ligacoes, sem invocar o Claude
 npm run teste:ligacoes-reais # com Claude de verdade: ~3min e consome tokens
+npm run teste:aprovacao-reais # aprovar um pedido real: ~2min e consome tokens
 npm run perfil            # CPU/RAM POR PROCESSO (use -Json para consumir em script)
 npm run teste:metas       # latencia de tecla e CPU sob carga (leva ~90s)
 node testes/arvore.js     # fechar painel mata a arvore de processos
@@ -202,6 +203,54 @@ A tela responde "para onde eu olho agora?" sem voce procurar.
 - **A pill do cabecalho diz o PROJETO** (`OrqProjetos.projetoDe`, casando pelo prefixo mais
   especifico). Para painel de worktree o cwd e `<projeto>/.claude/worktrees/<feat>`, entao o nome
   curto da pasta era o nome da feature — repetido logo ao lado, sem informar nada.
+
+### Fatia 3: aprovar sem entrar no terminal
+
+`src/janela/aprovacao.js`. E a UNICA parte do app que escreve no PTY por conta propria, e por isso
+tudo aqui foi MEDIDO contra o CLI real, num spike, antes de qualquer codigo.
+
+**O prompt de permissao tem esta forma** (capturada, nao suposta):
+
+```
+ Do you want to create marca.txt?
+ ❯ 1. Yes
+   2. Yes, allow all edits during this session (shift+tab)
+   3. No
+ Esc to cancel · Tab to amend
+```
+
+Tres achados que mudaram o desenho:
+
+1. **`\r` SOZINHO NAO APROVA.** Medido: o Enter deixa o prompt identico na tela e a acao nao
+   acontece. Quem aceita a opcao 1 e o **digito `1`**, sozinho, sem Enter depois. Isso e diferente
+   da confirmacao do `/add-dir`, que responde ao Enter — sao dois widgets diferentes do mesmo CLI, e
+   e exatamente por isso que os dois precisaram ser medidos separadamente.
+   Consequencia boa: se a trava falhar, o `1` vira o caractere "1" na caixa de entrada — visivel,
+   inofensivo e **nao enviado**. O desenho inicial, com Enter, mandaria mensagem vazia.
+2. **O `message` do hook e generico** (`Claude needs your permission`). A pergunta de verdade esta no
+   buffer, na linha `Do you want to ...?` — e e ela que a faixa mostra, porque aprovar sem saber o
+   que se aprova nao e aprovar. O `message` fica de reserva ate a leitura acontecer.
+3. **`echo` nao serve de provocacao em teste**: o CLI o executa sem pedir permissao, e a sessao
+   nunca fica `esperando`. Escrever arquivo (ferramenta Write) pede.
+
+**A trava:** `aprovar()` reconfere o buffer no momento do CLIQUE, nao no momento em que a faixa
+apareceu — entre voce responder no proprio terminal e o hook avisar o app existe cerca de um segundo
+em que a faixa ainda esta la. Sem as duas marcas na tela, **nao escreve nada**: foca o painel e
+avisa por toast. E **nunca a opcao 2**, que mudaria o comportamento da sessao inteira.
+
+**`permissao` e `ocioso` nao sao a mesma coisa.** Os dois viram `esperando` e entram na fila, mas so
+o primeiro tem o que aprovar — sessao ociosa espera voce DIGITAR. A faixa do `ocioso` vem sem botao.
+
+**O espaco da faixa e reservado sempre** (`.painel-rodape`, `flex: 0 0 34px`), vazia com o fundo do
+terminal. Se ela entrasse e saisse, a altura do terminal mudaria a cada ida e volta de `esperando`,
+disparando `fit()` e `pty.resize()` **no exato momento em que o prompt esta na tela** — o pior
+instante para a TUI do Claude redesenhar. Custa 13% da altura na densidade 3, e vale.
+
+**`Painel.textoDoBuffer()`** e a unica leitura de buffer do app. Ela descarrega os bytes pendentes
+antes de ler: painel fora da vista nao escreve no xterm (Fase 6.1), entao ler `term.buffer` direto
+devolvia texto velho — defeito que ja existia calado na confirmacao do `/add-dir`. O `term.write` do
+xterm e **assincrono**, entao o que o flush entregou aparece no passo seguinte do parser; por isso
+todo mundo que espera algo no buffer usa laco com intervalo, nunca uma leitura unica.
 
 ### Texto: acento so no que o usuario le
 
@@ -576,6 +625,13 @@ Tres formas de obter numero falso, todas ja encontradas:
    reescapa a string e destroi as aspas do `-H` (o curl descarta o cabecalho calado); com o corpo em
    `input:` (stdin em pipe) o curl espera EOF ate estourar o `-m`. Use um `.cmd` com o corpo por
    redirecionamento de arquivo.
+3. **`comando < arquivo` quando o comando termina em `|| exit 0`.** O redirecionamento cola no
+   `exit`, e nao no `curl` — que le um stdin vazio e manda `content-length: 0`. O corpo do hook
+   nunca chegava, **e nada denunciava**: evento e tipo vao na URL, entao o status mudava do mesmo
+   jeito e so o `cwd` e a pergunta se perdiam. Agrupe: `sh -c '{ CMD ; } < arquivo'`.
+   O teste que deveria ter pego isso (`resolucao por cwd descendente`) so contava *quantos* painéis
+   estavam esperando, e passava com o amarelo que sobrou dos hooks anteriores. Um teste que nao zera
+   o estado antes nao esta testando — esta torcendo.
 3. **PowerShell aninhado em string.** `-Filter "Name='electron.exe'"` dentro de `powershell -Command`
    perde as aspas e devolve 0, e um teste de RAM passa vazio. Use `-File` com um `.ps1`.
 4. **`sh` nao esta no PATH do PowerShell.** `spawnSync('sh', ...)` devolve `status: null` e o teste

@@ -1052,6 +1052,74 @@ button.primario:hover {
 
 .painel-term .xterm { height: 100%; }
 
+/* --------------------------------------------------- faixa de aprovacao */
+
+/* O ESPACO E RESERVADO SEMPRE. Vazia, ela usa o fundo do terminal e parece so
+   uma folga embaixo; com pedido, acende em ambar. Fazer a faixa entrar e sair
+   mudaria a altura do terminal a cada ida e volta de 'esperando', disparando
+   pty.resize() no exato momento em que o prompt de permissao esta na tela. */
+.painel-rodape {
+  flex: 0 0 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  min-width: 0;
+  background: var(--term);
+  border-top: 1px solid transparent;
+  transition: background .18s ease, border-color .18s ease;
+}
+
+.painel-rodape.tem-pedido {
+  background: var(--warnd);
+  border-top-color: var(--warn-linha);
+}
+
+.rodape-pergunta {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--warn);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rodape-acoes {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+}
+
+.rodape-aprovar {
+  background: var(--warn);
+  border: none;
+  border-radius: 7px;
+  color: var(--warn-texto);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 12px;
+}
+
+.rodape-aprovar:hover { filter: brightness(1.08); }
+
+.rodape-ver {
+  background: none;
+  border: 1px solid var(--warn-linha);
+  border-radius: 7px;
+  color: var(--warn);
+  font-size: 11px;
+  padding: 5px 10px;
+}
+
+.rodape-ver:hover { background: rgba(255, 180, 84, .14); }
+
+/* Painel muito estreito: a pergunta cede, os botoes nao. */
+@container (max-width: 260px) {
+  .rodape-pergunta { display: none; }
+}
+
 /* ------------------------------------------------------ painel adormecido */
 
 .painel-dormindo {
@@ -1236,6 +1304,41 @@ button.primario:hover {
 
 .vazio-fatos .mono { font-size: 11px; color: var(--acc); }
 .vazio-fatos div span:last-child { font-size: 11.5px; color: var(--fg3); }
+
+/* ================================================================ toast */
+
+#toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--glass);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  padding: 11px 18px;
+  font-size: 12.5px;
+  color: var(--fg);
+  box-shadow: var(--shadow);
+  animation: orqUp .22s ease;
+}
+
+.toast-ponto {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--acc);
+  flex: 0 0 6px;
+}
+
+@keyframes orqUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%); }
+}
 
 /* ============================================================= overlays */
 

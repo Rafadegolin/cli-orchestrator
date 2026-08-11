@@ -18,6 +18,7 @@
   const elNum = document.getElementById('placar-num');
   const elCpu = document.getElementById('placar-cpu');
   const elCarga = document.getElementById('placar-carga');
+  const elToast = document.getElementById('toast');
 
   const SEGMENTOS = 14;
   // As tres ultimas casas viram ambar: a barra tem de dizer "esta apertando"
@@ -101,6 +102,27 @@
     elNum.textContent = String(n);
   }
 
+  // --------------------------------------------------------------- toast
+
+  // Confirma acao concluida cujo efeito nao esta todo a vista, e -- mais
+  // importante aqui -- da resposta visivel quando o app SE RECUSA a fazer algo.
+  const MS_TOAST = 2200;
+  let timerToast = null;
+
+  function mostrarToast(texto) {
+    if (!texto) return;
+    elToast.textContent = '';
+    const ponto = document.createElement('span');
+    ponto.className = 'toast-ponto';
+    const msg = document.createElement('span');
+    msg.textContent = texto;
+    elToast.append(ponto, msg);
+    elToast.hidden = false;
+
+    clearTimeout(timerToast);
+    timerToast = setTimeout(() => { elToast.hidden = true; }, MS_TOAST);
+  }
+
   // ---------------------------------------------------------------- dica
 
   function atualizarDica() {
@@ -154,6 +176,8 @@
     nucleos: 0,
     SEGMENTOS,
   };
+
+  window.OrqToast = { mostrar: mostrarToast, MS_TOAST };
 
   // Estado inicial: aplica o padrao ja (a tela nao pode nascer sem densidade) e
   // corrige quando o disco responder.

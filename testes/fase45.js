@@ -31,12 +31,22 @@ const SH = acharSh();
 // Dispara o hook exatamente como o Claude Code faz: shell POSIX, JSON no stdin
 // por redirecionamento de arquivo (com stdin em pipe o curl espera o EOF e a
 // medida de tempo mente).
-function dispararHook(evento, tipo, { orqId = '', cwd = '' } = {}) {
+function dispararHook(evento, tipo, { orqId = '', cwd = '', message = '' } = {}) {
   const cmd = hooks.comando(evento, tipo);
   const arq = path.join(__dirname, '.corpo-hook.json');
-  fs.writeFileSync(arq, JSON.stringify({ hook_event_name: evento, cwd, session_id: 'sess-teste' }), 'utf8');
+  // `message` e o que o Claude manda no corpo do hook de notificacao, e o que
+  // a faixa de aprovacao mostra.
+  fs.writeFileSync(arq, JSON.stringify({
+    hook_event_name: evento, cwd, session_id: 'sess-teste', message,
+  }), 'utf8');
+  // O redirecionamento tem de valer para o GRUPO, e nao para o ultimo comando.
+  // O comando do hook termina em `|| exit 0`, entao `cmd < arquivo` ligava o
+  // arquivo ao `exit`, e o curl lia um stdin vazio: mandava content-length 0 e
+  // o corpo do hook nunca chegava. Passou despercebido porque o evento e o tipo
+  // vao na URL, entao o status mudava do mesmo jeito -- so o cwd e a pergunta
+  // se perdiam, em silencio.
   const t0 = Date.now();
-  const r = spawnSync(SH, ['-c', `${cmd} < "${arq.replace(/\\/g, '/')}"`], {
+  const r = spawnSync(SH, ['-c', `{ ${cmd} ; } < "${arq.replace(/\\/g, '/')}"`], {
     env: { ...process.env, ORQ_ID: orqId }, encoding: 'utf8', timeout: 10000,
   });
   fs.rmSync(arq, { force: true });
@@ -103,6 +113,24 @@ function dispararHook(evento, tipo, { orqId = '', cwd = '' } = {}) {
     bloco.visivel && bloco.itens === 2 && bloco.contagem === '2', JSON.stringify(bloco));
   checar('com o mais antigo no topo da fila', bloco.primeiro === 'beta', bloco.primeiro);
 
+  // A pergunta que o Claude manda no corpo do hook chega ate a faixa. Prova o
+  // caminho inteiro: curl -> eventos -> estado -> diff -> tela.
+  dispararHook('Notification', 'permissao', {
+    orqId: ids[2], message: 'Claude needs your permission to use Bash',
+  });
+  await esperar(700);
+  const faixa = JSON.parse(await cdp.avaliar(`(() => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(ids[2])});
+    return JSON.stringify({
+      acesa: p.elRodape.classList.contains('tem-pedido'),
+      texto: p.elRodape.querySelector('.rodape-pergunta')?.textContent || '',
+      aprovar: !!p.elRodape.querySelector('.rodape-aprovar'),
+    });
+  })()`));
+  checar('a pergunta do corpo do hook chega na faixa de aprovacao',
+    faixa.acesa && faixa.aprovar && faixa.texto === 'Claude needs your permission to use Bash',
+    JSON.stringify(faixa));
+
   checar('Ctrl+Enter foca quem espera ha mais tempo',
     await cdp.avaliar(`window.OrqLateral.pularParaMaisAntigo()`) === ids[1]);
   checar('o painel certo ficou com o foco visual',
@@ -115,11 +143,24 @@ function dispararHook(evento, tipo, { orqId = '', cwd = '' } = {}) {
 
   // Sem ORQ_ID, resolve pelo cwd descendente -- o caso do worktree, que o
   // `claude -w` cria em .claude/worktrees/<nome> DENTRO do projeto.
+  //
+  // Zera TODOS antes: a versao anterior deste teste so contava quantos estavam
+  // esperando, e passava mesmo quando a resolucao por cwd nao acontecia --
+  // sobrava alguem amarelo dos hooks anteriores. Foi assim que a perda do corpo
+  // do hook (curl com stdin vazio) ficou invisivel.
+  //
+  // Zerar por HOOK, e nao por OrqLateral.definirStatus: o estado que decide se
+  // ha diff a emitir mora no processo principal, e mexer so na janela deixa os
+  // dois em desacordo -- o hook seguinte vira no-op e o teste falha sem que o
+  // app tenha nada de errado.
+  for (const id of ids) dispararHook('UserPromptSubmit', '', { orqId: id });
+  await esperar(500);
+
   dispararHook('Notification', 'permissao', { orqId: '', cwd: `${RAIZ_URL}/.claude/worktrees/qualquer` });
   await esperar(700);
   const algum = JSON.parse(await cdp.avaliar(`JSON.stringify([...window.OrqLateral.cards.values()].map(c => c.status))`));
-  checar('sem ORQ_ID, o cwd descendente achou um painel',
-    algum.filter((s) => s === 'esperando').length >= 1, JSON.stringify(algum));
+  checar('sem ORQ_ID, o cwd descendente achou UM painel',
+    algum.filter((s) => s === 'esperando').length === 1, JSON.stringify(algum));
 
   encerrar('FASE45');
 })().catch((e) => { console.error('ERRO', e.message); process.exit(3); });

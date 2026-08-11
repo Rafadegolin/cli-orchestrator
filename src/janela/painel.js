@@ -170,7 +170,16 @@ class Painel {
     // terminal, sem depender de adivinhar a altura do cabecalho.
     this.elTerm.append(this.elDormindo);
 
-    raiz.append(cab, this.elTerm);
+    // A faixa de aprovacao. O ESPACO E RESERVADO SEMPRE, mesmo vazia: se ela
+    // entrasse e saisse, a altura do terminal mudaria a cada ida e volta de
+    // 'esperando', disparando fit() e pty.resize() no exato momento em que o
+    // prompt de permissao esta na tela -- que e o pior instante possivel para a
+    // TUI do Claude redesenhar. Vazia, ela usa o fundo do terminal e parece
+    // apenas uma folga embaixo.
+    this.elRodape = document.createElement('div');
+    this.elRodape.className = 'painel-rodape';
+
+    raiz.append(cab, this.elTerm, this.elRodape);
 
     // Clicar em qualquer lugar do painel da foco ao terminal. So o painel
     // focado recebe teclado -- quem cuida disso e o proprio xterm.
@@ -300,16 +309,38 @@ class Painel {
     this._dispararPrimeiroDado();
   }
 
+  // O texto que esta na tela do terminal, com os bytes pendentes ja aplicados.
+  //
+  // O flush NAO e detalhe: painel fora da vista nao escreve no xterm (os bytes
+  // esperam em `pendentes` ate ele voltar), entao ler `term.buffer` direto
+  // devolveria texto velho. Quem le o buffer usa isto para decidir se responde
+  // a uma sessao -- e decidir por texto velho e responder ao pedido errado.
+  //
+  // O `term.write` do xterm e ASSINCRONO: o que este flush entregou aparece no
+  // buffer no proximo passo do parser, nao nesta chamada. Por isso todo mundo
+  // que espera algo aqui usa laco com intervalo (`esperarPedido`,
+  // `esperarNoBuffer`) -- uma leitura unica logo apos o flush le o passado.
+  textoDoBuffer() {
+    if (this.encerrado || !this.term) return '';
+    this.descarregarPendentes();
+    const b = this.term.buffer.active;
+    let t = '';
+    for (let i = 0; i < b.length; i++) t += `${b.getLine(i).translateToString(true)}\n`;
+    return t;
+  }
+
   definirVisivel(visivel) {
     if (this.encerrado || this.visivel === visivel) return;
     this.visivel = visivel;
-    if (visivel) this._descarregarPendentes();
+    if (visivel) this.descarregarPendentes();
     // A visibilidade manda no orcamento de WebGL: nao faz sentido um painel
     // fora da vista segurar contexto enquanto um visivel desenha em canvas.
     rebalancearRenderizadores();
   }
 
-  _descarregarPendentes() {
+  // Publico desde que textoDoBuffer() precisa dele: ler o buffer sem aplicar o
+  // que esta pendente devolve o passado.
+  descarregarPendentes() {
     if (!this.pendentes.length) return;
     const total = this.pendentesBytes;
     const junto = new Uint8Array(total);
@@ -364,6 +395,10 @@ class Painel {
     this.dormindo = true;
     this.elDormindo.hidden = false;
     this.elDormindo.replaceChildren();
+    // Sem PTY nao ha o que aprovar nem resize com que se preocupar: aqui a
+    // faixa some de vez e devolve os 34px para o convite de retomar.
+    this.limparAprovacao();
+    this.elRodape.hidden = true;
 
     const titulo = document.createElement('p');
     titulo.className = 'dormindo-titulo';
@@ -398,7 +433,57 @@ class Painel {
     this.dormindo = false;
     this.elDormindo.hidden = true;
     this.elDormindo.replaceChildren();
+    this.elRodape.hidden = false;
     rebalancearRenderizadores();
+  }
+
+  // ------------------------------------------------- faixa de aprovacao
+
+  // `aoAprovar` so e passado quando ha o que aprovar (pedido de permissao).
+  // Sessao apenas ociosa esta esperando voce DIGITAR, nao confirmar: ali a
+  // faixa aparece com a pergunta e sem o botao.
+  mostrarAprovacao({ pergunta, aoAprovar, aoVer }) {
+    this.elRodape.classList.add('tem-pedido');
+    this.elRodape.replaceChildren();
+
+    this.elPergunta = document.createElement('span');
+    this.elPergunta.className = 'rodape-pergunta';
+    this.elPergunta.textContent = pergunta || 'Esperando você';
+    this.elPergunta.title = this.elPergunta.textContent;
+
+    const acoes = document.createElement('span');
+    acoes.className = 'rodape-acoes';
+
+    if (aoAprovar) {
+      const btn = document.createElement('button');
+      btn.className = 'rodape-aprovar';
+      btn.textContent = 'Aprovar';
+      btn.title = 'Responde "1. Yes" ao pedido que está na tela do terminal';
+      btn.addEventListener('click', (ev) => { ev.stopPropagation(); aoAprovar(); });
+      acoes.append(btn);
+    }
+
+    const ver = document.createElement('button');
+    ver.className = 'rodape-ver';
+    ver.textContent = 'Ver';
+    ver.title = 'Leva o cursor para este terminal, sem responder nada';
+    ver.addEventListener('click', (ev) => { ev.stopPropagation(); (aoVer || (() => this.focar()))(); });
+    acoes.append(ver);
+
+    this.elRodape.append(this.elPergunta, acoes);
+  }
+
+  atualizarPergunta(texto) {
+    if (this.elPergunta && texto) {
+      this.elPergunta.textContent = texto;
+      this.elPergunta.title = texto;
+    }
+  }
+
+  limparAprovacao() {
+    this.elRodape.classList.remove('tem-pedido');
+    this.elRodape.replaceChildren();
+    this.elPergunta = null;
   }
 
   // posicao 0 esconde a etiqueta. `aoForcar` e o escape manual.

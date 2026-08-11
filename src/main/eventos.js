@@ -70,9 +70,13 @@ function tratar(req, res) {
       let json = {};
       try {
         json = corpo ? JSON.parse(corpo) : {};
-      } catch {
+      } catch (err) {
+        // Corpo ilegivel some em silencio e leva junto o cwd e a pergunta, sem
+        // nada explicando por que a faixa de aprovacao ficou generica.
+        console.error(`[eventos] corpo do hook ilegivel (${corpo.length}B):`, err.message);
         json = {};
       }
+      if (!corpo) console.error(`[eventos] ${evento}/${tipo}: corpo VAZIO`);
 
       const r = estado.aplicar({
         evento: evento || json.hook_event_name || '',
@@ -80,6 +84,9 @@ function tratar(req, res) {
         cwd: json.cwd || '',
         orqId,
         sessionId: json.session_id,
+        // A frase que o Claude mostraria na notificacao do sistema. E o que a
+        // faixa de aprovacao exibe -- sem isto ela so teria "Esperando voce".
+        mensagem: typeof json.message === 'string' ? json.message : '',
       });
 
       if (aoEvento) aoEvento({ evento, tipo, orqId, cwd: json.cwd, resultado: r });

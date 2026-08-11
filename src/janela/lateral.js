@@ -52,14 +52,19 @@ function remover(id) {
   redesenhar();
 }
 
-function definirStatus(id, status, motivo = '', desde = Date.now()) {
+function definirStatus(id, status, motivo = '', desde = Date.now(), extra = {}) {
   const c = cards.get(id);
   if (!c) return;
   c.status = status;
   c.motivo = motivo;
   c.desde = desde;
+  // A pergunta do Claude e o tipo de espera: `permissao` tem o que aprovar,
+  // `ocioso` esta so esperando voce digitar.
+  c.pergunta = extra.pergunta || '';
+  c.tipo = extra.tipo || '';
 
   window.OrqPainel.painelPorId.get(id)?.definirStatus(status, rotuloDe(c), motivo);
+  window.OrqAprovacao?.atualizar(id, c);
 
   if (status === 'esperando') avisar(c);
   else jaAvisado.delete(id);
@@ -269,8 +274,9 @@ window.addEventListener('keydown', (ev) => {
   }
 });
 
-// Diffs vindos do processo principal: { id, status, motivo, desde }.
-window.orq.aoMudarEstado(({ id, status, motivo, desde }) => definirStatus(id, status, motivo, desde));
+// Diffs vindos do processo principal: { id, status, motivo, desde, pergunta, tipo }.
+window.orq.aoMudarEstado(({ id, status, motivo, desde, pergunta, tipo }) =>
+  definirStatus(id, status, motivo, desde, { pergunta, tipo }));
 
 btnHooks?.addEventListener('click', async () => {
   const s = await window.orq.hooksSituacao();

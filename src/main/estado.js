@@ -29,6 +29,10 @@ function registrar(id, { feature, cwd }) {
     cwd: normalizar(cwd),
     status: 'iniciando',
     motivo: '',
+    // O que o Claude esta perguntando, e de que tipo de espera se trata.
+    // `permissao` tem o que aprovar; `ocioso` so esta esperando voce digitar.
+    pergunta: '',
+    tipo: '',
     desde: Date.now(),
   });
 }
@@ -94,7 +98,7 @@ function statusDe(evento, tipo) {
   }
 }
 
-function aplicar({ evento, tipo, cwd, orqId, sessionId }) {
+function aplicar({ evento, tipo, cwd, orqId, sessionId, mensagem = '' }) {
   const id = resolver({ orqId, cwd });
   if (!id) return { id: null, mudou: false };
 
@@ -108,16 +112,28 @@ function aplicar({ evento, tipo, cwd, orqId, sessionId }) {
   // o painel passa a viver no worktree.
   if (cwd) s.cwdSessao = normalizar(cwd);
 
+  // A pergunta so faz sentido enquanto a sessao espera; sair de 'esperando'
+  // limpa, senao a faixa de aprovacao mostraria pergunta de dez minutos atras.
+  const pergunta = alvo.status === 'esperando' ? mensagem : '';
+  const tipoEspera = alvo.status === 'esperando' ? tipo : '';
+
   const mudouStatus = s.status !== alvo.status;
   const mudouMotivo = s.motivo !== alvo.motivo;
-  if (!mudouStatus && !mudouMotivo) return { id, mudou: false };
+  // Duas perguntas seguidas do mesmo tipo nao mudam status nem motivo, e a
+  // faixa ficaria com a pergunta anterior se a comparacao parasse nos dois.
+  const mudouPergunta = s.pergunta !== pergunta || s.tipo !== tipoEspera;
+  if (!mudouStatus && !mudouMotivo && !mudouPergunta) return { id, mudou: false };
 
   s.status = alvo.status;
   s.motivo = alvo.motivo;
+  s.pergunta = pergunta;
+  s.tipo = tipoEspera;
   // O cronometro do card amarelo so reinicia quando o status muda de verdade.
   if (mudouStatus) s.desde = Date.now();
 
-  emitir('estado:diff', { id, status: s.status, motivo: s.motivo, desde: s.desde });
+  emitir('estado:diff', {
+    id, status: s.status, motivo: s.motivo, desde: s.desde, pergunta: s.pergunta, tipo: s.tipo,
+  });
   return { id, mudou: true, status: s.status };
 }
 

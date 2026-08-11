@@ -76,6 +76,11 @@ de reexplicar o contrato da API uma para a outra.
 **Atenda a fila.** `Ctrl+Enter` pula direto para a sessão que está esperando há mais tempo e põe o
 cursor lá. Quando o app não está em primeiro plano, você recebe notificação do sistema.
 
+**Aprove sem entrar no terminal.** Quando o Claude pede permissão, a pergunta aparece no rodapé do
+painel com os botões **Aprovar** e **Ver**. Aprovar responde "1. Yes" ao pedido que está na tela —
+nunca "não perguntar mais", e nunca às cegas: se o app não achar o pedido no terminal, ele não
+escreve nada e leva você até lá.
+
 **Feche sem medo.** O arranjo é salvo. Ao reabrir, os painéis voltam adormecidos com um botão de
 retomar — e um "Retomar todas" na lateral.
 

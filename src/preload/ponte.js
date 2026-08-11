@@ -18,7 +18,8 @@ contextBridge.exposeInMainWorld('orq', {
   aoReceberDados: (fn) => ipcRenderer.on('terminal:dados', (_e, lote) => fn(lote)),
   aoTerminar: (fn) => ipcRenderer.on('terminal:fim', (_e, info) => fn(info)),
 
-  // Status vem como DIFF ({ id, status, motivo, desde }), nunca a lista toda.
+  // Status vem como DIFF ({ id, status, motivo, desde, pergunta, tipo }), nunca
+  // a lista toda.
   aoMudarEstado: (fn) => ipcRenderer.on('estado:diff', (_e, diff) => fn(diff)),
   estadoAtual: () => ipcRenderer.invoke('estado:todas'),
 

@@ -47,19 +47,14 @@ async function enviarLinha(id, texto) {
   window.orq.escrever(id, '\r');
 }
 
-function bufferDe(id) {
-  const p = painel(id);
-  if (!p || !p.term) return '';
-  const b = p.term.buffer.active;
-  let t = '';
-  for (let i = 0; i < b.length; i++) t += `${b.getLine(i).translateToString(true)}\n`;
-  return t;
-}
-
+// A leitura mora no Painel (`textoDoBuffer`), que e quem sabe se ha bytes
+// pendentes por o painel estar fora da vista. Ler `term.buffer` daqui direto,
+// como era antes, devolvia texto velho nesse caso -- e a confirmacao do
+// /add-dir podia nunca ser encontrada.
 async function esperarNoBuffer(id, trecho, ms) {
   const fim = Date.now() + ms;
   while (Date.now() < fim) {
-    if (bufferDe(id).includes(trecho)) return true;
+    if ((painel(id)?.textoDoBuffer() || '').includes(trecho)) return true;
     await new Promise((r) => setTimeout(r, 300));
   }
   return false;

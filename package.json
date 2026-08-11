@@ -26,6 +26,7 @@
     "teste:ajuda": "node testes/ajuda.js",
     "teste:ligacoes": "node testes/ligacoes.js",
     "teste:ligacoes-reais": "node testes/ligacoes-reais.js",
+    "teste:aprovacao-reais": "node testes/aprovacao-reais.js",
     "perfil": "powershell -NoProfile -ExecutionPolicy Bypass -File testes/perfil.ps1",
     "diagnostico": "powershell -NoProfile -ExecutionPolicy Bypass -File testes/diagnostico-assinatura.ps1",
     "teste:worktrees": "node testes/worktrees.js",

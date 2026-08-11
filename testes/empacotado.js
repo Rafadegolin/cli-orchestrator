@@ -40,16 +40,52 @@ const UDATA = path.join(RAIZ, '.dev-udata', 'empacotado');
 
   const cdp = await conectar();
 
-  // Se o xterm nao carregar de dentro do asar, tudo abaixo e undefined.
-  const globais = JSON.parse(await cdp.avaliar(`JSON.stringify({
+  // Se o xterm nao carregar de dentro do asar, tudo abaixo fica undefined.
+  //
+  // ESPERA PELA CONDICAO, e nao um instante fixo: `conectar()` volta assim que
+  // existe um alvo CDP, o que acontece ANTES de os <script> terminarem de
+  // avaliar. Ler de dentro do asar e mais lento que ler do disco solto, entao
+  // amostrar uma vez so reprovava o app empacotado por atraso de arranque --
+  // com o resto do teste passando logo em seguida, que e a assinatura de um
+  // teste apressado e nao de um app quebrado.
+  const alvo = `JSON.stringify({
     term: typeof window.Terminal,
     webgl: typeof window.WebglAddon?.WebglAddon,
     ponte: typeof window.orq?.abrirTerminal,
     grade: typeof window.OrqGrade?.criarPainel,
     projetos: typeof window.OrqProjetos?.montarComando,
-  })`));
+  })`;
+  let globais = {};
+  for (let i = 0; i < 60; i++) {
+    globais = JSON.parse(await cdp.avaliar(alvo));
+    if (Object.values(globais).every((v) => v === 'function')) break;
+    await esperar(250);
+  }
   checar('xterm e scripts carregaram de dentro do asar',
     Object.values(globais).every((v) => v === 'function'), JSON.stringify(globais));
+
+  // As fontes tambem vem de dentro do asar. Sem isto o app instalado cai em
+  // fallback e a tipografia inteira do redesenho se perde sem nenhum erro.
+  const fontes = JSON.parse(await cdp.avaliar(`(async () => {
+    await document.fonts.ready;
+    return JSON.stringify({
+      grotesk: document.fonts.check('12px "Space Grotesk"'),
+      mono: document.fonts.check('12px "JetBrains Mono"'),
+    });
+  })()`));
+  checar('as fontes carregaram de dentro do asar',
+    fontes.grotesk && fontes.mono, JSON.stringify(fontes));
+
+  // A barra de titulo propria depende de titleBarStyle/titleBarOverlay, que so
+  // valem na criacao da janela -- se o empacotado nascer com moldura nativa, a
+  // faixa de 38px fica sobrando embaixo dela.
+  const titulo = JSON.parse(await cdp.avaliar(`(() => {
+    const t = document.getElementById('titulo');
+    const r = t.getBoundingClientRect();
+    return JSON.stringify({ altura: Math.round(r.height), topo: Math.round(r.top) });
+  })()`));
+  checar('a barra de titulo propria subiu no empacotado',
+    titulo.altura === 38 && titulo.topo === 0, JSON.stringify(titulo));
 
   const versao = await cdp.avaliar(`window.orq.versao()`);
   checar('app reporta a versao do package.json', /^\d+\.\d+\.\d+$/.test(versao), versao);

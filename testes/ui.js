@@ -404,6 +404,149 @@ async function soltar(cdp) {
   checar('e o rotulo para de mudar de segundo em segundo',
     antesDoTique === depoisDoTique && antesDoTique === 'trabalhando', `${antesDoTique} -> ${depoisDoTique}`);
 
+  // --- 10. faixa de aprovacao --------------------------------------------
+  //
+  // O teste que mais importa e o NEGATIVO: clicar em Aprovar sem pedido na tela
+  // nao pode escrever nada no PTY. Ele nao precisa do Claude -- um cmd.exe
+  // basta, porque cmd.exe nunca mostra prompt de permissao.
+  await zerarGrade(cdp);
+  await cdp.avaliar(`window.OrqCasca.mudar({ densidade: 2 })`);
+
+  // As marcas conferidas contra o texto REAL do CLI, capturado no spike. Se o
+  // Claude mudar a forma do prompt, e aqui que se descobre -- e nao com um
+  // "1" aparecendo na caixa de entrada de alguem.
+  const PROMPT_REAL = [
+    ' Do you want to create marca.txt?',
+    ' \u276f 1. Yes',
+    '   2. Yes, allow all edits during this session (shift+tab)',
+    '   3. No',
+    ' Esc to cancel \u00b7 Tab to amend',
+  ].join('\n');
+
+  const marcas = JSON.parse(await cdp.avaliar(`(() => {
+    const A = window.OrqAprovacao;
+    const texto = ${JSON.stringify(PROMPT_REAL)};
+    return JSON.stringify({
+      opcao: A.MARCA_OPCAO.test(texto),
+      pergunta: (A.MARCA_PERGUNTA.exec(texto) || [])[1] || '',
+      tecla: A.TECLA_APROVAR,
+      // O buffer de um cmd.exe nao pode casar com marca nenhuma.
+      falsoPositivo: A.MARCA_OPCAO.test('C:\\\\Users> dir\\n 1 arquivo(s)\\n'),
+    });
+  })()`));
+  checar('a marca casa com o prompt real do CLI',
+    marcas.opcao && marcas.pergunta === 'Do you want to create marca.txt?', JSON.stringify(marcas));
+  checar('e a tecla de aprovar e o digito 1, nunca Enter',
+    marcas.tecla === '1', marcas.tecla);
+  checar('saida comum de terminal nao vira falso positivo',
+    marcas.falsoPositivo === false, String(marcas.falsoPositivo));
+
+  const idA = await cdp.avaliar(`(async () => { const p = await window.OrqGrade.criarPainel(
+    { cwd: ${JSON.stringify(RAIZ)}, feature: 'ui-aprovacao' }); return p.id; })()`);
+  await esperar(2500);
+
+  const linhasAntes = await cdp.avaliar(
+    `window.OrqPainel.painelPorId.get(${JSON.stringify(idA)}).term.rows`);
+
+  const marcarEspera = (tipo, pergunta) => cdp.avaliar(
+    `window.OrqLateral.definirStatus(${JSON.stringify(idA)}, 'esperando', 'pedindo permissão',
+      Date.now(), { tipo: ${JSON.stringify(tipo)}, pergunta: ${JSON.stringify(pergunta)} })`);
+
+  await marcarEspera('permissao', 'Claude needs your permission');
+  await esperar(600);
+
+  const comPedido = JSON.parse(await cdp.avaliar(`(() => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(idA)});
+    return JSON.stringify({
+      acesa: p.elRodape.classList.contains('tem-pedido'),
+      texto: p.elRodape.querySelector('.rodape-pergunta')?.textContent || '',
+      aprovar: !!p.elRodape.querySelector('.rodape-aprovar'),
+      ver: !!p.elRodape.querySelector('.rodape-ver'),
+      rows: p.term.rows,
+    });
+  })()`));
+  checar('pedido de permissao acende a faixa com Aprovar e Ver',
+    comPedido.acesa && comPedido.aprovar && comPedido.ver, JSON.stringify(comPedido));
+  checar('mostrando a pergunta', comPedido.texto === 'Claude needs your permission', comPedido.texto);
+  // A prova de que o espaco e reservado: a faixa acendeu e o terminal nao
+  // perdeu uma linha sequer -- logo nao houve pty.resize() no meio do prompt.
+  checar('e o terminal NAO muda de altura ao acender a faixa',
+    comPedido.rows === linhasAntes, `${linhasAntes} -> ${comPedido.rows}`);
+
+  // A TRAVA. cmd.exe nao tem prompt de permissao nenhum na tela.
+  const bufAntes = await cdp.avaliar(
+    `window.OrqPainel.painelPorId.get(${JSON.stringify(idA)}).textoDoBuffer()`);
+  const r = JSON.parse(await cdp.avaliar(
+    `JSON.stringify(window.OrqAprovacao.aprovar(${JSON.stringify(idA)}))`));
+  await esperar(1500);
+  const bufDepois = await cdp.avaliar(
+    `window.OrqPainel.painelPorId.get(${JSON.stringify(idA)}).textoDoBuffer()`);
+
+  checar('sem pedido na tela, Aprovar NAO escreve nada no PTY',
+    bufAntes === bufDepois && r.ok === false, `ok=${r.ok} motivo=${r.motivo}`);
+  checar('e avisa por toast em vez de falhar calado',
+    (await cdp.avaliar(`document.getElementById('toast').textContent`)).includes('Não achei'), '');
+
+  // Ver tambem nao escreve nada -- so leva o cursor para o terminal.
+  await cdp.avaliar(`window.OrqPainel.painelPorId.get(${JSON.stringify(idA)})
+    .elRodape.querySelector('.rodape-ver').click()`);
+  await esperar(1000);
+  checar('Ver foca o painel e nao escreve nada',
+    await cdp.avaliar(`window.OrqPainel.painelPorId.get(${JSON.stringify(idA)}).textoDoBuffer()`) === bufDepois
+    && await cdp.avaliar(`window.OrqGrade.focado()`) === idA, '');
+
+  // Ocioso nao tem o que aprovar: a faixa aparece sem o botao.
+  await marcarEspera('ocioso', '');
+  await esperar(600);
+  const ocioso = JSON.parse(await cdp.avaliar(`(() => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(idA)});
+    return JSON.stringify({
+      acesa: p.elRodape.classList.contains('tem-pedido'),
+      aprovar: !!p.elRodape.querySelector('.rodape-aprovar'),
+      texto: p.elRodape.querySelector('.rodape-pergunta')?.textContent || '',
+    });
+  })()`));
+  checar('sessao apenas ociosa nao ganha botao de Aprovar',
+    ocioso.acesa && !ocioso.aprovar && ocioso.texto === 'Esperando você', JSON.stringify(ocioso));
+
+  // Saindo de esperando, a faixa apaga -- e o espaco continua reservado.
+  await cdp.avaliar(`window.OrqLateral.definirStatus(${JSON.stringify(idA)}, 'rodando', '')`);
+  await esperar(600);
+  const limpa = JSON.parse(await cdp.avaliar(`(() => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(idA)});
+    return JSON.stringify({
+      acesa: p.elRodape.classList.contains('tem-pedido'),
+      altura: Math.round(p.elRodape.getBoundingClientRect().height),
+      rows: p.term.rows,
+    });
+  })()`));
+  checar('a faixa apaga quando a espera acaba', limpa.acesa === false, JSON.stringify(limpa));
+  checar('mas o espaco continua reservado, e o terminal nao muda de altura',
+    limpa.altura === 34 && limpa.rows === linhasAntes, JSON.stringify(limpa));
+
+  // textoDoBuffer aplica os bytes pendentes: painel fora da vista guardava a
+  // saida e a leitura devolvia texto velho.
+  //
+  // A leitura e feita em LACO porque o `term.write` do xterm e assincrono -- o
+  // que o flush entregou so aparece no passo seguinte do parser. E exatamente
+  // por isso que quem espera algo no buffer (esperarPedido, esperarNoBuffer)
+  // tambem usa laco, e nao uma leitura unica.
+  const guardou = await cdp.avaliar(`(() => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(idA)});
+    p.definirVisivel(false);
+    p.escreverBytes(new TextEncoder().encode('\\r\\nORQ_PENDENTE_9\\r\\n'));
+    return p.pendentes.length > 0;
+  })()`);
+  checar('painel fora da vista guarda os bytes em vez de desenhar', guardou === true, '');
+
+  let achou = false;
+  for (let i = 0; i < 20 && !achou; i++) {
+    achou = await cdp.avaliar(`window.OrqPainel.painelPorId.get(${JSON.stringify(idA)})
+      .textoDoBuffer().includes('ORQ_PENDENTE_9')`);
+    if (!achou) await esperar(150);
+  }
+  checar('e textoDoBuffer os aplica antes de devolver o texto', achou, '');
+
   await zerarGrade(cdp);
   await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 2, ordem: 'urgencia' })`);
 
