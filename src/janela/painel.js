@@ -25,19 +25,23 @@ const MS_DEBOUNCE_RESIZE = 100;
 // mostrar, entao o teto so corta o que seria descartado de qualquer jeito.
 const TETO_INVISIVEL_BYTES = 200 * 1024;
 
+// O TERMINAL FICA ESCURO NOS DOIS TEMAS, e por isso os valores estao aqui em
+// vez de saírem das variaveis CSS: nao e esquecimento, e decisao -- codigo
+// monoespacado sobre fundo claro quebra a leitura. Sao os tokens --term e
+// --termfg, que o tema claro deliberadamente nao sobrescreve.
 const TEMA = {
-  background: '#14161a',
-  foreground: '#d6dae0',
-  cursor: '#7cc4ff',
+  background: '#0b0e12',
+  foreground: '#c8d3e0',
+  cursor: '#3ddc97',
   selectionBackground: '#2c3542',
-  black: '#14161a',
-  red: '#e06c75',
-  green: '#98c379',
-  yellow: '#e5c07b',
-  blue: '#61afef',
+  black: '#0b0e12',
+  red: '#f7768e',
+  green: '#3ddc97',
+  yellow: '#ffb454',
+  blue: '#7aa2f7',
   magenta: '#c678dd',
   cyan: '#56b6c2',
-  white: '#d6dae0',
+  white: '#c8d3e0',
 };
 
 // Ordem de uso: o primeiro da lista e o mais recentemente focado. Os primeiros
@@ -107,6 +111,12 @@ class Painel {
     this.elLocal.textContent = nomeCurto(this.cwd);
     this.elLocal.title = this.cwd;
 
+    // Cor sozinha nao carrega significado: toda bolinha vem com texto ao lado.
+    // Some na densidade 3 (regra do CSS), onde o espaco vale mais que a
+    // redundancia e a bolinha assume.
+    this.elStatus = document.createElement('span');
+    this.elStatus.className = 'painel-status';
+
     // Ligacoes com outros repositorios. Clicar abre o seletor.
     this.elLigacoes = document.createElement('button');
     this.elLigacoes.className = 'painel-ligacoes';
@@ -139,8 +149,14 @@ class Painel {
       this.destruir();
     });
 
-    cab.append(this.elBolinha, elFeature, this.elLocal,
-      this.elLigacoes, this.elFila, this.elPorta, this.elRender, btnFechar);
+    // O grupo da direita e INEGOCIAVEL (flex: 0 0 auto no CSS): em janela
+    // estreita a compressao come o rotulo de status e depois a pill do projeto,
+    // mas o botao de fechar continua alcancavel.
+    const acoes = document.createElement('span');
+    acoes.className = 'painel-acoes';
+    acoes.append(this.elPorta, this.elFila, this.elLigacoes, this.elRender, btnFechar);
+
+    cab.append(this.elBolinha, elFeature, this.elLocal, this.elStatus, acoes);
 
     this.elTerm = document.createElement('div');
     this.elTerm.className = 'painel-term';
@@ -168,9 +184,14 @@ class Painel {
     this.term = new Terminal({
       allowProposedApi: true,
       scrollback: SCROLLBACK,
-      fontFamily: 'Cascadia Mono, Consolas, monospace',
-      fontSize: 13,
-      lineHeight: 1.1,
+      fontFamily: '"JetBrains Mono", "Cascadia Mono", Consolas, monospace',
+      fontSize: 11.5,
+      // O doc de UI pede 1.65, medida pensada para o terminal FALSO do
+      // prototipo (uma pilha de divs). Aqui altura de linha nao e decoracao, e
+      // quantidade de LINHAS: com o painel de 268px da densidade 3, 1.65 daria
+      // 11 linhas contra 13 -- 18% a menos de TUI do Claude a vista. Fica em
+      // 1.35, que e visualmente proximo e materialmente utilizavel.
+      lineHeight: 1.35,
       cursorBlink: true,
       theme: TEMA,
       windowsPty: { backend: 'conpty' },
@@ -186,14 +207,19 @@ class Painel {
     this.observer = new ResizeObserver(() => this.agendarAjuste());
     this.observer.observe(this.elTerm);
 
-    // Com a grade rolavel, painel pode sair da area visivel. O root e a propria
-    // grade porque e ela que rola, nao a janela -- e e buscada por id, nao por
-    // parentElement: na hora que isto roda o painel ainda nao foi anexado.
+    // Com a grade rolavel, painel pode sair da area visivel.
+    //
+    // O root e o #conteudo, que e QUEM ROLA -- nao o #grade, que apenas cresce
+    // dentro dele. Apontar para um elemento que nao rola faz todo painel contar
+    // como visivel para sempre, e a economia inteira do painel fora da vista
+    // (buffer em vez de desenho, sem vaga de WebGL) simplesmente nao acontece.
+    // Buscado por id, e nao por parentElement: aqui o painel ainda nao foi
+    // anexado ao DOM.
     this.observerVista = new IntersectionObserver(
       (entradas) => {
         for (const e of entradas) this.definirVisivel(e.isIntersecting);
       },
-      { root: document.getElementById('grade'), threshold: 0 }
+      { root: document.getElementById('conteudo'), threshold: 0 }
     );
     this.observerVista.observe(this.el);
   }
@@ -421,8 +447,14 @@ class Painel {
 
   definirStatus(status, rotulo) {
     this.status = status;
-    this.elBolinha.className = `bolinha bolinha-${status}`;
+    // Painel dormindo tem bolinha vazada, independente do status por baixo: ele
+    // nao tem processo nenhum, e isso e o que a bolinha precisa comunicar.
+    this.elBolinha.className = this.dormindo ? 'bolinha bolinha-dormindo' : `bolinha bolinha-${status}`;
     this.elBolinha.title = rotulo || status;
+
+    this.elStatus.textContent = this.dormindo ? 'sessao salva' : (rotulo || status);
+    this.elStatus.className = `painel-status status-${this.dormindo ? 'dormindo' : status}`;
+    this.el.classList.toggle('painel-esperando', status === 'esperando' && !this.dormindo);
   }
 
   // Redimensionar reflui o buffer inteiro do terminal. Fazer isso a cada pixel

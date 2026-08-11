@@ -90,13 +90,17 @@ const esperar = (ms) => new Promise((s) => setTimeout(s, ms));
 // e um teste que falha sem nada ter mudado no app.
 //
 // E a mesma familia do clamp de setTimeout para ~1/s em segundo plano.
-async function aoFrente(cdp, ms = 6000) {
+async function aoFrente(cdp, ms = 10000) {
   await cdp.enviar('Page.enable').catch(() => {});
-  await cdp.enviar('Page.bringToFront').catch(() => {});
-  await cdp.avaliar('window.orq.focarJanela()').catch(() => {});
 
   const limite = Date.now() + ms;
   while (Date.now() < limite) {
+    // Pede a cada volta, e nao so uma vez: outro processo pode roubar o foco no
+    // meio da espera -- `testes/arvore.js`, que mata arvores de processo, faz
+    // isso com frequencia e a suite seguinte pagava o pato.
+    await cdp.enviar('Page.bringToFront').catch(() => {});
+    await cdp.avaliar('window.orq.focarJanela()').catch(() => {});
+
     // Timer nao limitado e o sinal de que a renderizacao voltou a rodar.
     const clamp = await cdp.avaliar(`(async () => {
       const t0 = performance.now();

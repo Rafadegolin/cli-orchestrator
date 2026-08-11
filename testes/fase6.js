@@ -49,14 +49,16 @@ const buffer = (id) => `(() => {
   // --- 1. grade rolavel ---------------------------------------------------
   await abrirVarios(cdp, 4, 'poucos');
   const poucos = JSON.parse(await cdp.avaliar(`(() => {
-    const g = document.getElementById('grade');
+    // Quem rola e o #conteudo; o #grade so cresce dentro dele.
+    const g = document.getElementById('conteudo');
     return JSON.stringify({ rola: g.scrollHeight > g.clientHeight + 2 });
   })()`));
   checar('com 4 painéis a grade nao rola', poucos.rola === false, JSON.stringify(poucos));
 
   await abrirVarios(cdp, 8, 'muitos');
   const muitos = JSON.parse(await cdp.avaliar(`(() => {
-    const g = document.getElementById('grade');
+    // Quem rola e o #conteudo; o #grade so cresce dentro dele.
+    const g = document.getElementById('conteudo');
     const hs = [...document.querySelectorAll('.painel')].map(e => Math.round(e.getBoundingClientRect().height));
     return JSON.stringify({ n: hs.length, rola: g.scrollHeight > g.clientHeight + 2, min: Math.min(...hs) });
   })()`));
@@ -68,8 +70,8 @@ const buffer = (id) => `(() => {
   // Uma coluna so empurra a maioria para fora de vez, sem precisar abrir 20
   // shells. Com 3 colunas a ultima fileira ficava PARCIALMENTE visivel, e
   // threshold:0 conta um pixel como visivel -- correto, mas inutil aqui.
-  await cdp.avaliar(`document.getElementById('grade').style.setProperty('--colunas', '1')`);
-  await cdp.avaliar(`document.getElementById('grade').scrollTop = 0`);
+  await cdp.avaliar(`window.OrqCasca.mudar({ densidade: 1 })`);
+  await cdp.avaliar(`document.getElementById('conteudo').scrollTop = 0`);
   const assentou = await ateQue(cdp,
     `[...window.OrqGrade.painelPorId.values()].filter(p => !p.visivel).length >= 4`);
   checar('painéis rolados para fora sao detectados como invisiveis', assentou, '');
@@ -237,6 +239,9 @@ const buffer = (id) => `(() => {
     return 'ok';
   })()`);
   await zerarGrade(cdp);
+  // Densidade e preferencia PERSISTIDA: deixar em 1 mudaria o ponto de partida
+  // das suites seguintes e do proprio app do usuario.
+  await cdp.avaliar(`window.OrqCasca.mudar({ densidade: 2 })`);
 
   encerrar('FASE6');
 })().catch((e) => { console.error('ERRO', e.message); process.exit(3); });

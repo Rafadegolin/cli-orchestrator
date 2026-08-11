@@ -49,8 +49,11 @@ const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
   // primeiro plano -- em segundo plano o Chromium pausa a renderizacao inteira.
   await aoFrente(cdp);
 
+  // Engorda a LATERAL: com a casca em flex, ela e quem tira largura da area de
+  // painéis. (Antes isto mexia no grid-template-columns do #app, que nao existe
+  // mais desde que a janela virou flex coluna.)
   const antes = await cdp.avaliar(`window.__p.term.cols`);
-  await cdp.avaliar(`document.getElementById('app').style.gridTemplateColumns = '560px 1fr'`);
+  await cdp.avaliar(`document.getElementById('lateral').style.flexBasis = '560px'`);
 
   // Espera pela condicao em vez de dormir um tanto fixo: o reflow passa por
   // ResizeObserver mais debounce de 100ms, e tempo fixo aqui vira teste
@@ -61,7 +64,7 @@ const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
     depois = await cdp.avaliar(`window.__p.term.cols`);
   }
   checar('resize refluiu o terminal', depois < antes && depois > 10, `${antes} -> ${depois}`);
-  await cdp.avaliar(`document.getElementById('app').style.gridTemplateColumns = ''`);
+  await cdp.avaliar(`document.getElementById('lateral').style.flexBasis = ''`);
   await esperar(600);
 
   await cdp.avaliar(`window.orq.escrever(window.__p.id, 'for /L %i in (1,1,4000) do @echo LINHA_%i\\r')`);

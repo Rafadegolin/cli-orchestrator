@@ -6,6 +6,7 @@
 const elLista = document.getElementById('lateral-lista');
 const elContagem = document.getElementById('lateral-contagem');
 const btnHooks = document.getElementById('btn-hooks');
+const elHooksRotulo = document.getElementById('hooks-rotulo');
 const btnAtualizar = document.getElementById('btn-atualizar');
 const btnRetomarTodas = document.getElementById('btn-retomar-todas');
 const elVersao = document.getElementById('lateral-versao');
@@ -84,13 +85,27 @@ function redesenhar() {
   const lista = ordenadas();
   elContagem.textContent = String(lista.length);
 
+  // Viva = tem processo. Painel restaurado dormindo aparece na lista, mas nao
+  // conta no placar: ninguem esta gastando CPU por ele.
+  const vivas = lista.filter((c) => {
+    const p = window.OrqPainel.painelPorId.get(c.id);
+    return c.status !== 'encerrada' && !(p && p.dormindo);
+  }).length;
+  window.OrqCasca?.definirVivas(vivas);
+
   elLista.replaceChildren(...lista.map((c) => {
+    const painel = window.OrqPainel.painelPorId.get(c.id);
+
     const li = document.createElement('li');
-    li.className = 'card' + (c.status === 'esperando' ? ' card-atencao' : '');
+    li.className = 'card'
+      + (c.status === 'esperando' ? ' card-atencao' : '')
+      // Redesenhar recria os cards, entao o foco tem de ser reaplicado aqui --
+      // senao ele some sozinho na primeira mudanca de status de qualquer sessao.
+      + (window.OrqGrade?.focado?.() === c.id ? ' card-focado' : '');
     li.dataset.id = c.id;
 
     const bolinha = document.createElement('span');
-    bolinha.className = `bolinha bolinha-${c.status}`;
+    bolinha.className = painel?.dormindo ? 'bolinha bolinha-dormindo' : `bolinha bolinha-${c.status}`;
 
     const nome = document.createElement('span');
     nome.className = 'card-nome';
@@ -102,7 +117,15 @@ function redesenhar() {
     sub.dataset.status = c.status;
     sub.textContent = legenda(c);
 
-    li.append(bolinha, nome, sub);
+    const texto = document.createElement('span');
+    texto.className = 'card-texto';
+    texto.append(nome, sub);
+
+    const porta = document.createElement('span');
+    porta.className = 'card-porta';
+    porta.textContent = painel?.portas?.length ? `:${painel.portas[0]}` : '';
+
+    li.append(bolinha, texto, porta);
     li.addEventListener('click', () => window.OrqGrade.focarPainel(c.id));
     return li;
   }));
@@ -154,14 +177,21 @@ btnHooks?.addEventListener('click', async () => {
 async function atualizarBotaoHooks() {
   if (!btnHooks) return;
   const s = await window.orq.hooksSituacao();
-  btnHooks.textContent = s.instalado ? 'Hooks: ligados' : 'Hooks: instalar';
-  btnHooks.className = s.instalado ? 'hooks-ok' : '';
+  // Escreve so no rotulo: mexer no textContent do botao apagaria o switch, que
+  // e markup irmao. O estado visual do switch sai da classe.
+  if (elHooksRotulo) elHooksRotulo.textContent = s.instalado ? 'ligados' : 'desligados';
+  btnHooks.classList.toggle('hooks-ok', Boolean(s.instalado));
   btnHooks.title = s.instalado
     ? `Hooks registrados em ${s.arquivo} (clique para remover)`
     : `Registrar hooks em ${s.arquivo} para as bolinhas mudarem sozinhas`;
 }
 
 atualizarBotaoHooks();
+
+// Primeiro desenho com a lista vazia: sem isto a contagem de SESSOES nasce em
+// branco em vez de zero, e o placar de sessoes vivas so aparece quando o
+// primeiro painel abre.
+redesenhar();
 
 // -------------------------------------------------------- sessao anterior
 

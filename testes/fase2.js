@@ -44,18 +44,38 @@ function contaCmd() {
     return JSON.stringify({
       n: ps.length,
       colunas: getComputedStyle(document.getElementById('grade')).gridTemplateColumns.split(' ').length,
+      densidade: window.OrqCasca.densidade(),
       renders: ps.map(p => p.tipoRender),
       rodando: ps.filter(p => p.status === 'rodando').length,
       scrollback: ps[0].term.options.scrollback,
+      teto: 8,
+      visiveis: ps.filter(p => p.visivel).length,
+      visiveisComWebgl: ps.filter(p => p.visivel && p.tipoRender === 'webgl').length,
+      foraComWebgl: ps.filter(p => !p.visivel && p.tipoRender === 'webgl').length,
     });
   })()`));
 
   checar('8 painéis abertos', est.n === 8, String(est.n));
   checar('todos com PTY rodando', est.rodando === 8, `${est.rodando}/8`);
-  checar('grade em 3 colunas acima de 4 painéis', est.colunas === 3, String(est.colunas));
+  // As colunas vem da densidade escolhida pelo usuario, nao mais da contagem de
+  // painéis. O padrao e 2.
+  checar('a grade segue a densidade escolhida',
+    est.colunas === est.densidade, `${est.colunas} colunas, densidade ${est.densidade}`);
   checar('scrollback limitado a 3000', est.scrollback === 3000, String(est.scrollback));
-  checar('8 painéis cabem no orcamento de WebGL',
-    est.renders.filter((r) => r === 'webgl').length === 8, est.renders.join(','));
+
+  // Com altura fixa por densidade, oito painéis NAO cabem na tela -- e painel
+  // fora da vista nao pode segurar contexto de WebGL (regra do 6.1). Entao o
+  // que se verifica aqui e o contrato de verdade, e nao um numero:
+  //   1. ninguem fora da vista tem WebGL;
+  //   2. todo painel a vista tem, ate o teto;
+  //   3. o teto e respeitado.
+  checar('nenhum painel fora da vista segura WebGL',
+    est.foraComWebgl === 0, `${est.foraComWebgl} fora da vista com webgl`);
+  checar('todo painel a vista desenha em WebGL, ate o teto',
+    est.visiveisComWebgl === Math.min(est.visiveis, est.teto),
+    `${est.visiveisComWebgl} de ${est.visiveis} visiveis (teto ${est.teto})`);
+  checar('e o teto de contextos e respeitado',
+    est.renders.filter((r) => r === 'webgl').length <= est.teto, est.renders.join(','));
 
   const cmdDepois = contaCmd();
   checar('8 processos de shell nasceram', cmdDepois - cmdAntes >= 8, `${cmdAntes} -> ${cmdDepois}`);
@@ -67,25 +87,40 @@ function contaCmd() {
     `${((m.ramMb - BASE_MB) / 8).toFixed(1)} MB/painel  (crua: ${(m.ramMb / 8).toFixed(1)})`);
   checar('CPU parado abaixo de 2%', m.cpuPct >= 0 && m.cpuPct < 2, `${m.cpuPct}% de ${m.nucleos} nucleos`);
 
-  // O 9o painel nao pode estourar o teto de contextos WebGL.
+  // O teto de contextos vale mesmo com todos a vista. A densidade 3 e a unica
+  // que poe nove painéis na tela ao mesmo tempo nesta resolucao.
   await cdp.avaliar(`(async () => { await window.OrqGrade.criarPainel(
     { cwd: ${JSON.stringify(RAIZ)}, feature: 'feat-9' }); return 'ok'; })()`);
-  await esperar(1500);
+  await cdp.avaliar(`window.OrqCasca.mudar({ densidade: 3 })`);
+  await cdp.avaliar(`document.getElementById('conteudo').scrollTop = 0`);
+  await esperar(2000);
   const nono = JSON.parse(await cdp.avaliar(`(() => {
     const ps = [...window.OrqGrade.painelPorId.values()];
-    return JSON.stringify(ps.reduce((a, p) => (a[p.tipoRender] = (a[p.tipoRender] || 0) + 1, a), {}));
+    return JSON.stringify({
+      n: ps.length,
+      webgl: ps.filter(p => p.tipoRender === 'webgl').length,
+      foraComWebgl: ps.filter(p => !p.visivel && p.tipoRender === 'webgl').length,
+    });
   })()`));
-  checar('9o painel cai para canvas', nono.webgl === 8 && nono.canvas === 1, JSON.stringify(nono));
+  checar('com 9 painéis, o teto de 8 contextos WebGL nao e estourado',
+    nono.n === 9 && nono.webgl <= 8 && nono.foraComWebgl === 0, JSON.stringify(nono));
 
   await cdp.avaliar(`(() => { const ps = [...window.OrqGrade.painelPorId.values()]; ps[0].destruir(); ps[1].destruir(); return 'ok'; })()`);
-  await esperar(2500);
+  await esperar(3000);
   checar('fechar painel matou o processo', contaCmd() <= cmdDepois - 1, `${cmdDepois + 1} -> ${contaCmd()}`);
 
   const apos = JSON.parse(await cdp.avaliar(`(() => {
     const ps = [...window.OrqGrade.painelPorId.values()];
-    return JSON.stringify({ n: ps.length, webgl: ps.filter(p => p.tipoRender === 'webgl').length });
+    return JSON.stringify({
+      n: ps.length,
+      webgl: ps.filter(p => p.tipoRender === 'webgl').length,
+      visiveis: ps.filter(p => p.visivel).length,
+    });
   })()`));
-  checar('vaga de WebGL foi reaproveitada apos fechar', apos.n === 7 && apos.webgl === 7, JSON.stringify(apos));
+  checar('vaga de WebGL foi reaproveitada apos fechar',
+    apos.n === 7 && apos.webgl === Math.min(apos.visiveis, 8), JSON.stringify(apos));
+
+  await cdp.avaliar(`window.OrqCasca.mudar({ densidade: 2 })`);
 
   encerrar('FASE2');
 })().catch((e) => { console.error('ERRO', e.message); process.exit(3); });

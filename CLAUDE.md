@@ -35,6 +35,7 @@ npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
 npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
 npm run teste:fase7       # sessao salva, painel dormindo, retomar
+npm run teste:ui          # tokens, tema, densidade, fontes e regras de compressao
 npm run teste:ajuda       # a ajuda no app, e se os numeros dela batem com o codigo
 npm run teste:ligacoes    # mecanica das ligacoes, sem invocar o Claude
 npm run teste:ligacoes-reais # com Claude de verdade: ~3min e consome tokens
@@ -126,6 +127,70 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
 - Desinstalar roda `--remover-hooks` pelo `recursos/instalador.nsh`. Sem isso os hooks ficariam no
   `settings.json` para sempre e toda sessao pagaria ~310ms por evento falando com um app que nao
   existe mais.
+
+## A nova UI (docs/nova-ui)
+
+`docs/nova-ui/` (8 documentos) mais `docs/Orquestrador.dc.html` (o prototipo, com estilo inline de
+cada elemento) especificam o redesenho: a tela deixa de ser "uma grade de terminais" e vira **um
+painel de controle de atencao**. Entregue em fatias; **a fatia 1, a casca, esta feita**.
+
+**O prototipo e referencia VISUAL, nao arquitetural.** Ele re-renderiza tudo a cada `setState` e tem
+um terminal falso (`lines: TermLine[]`). Aqui o xterm e dono do proprio DOM: **reconstruir um painel
+destroi o terminal**. Tudo continua imperativo — cria uma vez, muta depois.
+
+Onde o documento descreve o app errado, vale o app. Dois pontos: `linkSessions` nao encaminha saida
+de uma sessao para outra (e `--add-dir`, acesso a pasta, mutuo), e os 4 status do doc 05 sao um
+subconjunto dos 5 que os hooks entregam — `terminou` (evento `Stop`) fica, com cor propria.
+
+- **Tokens em `estilo.css`**, tema claro e `html.claro` sobrescrevendo as MESMAS variaveis. Nao
+  existe regra `.claro .algumacoisa` no arquivo; se voce precisar de uma, o token que falta e o
+  problema. **O terminal fica escuro nos dois temas** (`--term`/`--termfg`, repetidos como literais
+  no `TEMA` do `painel.js`) — codigo monoespacado sobre fundo claro quebra a leitura.
+- **Fontes vendorizadas** em `src/janela/fontes/` (Space Grotesk + JetBrains Mono, subsets latin e
+  latin-ext, OFL). Baixadas uma vez e commitadas: o CSP e `font-src 'self'` e o app tem de abrir sem
+  internet. `teste:ui` confere com `document.fonts.check` — sem isso o app cai em fallback e a tela
+  fica "quase certa" sem ninguem perceber.
+- **Barra de titulo:** `titleBarStyle: 'hidden'` + `titleBarOverlay`. Os tres botoes continuam sendo
+  os do Windows (Snap Layouts preservado); a faixa e nossa. Duas consequencias: a cor deles nao sai
+  do CSS (o `ui:salvar` chama `setTitleBarOverlay`), e o `#titulo` reserva a area deles com
+  `padding-right: calc(100vw - env(titlebar-area-width))`.
+- **Densidade 1/2/3** (`--cols` e `--altura-painel` vindos de `#app[data-densidade]`) com altura
+  FIXA por densidade. As colunas nao dependem mais da contagem de painéis: numero que muda sozinho a
+  cada painel aberto e o oposto de uma grade previsivel.
+- **Preferencias em `ui.json`** (`preferencias.js`), separado do `sessao.json`: arranjo muda o tempo
+  todo e e regravado com debounce, preferencia muda por clique. Juntar faria toda troca de tema
+  reescrever a lista de painéis.
+- **Placar de CPU** (`metricas.js`): `app.getAppMetrics()` a cada 2s, **so com a janela visivel**, e
+  emitindo **so quando o valor arredondado muda**. Soma dividida pelos nucleos, para falar a mesma
+  lingua das medidas deste projeto (13,3% da maquina, e nao 160% de um nucleo).
+
+### Tres armadilhas que a fatia 1 pagou
+
+1. **`[hidden]` perde para qualquer regra com `display`.** `#lateral-pe button { display: flex }`
+   fazia "Retomar todas (0)" aparecer com zero sessoes salvas, e `.painel-dormindo` com
+   `position:absolute; display:flex` cobria o terminal INTEIRO de todo painel — a tela parecia
+   funcionar e nenhum terminal desenhava. Existe um `[hidden] { display: none !important }` no topo
+   do arquivo; nao o remova.
+2. **Animar `box-shadow` custa CPU de verdade.** As bolinhas pulsando levaram o consumo parado com
+   oito painéis de 0,06% para **2,39%** — acima da meta de 2%. O pulso agora e um pseudo-elemento
+   animando `transform` e `opacity`, que vao para o compositor: **0,02%**, abaixo do baseline
+   original. Mesmo desenho, ordem de grandeza a menos.
+3. **Quem rola e o `#conteudo`, nao o `#grade`.** O `IntersectionObserver` do painel aponta para
+   ele. Apontar para um elemento que nao rola faz todo painel contar como visivel para sempre, e a
+   economia inteira da Fase 6.1 (buffer em vez de desenho, sem vaga de WebGL) some em silencio —
+   sem nenhum erro, so a conta de CPU subindo.
+
+### A ordem da compressao esta nos `flex-shrink`
+
+O doc 03 manda a compressao ser absorvida por rotulo de status -> pill do projeto -> nome. Isso
+**nao** e media query: o flexbox distribui o deficit em uma passada so, proporcional a
+`flex-shrink x tamanho base`. Por isso os pesos sao **1000 / 200 / 1** e nao 3 / 2 / 1 — com numeros
+proximos o nome ainda perdia 4px em 924px enquanto a pill tinha espaco de sobra para ceder.
+
+Para o painel muito estreito (densidade 3 em 924px da painéis de **200px**) nenhum peso resolve: nao
+cabem nome e tres chips. Ali entra `container-type: inline-size` no `.painel` e `@container` que
+esconde, por prioridade, a pill e o chip de ligar, depois a porta. Nome e fechar nunca saem: um
+identifica o painel, o outro e a saida.
 
 ## A ajuda dentro do app
 
@@ -379,7 +444,11 @@ que impede os testes de mexerem na lista real). Clicar num projeto abre painel n
   limpar o card do mesmo jeito, senao sobra card orfao.
 - **`painel.js`, `grade.js` e `lateral.js` sao scripts classicos e dividem UM escopo lexico global.**
   Redeclarar um nome de topo entre eles e `SyntaxError` e o arquivo inteiro nao carrega. Referencie
-  pelo namespace (`OrqP.Painel`) em vez de desestruturar.
+  pelo namespace (`OrqP.Painel`) em vez de desestruturar. (`casca.js` foge disso por estar inteiro
+  dentro de uma IIFE — e o caminho preferido para arquivo novo.)
+- **O `root` do `IntersectionObserver` e o `#conteudo`**, que e quem rola. Ver a armadilha 3 acima.
+- **Nada de re-renderizar painel.** O xterm e dono do DOM dele; a UI muta o cabecalho, nunca o
+  reconstroi. Ordenar a grade tambem e por `style.order`, sem mover nos.
 - **Um unico `setInterval` de 1s** para todos os cronometros.
 
 **Canal 2**

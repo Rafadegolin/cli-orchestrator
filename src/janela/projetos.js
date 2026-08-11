@@ -19,6 +19,22 @@ const ACENTOS = new RegExp('[\u0300-\u036f]', 'g');
 
 let projetosCache = [];
 
+// "Nova sessao" precisa saber em QUAL projeto. O ultimo que voce abriu e o
+// palpite certo na esmagadora maioria das vezes -- e quando nao for, clicar no
+// projeto na lateral continua sendo um clique.
+let ultimoProjetoId = null;
+
+// Identidade visual do projeto, estavel entre execucoes: a mesma pasta tem
+// sempre a mesma cor. Hash simples do caminho -- nao precisa ser criptografia,
+// precisa ser reproduzivel.
+const TINTAS = ['var(--acc)', 'var(--info)', 'var(--warn)', '#c678dd', '#56b6c2', '#e5c07b'];
+
+function tintaDe(caminho) {
+  let h = 0;
+  for (let i = 0; i < caminho.length; i++) h = (h * 31 + caminho.charCodeAt(i)) >>> 0;
+  return TINTAS[h % TINTAS.length];
+}
+
 // Declarados aqui em cima, junto do resto do estado: desenharProjetos() os usa
 // e ficar dependendo da ordem de avaliacao para nao cair na zona morta e o tipo
 // de coisa que quebra na primeira reordenacao inocente.
@@ -65,7 +81,7 @@ function desenharProjetos() {
   if (!projetosCache.length) {
     const vazio = document.createElement('li');
     vazio.className = 'projeto-vazio';
-    vazio.textContent = 'Nenhum projeto. Use o + para cadastrar.';
+    vazio.textContent = 'Nenhum repositorio ainda. Cadastre um para abrir sessoes com um clique.';
     elProjetosLista.replaceChildren(vazio);
     return;
   }
@@ -114,9 +130,13 @@ function desenharProjetos() {
       if (expandidos.has(p.id)) carregarDetalhes(p.id);
     });
 
+    const tinta = document.createElement('span');
+    tinta.className = 'projeto-tinta';
+    tinta.style.background = tintaDe(p.caminho);
+
     const linha = document.createElement('div');
     linha.className = 'projeto-linha';
-    linha.append(btnAbrir, nome, marca, btnRemover);
+    linha.append(btnAbrir, tinta, nome, marca, btnRemover);
     linha.title = p.caminho;
     linha.addEventListener('click', () => abrirProjeto(p.id));
 
@@ -284,12 +304,25 @@ async function abrirProjeto(id, { comandoInicial } = {}) {
 
   const feature = (elFeatureProjeto?.value || '').trim();
   if (elFeatureProjeto) elFeatureProjeto.value = '';
+  window.OrqCasca?.atualizarDica();
+  ultimoProjetoId = p.id;
 
   return window.OrqGrade.criarPainel({
     cwd: p.caminho,
     feature: slugFeature(feature) || p.nome,
     comandoInicial: comandoInicial || montarComando(feature, p.git),
   });
+}
+
+// O botao "Nova sessao" da barra: usa o ultimo projeto aberto, senao o unico,
+// senao o primeiro da lista. Sem nenhum projeto cadastrado nao ha o que
+// adivinhar -- abre o cadastro, que e o passo que falta de verdade.
+async function abrirUltimo() {
+  if (!projetosCache.length) return cadastrarProjeto();
+  const alvo = projetosCache.find((p) => p.id === ultimoProjetoId && p.existe)
+    || projetosCache.find((p) => p.existe);
+  if (!alvo) return null;
+  return abrirProjeto(alvo.id);
 }
 
 async function cadastrarProjeto() {
@@ -301,6 +334,8 @@ async function cadastrarProjeto() {
 }
 
 btnProjetoAdd?.addEventListener('click', cadastrarProjeto);
+document.getElementById('vazio-cadastrar')?.addEventListener('click', cadastrarProjeto);
+document.getElementById('btn-nova-sessao')?.addEventListener('click', abrirUltimo);
 
 carregarProjetos();
 
@@ -309,9 +344,11 @@ window.OrqProjetos = {
   montarComando,
   carregarProjetos,
   abrirProjeto,
+  abrirUltimo,
   cadastrarProjeto,
   carregarDetalhes,
   retomar,
+  tintaDe,
   COMANDO_RETOMAR,
   expandidos,
   detalhes,

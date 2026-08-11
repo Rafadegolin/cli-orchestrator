@@ -43,6 +43,15 @@ contextBridge.exposeInMainWorld('orq', {
 
   versao: () => ipcRenderer.invoke('app:versao'),
   constantes: () => ipcRenderer.invoke('app:constantes'),
+
+  // Tema, densidade e ordenacao. Salvar tambem repinta os botoes de janela, que
+  // sao do Windows e nao enxergam o CSS.
+  uiCarregar: () => ipcRenderer.invoke('ui:carregar'),
+  uiSalvar: (parcial) => ipcRenderer.invoke('ui:salvar', parcial),
+
+  metricas: () => ipcRenderer.invoke('app:metricas'),
+  aoMedir: (fn) => ipcRenderer.on('app:metricas', (_e, m) => fn(m)),
+
   atualizacaoSituacao: () => ipcRenderer.invoke('atualizacao:situacao'),
   atualizacaoVerificar: () => ipcRenderer.invoke('atualizacao:verificar'),
   atualizacaoAplicar: () => ipcRenderer.invoke('atualizacao:aplicar'),

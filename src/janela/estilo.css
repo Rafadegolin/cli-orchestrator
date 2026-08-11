@@ -1,941 +1,1531 @@
+/* Tokens. Nenhum componente conhece o tema: todos leem variavel.
+ *
+ * O tema claro e `html.claro` sobrescrevendo as MESMAS variaveis. Por isso
+ * nao existe nenhuma regra `.claro .algumacoisa` espalhada pelo arquivo -- se
+ * voce precisar de uma, o token que falta e o problema.
+ *
+ * O TERMINAL FICA ESCURO NOS DOIS TEMAS (--term / --termfg inalterados). Nao e
+ * esquecimento: codigo monoespacado sobre fundo claro quebra a leitura. */
 :root {
-  --fundo: #14161a;
-  --fundo-2: #1b1e24;
-  --fundo-3: #22262e;
-  --borda: #2c313a;
-  --texto: #d6dae0;
-  --texto-fraco: #7f8794;
-  --realce: #7cc4ff;
+  --bg0: #0a0c0f;
+  --bg1: #0d1014;
+  --bg2: #12161b;
+  --bg3: #171d24;
+  --line: #1e242c;
+  --line2: #2b333d;
+  --fg: #e8ecf2;
+  --fg2: #a3adba;
+  --fg3: #68727e;
+  --acc: #3ddc97;
+  --accd: rgba(61, 220, 151, .10);
+  --acc-texto: #06231a;
+  --warn: #ffb454;
+  --warnd: rgba(255, 180, 84, .10);
+  --warn-linha: rgba(255, 180, 84, .22);
+  --warn-texto: #241704;
+  --info: #7aa2f7;
+  --danger: #f7768e;
+  --term: #0b0e12;
+  --termfg: #c8d3e0;
+  --shadow: 0 18px 50px -20px rgba(0, 0, 0, .9);
+  --glass: rgba(18, 22, 27, .86);
 
-  --esperando: #e5c07b;
-  --rodando: #98c379;
-  --terminou: #61afef;
-  --encerrada: #6b7280;
-  --iniciando: #4b5563;
+  --ui: 'Space Grotesk', system-ui, 'Segoe UI', sans-serif;
+  /* Segoe UI Symbol no fim porque as setas e o simbolo de tema (U+2194,
+     U+263E) estao fora dos subsets latin que vendorizamos. */
+  --mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace, 'Segoe UI Symbol';
+}
+
+html.claro {
+  --bg0: #eef0f3;
+  --bg1: #ffffff;
+  --bg2: #f6f7f9;
+  --bg3: #eceff3;
+  --line: #e0e4ea;
+  --line2: #ccd2db;
+  --fg: #121619;
+  --fg2: #4d5661;
+  --fg3: #828c99;
+  /* Acento e aviso escurecem para manter contraste AA sobre branco: o verde
+     #3ddc97 como texto em fundo claro nao passa. */
+  --acc: #0e9d68;
+  --accd: rgba(14, 157, 104, .09);
+  --acc-texto: #ffffff;
+  --warn: #b8721a;
+  --warnd: rgba(184, 114, 26, .10);
+  --warn-linha: rgba(184, 114, 26, .26);
+  --warn-texto: #ffffff;
+  --info: #3b6fd4;
+  --danger: #d1435f;
+  --shadow: 0 18px 44px -24px rgba(16, 24, 40, .35);
+  --glass: rgba(255, 255, 255, .9);
 }
 
 * { box-sizing: border-box; }
+
+/* O app esconde muita coisa por `hidden` (botao de retomar, etiqueta de fila,
+   overlays). Qualquer regra de layout com `display` vence o atributo e o
+   elemento reaparece -- foi assim que "Retomar todas (0)" apareceu com zero
+   sessoes salvas. Uma regra so, no topo, resolve para sempre. */
+[hidden] { display: none !important; }
 
 html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: var(--fundo);
-  color: var(--texto);
-  font: 13px/1.4 "Segoe UI", system-ui, sans-serif;
+  background: var(--bg0);
+  color: var(--fg);
+  font: 12.5px/1.45 var(--ui);
+  -webkit-font-smoothing: antialiased;
 }
+
+.mono { font-family: var(--mono); }
+
+button, input { font-family: inherit; color: inherit; }
+button { cursor: pointer; }
+button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
+::selection { background: rgba(61, 220, 151, .28); }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--line2);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* O pulso anima TRANSFORM e OPACITY num anel proprio, e nao o box-shadow da
+   bolinha.
+   Medido: com box-shadow, oito painéis parados custavam 2,39% de CPU contra a
+   meta de 2% -- animar sombra repinta a cada quadro, no processador. Transform
+   e opacity vao para o compositor e o custo cai para o ruido de fundo. Mesmo
+   desenho na tela, ordem de grandeza a menos de CPU. */
+@keyframes orqPulse {
+  0% { transform: scale(1); opacity: .5; }
+  70%, 100% { transform: scale(2.8); opacity: 0; }
+}
+@keyframes orqWait {
+  0% { transform: scale(1); opacity: .6; }
+  70%, 100% { transform: scale(3.2); opacity: 0; }
+}
+@keyframes orqPop {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes orqFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ============================================================= estrutura */
 
 #app {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  height: 100vh;
-}
-
-/* ------------------------------------------------------------- lateral */
-
-#lateral {
   display: flex;
   flex-direction: column;
-  background: var(--fundo-2);
-  border-right: 1px solid var(--borda);
+  height: 100vh;
+  overflow: hidden;
+}
+
+#corpo {
+  flex: 1;
+  display: flex;
   min-height: 0;
 }
 
-.lateral-topo {
+/* ======================================================= barra de titulo */
+
+#titulo {
+  flex: 0 0 38px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--borda);
+  gap: 14px;
+  padding-left: 14px;
+  /* Reserva a area dos tres botoes de janela, que o titleBarOverlay desenha
+     por cima da pagina. Sem isto o botao de tema fica debaixo do "fechar".
+     O fallback cobre o caso de a janela subir sem overlay. */
+  padding-right: calc(100vw - env(titlebar-area-width, calc(100vw - 140px)) + 8px);
+  background: var(--bg1);
+  border-bottom: 1px solid var(--line);
+  -webkit-app-region: drag;
 }
 
-.lateral-topo h1 {
-  margin: 0;
-  margin-right: auto;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--texto-fraco);
-}
+#titulo button, #titulo input { -webkit-app-region: no-drag; }
 
-.lateral-topo + .lateral-topo,
-#projetos-lista + .lateral-topo {
-  border-top: 1px solid var(--borda);
-}
-
-#lateral-contagem {
-  font-size: 11px;
-  color: var(--texto-fraco);
-  background: var(--fundo-3);
-  border-radius: 10px;
-  padding: 1px 8px;
-}
-
-#lateral-lista {
-  list-style: none;
-  margin: 0;
-  padding: 6px;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
-}
-
-/* ------------------------------------------------------------ projetos */
-
-/* Altura limitada com rolagem propria: uma lista longa de projetos nao pode
-   espremer a lista de sessoes, que e a informacao urgente. */
-#projetos-lista {
-  list-style: none;
-  margin: 0;
-  padding: 6px;
-  overflow-y: auto;
-  max-height: 34vh;
+.marca {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   flex: 0 0 auto;
 }
 
-.projeto { border-radius: 6px; }
+.marca-icone {
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: linear-gradient(150deg, var(--acc), rgba(61, 220, 151, .18));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.marca-icone::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--bg0);
+}
+
+.marca-nome {
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+
+#lateral-versao {
+  font-size: 9.5px;
+  color: var(--fg3);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+#btn-busca {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 240px;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 8px 4px 10px;
+  color: var(--fg3);
+  font-size: 11.5px;
+}
+
+#btn-busca span:first-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#btn-busca:hover { border-color: var(--line2); color: var(--fg2); }
+
+.tecla {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 9.5px;
+  border: 1px solid var(--line2);
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+/* Com a busca escondida (ela chega na fatia da paleta de comandos), quem
+   empurra o resto para a direita passa a ser o botao de tema. */
+#btn-busca[hidden] + #btn-tema { margin-left: auto; }
+
+#btn-tema {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 24px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  color: var(--fg2);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#btn-tema:hover { color: var(--acc); border-color: var(--acc); }
+
+/* =============================================================== lateral */
+
+#lateral {
+  flex: 0 0 272px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg1);
+  border-right: 1px solid var(--line);
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+#placar {
+  padding: 14px 14px 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.placar-linha {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+#placar-num {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -.03em;
+  line-height: 1;
+}
+
+.placar-rotulo { font-size: 11.5px; color: var(--fg2); }
+
+#placar-cpu {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--fg3);
+}
+
+#placar-carga {
+  display: flex;
+  gap: 3px;
+  margin-top: 10px;
+  height: 4px;
+}
+
+#placar-carga span {
+  flex: 1;
+  border-radius: 2px;
+  background: var(--line);
+  transition: background .3s ease;
+}
+
+#placar-carga span.aceso { background: var(--acc); }
+#placar-carga span.cheio { background: var(--warn); }
+
+#lateral-rolagem {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  min-width: 0;
+}
+
+#lateral-rolagem > section { padding: 14px 12px 4px 14px; }
+#bloco-sessoes { padding-top: 16px; }
+
+.secao-topo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 9px;
+}
+
+.secao-titulo {
+  margin: 0;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--fg3);
+}
+
+.secao-titulo.atencao { color: var(--warn); }
+
+.secao-topo .mono { font-size: 10px; color: var(--fg3); }
+
+.badge-atencao {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--bg0);
+  background: var(--warn);
+  border-radius: 20px;
+  padding: 1px 6px;
+}
+
+#btn-projeto-add {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  color: var(--fg2);
+  font-size: 13px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#btn-projeto-add:hover { border-color: var(--acc); color: var(--acc); }
+
+#lateral ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* --------------------------------------------------------- fila de atencao */
+
+#fila-lista li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--warnd);
+  border: 1px solid var(--warn-linha);
+  border-radius: 10px;
+  padding: 9px 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: transform .15s ease, background .15s ease;
+}
+
+/* A bolinha da fila e menor que a do painel; o anel acompanha. */
+#fila-lista .bolinha { width: 6px; height: 6px; flex: 0 0 6px; }
+
+#fila-lista li:hover { transform: translateX(3px); }
+
+.fila-nome {
+  font-size: 12.5px;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fila-espera {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--warn);
+}
+
+#fila-dica {
+  width: 100%;
+  text-align: left;
+  font-size: 10px;
+  color: var(--fg3);
+  background: none;
+  border: none;
+  padding: 3px 2px 4px 2px;
+}
+
+#fila-dica:hover { color: var(--warn); }
+
+/* -------------------------------------------------------------- projetos */
+
+.projeto { margin-bottom: 3px; }
 
 .projeto-linha {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  cursor: pointer;
+  gap: 9px;
   border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 7px 8px;
+  cursor: pointer;
+  transition: background .14s ease;
 }
 
-.projeto-linha:hover { background: var(--fundo-3); }
+.projeto-linha:hover { background: var(--bg3); border-color: var(--line); }
 
 .projeto-expandir {
+  flex: 0 0 auto;
+  width: 14px;
   background: none;
   border: none;
-  color: var(--texto-fraco);
-  font-size: 10px;
-  line-height: 1;
-  padding: 0 2px;
-  cursor: pointer;
-}
-
-.projeto-expandir:hover { color: var(--realce); }
-.projeto-expandir[hidden] { display: none; }
-
-/* ----------------------------------------------------------- worktrees */
-
-.projeto-detalhe {
-  padding: 2px 0 6px 22px;
-}
-
-.wt-lista {
-  list-style: none;
-  margin: 0;
+  color: var(--fg3);
+  font-size: 9px;
   padding: 0;
 }
+
+.projeto-tinta {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  flex: 0 0 6px;
+  background: var(--acc);
+}
+
+.projeto-nome {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.projeto-marca {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--fg3);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+.projeto-remover {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--fg3);
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0;
+}
+
+.projeto-linha:hover .projeto-remover { opacity: 1; }
+.projeto-remover:hover { color: var(--danger); border-color: var(--danger); }
+
+.projeto-sumiu .projeto-nome { color: var(--fg3); text-decoration: line-through; }
+
+.projeto-vazio, .wt-vazio {
+  font-size: 11.5px;
+  color: var(--fg3);
+  line-height: 1.5;
+  padding: 4px 8px 8px 8px;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------- worktrees */
+
+.projeto-detalhe { margin: 2px 0 6px 0; }
+
+.wt-lista { margin: 0; padding: 0; list-style: none; }
 
 .wt {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: 5px;
+  gap: 8px;
+  border-left: 1px solid var(--line);
+  margin-left: 11px;
+  padding: 5px 8px 5px 12px;
   cursor: pointer;
-  font-size: 12px;
+  color: var(--fg2);
 }
 
-.wt:hover { background: var(--fundo-3); }
+.wt:hover { color: var(--acc); border-color: var(--acc); }
 
 .wt-nome {
-  flex: 1;
+  font-family: var(--mono);
+  font-size: 11px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--texto-fraco);
 }
-
-.wt:hover .wt-nome { color: var(--texto); }
 
 .wt-marca {
-  font-size: 10px;
-  color: var(--texto-fraco);
-  border: 1px solid var(--borda);
-  border-radius: 3px;
-  padding: 0 4px;
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--fg3);
 }
 
-.wt-marca:empty { display: none; }
-.wt-marca.wt-viva { color: var(--rodando); border-color: rgba(152, 195, 121, .4); }
-.wt-marca.wt-sujo { color: var(--esperando); border-color: rgba(229, 192, 123, .4); }
+.wt-viva { color: var(--acc); }
+.wt-sujo { color: var(--warn); }
 
 .wt-arquivar {
-  background: none;
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
   border: none;
-  color: transparent;
-  font-size: 14px;
-  line-height: 1;
-  padding: 0 2px;
-  cursor: pointer;
-}
-
-.wt:hover .wt-arquivar { color: var(--texto-fraco); }
-.wt-arquivar:hover:not(:disabled) { color: var(--esperando); }
-.wt-arquivar:disabled { cursor: not-allowed; }
-.wt:hover .wt-arquivar:disabled { color: var(--encerrada); }
-
-.wt-vazio {
-  margin: 2px 0;
-  padding: 2px 8px;
+  background: none;
+  color: var(--fg3);
   font-size: 11px;
-  color: var(--encerrada);
+  line-height: 1;
+  padding: 0;
 }
+
+.wt-arquivar:hover:not(:disabled) { color: var(--danger); }
+.wt-arquivar:disabled { opacity: .3; cursor: not-allowed; }
 
 .wt-aviso {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
-  margin: 2px 0 6px;
-  padding: 5px 8px;
-  border: 1px solid rgba(229, 192, 123, .35);
-  border-radius: 5px;
+  align-items: flex-start;
   font-size: 11px;
-  color: var(--esperando);
-}
-
-.wt-aviso span {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: help;
+  color: var(--warn);
+  background: var(--warnd);
+  border: 1px solid var(--warn-linha);
+  border-radius: 9px;
+  padding: 9px 10px;
+  margin: 0 0 8px 11px;
 }
 
 .wt-aviso button {
-  background: var(--fundo-3);
-  border: 1px solid var(--borda);
-  border-radius: 4px;
-  color: var(--texto);
-  font: inherit;
+  font-family: var(--mono);
   font-size: 10px;
-  padding: 2px 6px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.wt-aviso button:hover { border-color: var(--esperando); }
-
-.projeto-nome {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.projeto-marca {
-  font-size: 10px;
-  color: var(--texto-fraco);
-  border: 1px solid var(--borda);
-  border-radius: 3px;
-  padding: 0 4px;
-}
-
-.projeto-marca:empty { display: none; }
-
-.projeto-sumiu .projeto-nome { color: var(--encerrada); text-decoration: line-through; }
-.projeto-sumiu .projeto-marca { color: var(--esperando); border-color: rgba(229, 192, 123, .45); }
-
-.projeto-remover {
+  color: var(--warn);
   background: none;
-  border: none;
-  color: transparent;
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 2px;
+  border: 1px solid var(--warn-linha);
+  border-radius: 6px;
+  padding: 3px 8px;
 }
 
-.projeto:hover .projeto-remover { color: var(--texto-fraco); }
-.projeto-remover:hover { color: var(--esperando); }
+.wt-aviso button:hover { background: rgba(255, 180, 84, .14); }
 
-.projeto-vazio {
-  padding: 8px 10px;
-  font-size: 11px;
-  color: var(--encerrada);
-}
-
-#btn-projeto-add {
-  background: var(--fundo-3);
-  border: 1px solid var(--borda);
-  border-radius: 5px;
-  color: var(--texto);
-  font: inherit;
-  font-size: 13px;
-  line-height: 1;
-  padding: 2px 8px;
-  cursor: pointer;
-}
-
-#btn-projeto-add:hover { border-color: var(--realce); color: var(--realce); }
+/* --------------------------------------------------------- lista de sessoes */
 
 .card {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px;
-  align-items: start;
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: transparent;
   border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
 }
 
-.card:hover { background: var(--fundo-3); }
-.card-atencao { border-color: rgba(229, 192, 123, .45); }
+.card:hover { background: var(--bg3); }
+
+.card-focado {
+  background: var(--bg3);
+  border-color: var(--line2);
+}
+
+.card-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 0;
+  overflow: hidden;
+}
 
 .card-nome {
+  font-size: 12.5px;
   font-weight: 600;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .card-sub {
-  grid-column: 2;
-  font-size: 11px;
-  color: var(--texto-fraco);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg3);
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.card-tempo { color: var(--esperando); }
-
-.lateral-pe {
-  border-top: 1px solid var(--borda);
-  padding: 8px 12px;
-}
-
-#btn-hooks {
-  width: 100%;
-  padding: 5px 8px;
-  margin-bottom: 6px;
-  background: var(--fundo-3);
-  border: 1px solid var(--borda);
-  border-radius: 5px;
-  color: var(--texto);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-#btn-hooks:hover { border-color: var(--realce); }
-#btn-hooks.hooks-ok { color: var(--rodando); border-color: rgba(152, 195, 121, .35); }
-
-.lateral-dica {
-  margin: 0;
-  font-size: 11px;
-  color: var(--texto-fraco);
-}
-
-.lateral-versao {
-  margin: 6px 0 0;
+.card-porta {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-family: var(--mono);
   font-size: 10px;
-  color: var(--encerrada);
+  color: var(--fg3);
 }
 
-/* ------------------------------------------------- painel adormecido */
+.card-atencao .card-sub { color: var(--warn); }
 
-.painel-dormindo {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
+/* ----------------------------------------------------------- rodape lateral */
+
+#lateral-pe {
+  padding: 10px 12px 12px 12px;
+  border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
+  gap: 6px;
+}
+
+#lateral-pe button {
+  width: 100%;
+  display: flex;
   align-items: center;
-  justify-content: center;
   gap: 8px;
-  background: var(--fundo);
-  padding: 12px;
-  text-align: center;
-}
-
-.painel-dormindo[hidden] { display: none; }
-
-.dormindo-titulo {
-  margin: 0;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--fg2);
   font-size: 12px;
-  color: var(--texto-fraco);
+  padding: 8px 10px;
 }
 
-.dormindo-onde {
-  margin: 0;
-  font-size: 11px;
-  color: var(--encerrada);
-  max-width: 92%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+#lateral-pe button:hover { border-color: var(--line2); color: var(--fg); }
+
+#lateral-pe button .mono {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--fg3);
 }
 
-.painel-dormindo button {
-  background: var(--fundo-3);
-  border: 1px solid var(--borda);
-  border-radius: 5px;
-  color: var(--texto);
-  font: inherit;
-  font-size: 12px;
-  padding: 4px 14px;
-  cursor: pointer;
+#btn-retomar-todas, #btn-atualizar.atualizar-pronta {
+  justify-content: center;
+  background: var(--acc);
+  border-color: var(--acc);
+  color: var(--acc-texto);
+  font-weight: 700;
 }
 
-.dormindo-retomar:hover { border-color: var(--rodando); color: var(--rodando); }
-.dormindo-remover:hover { border-color: var(--esperando); color: var(--esperando); }
-
-#btn-retomar-todas {
-  width: 100%;
-  padding: 5px 8px;
-  margin-bottom: 6px;
-  background: var(--fundo-3);
-  border: 1px solid rgba(152, 195, 121, .4);
-  border-radius: 5px;
-  color: var(--rodando);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
+#btn-retomar-todas:hover, #btn-atualizar.atualizar-pronta:hover {
+  filter: brightness(1.08);
+  color: var(--acc-texto);
 }
 
-#btn-retomar-todas:hover { border-color: var(--rodando); }
-#btn-retomar-todas[hidden] { display: none; }
-#btn-retomar-todas:disabled { color: var(--texto-fraco); cursor: default; }
+#btn-atualizar:disabled { opacity: .7; cursor: default; }
 
-#btn-atualizar {
-  width: 100%;
-  padding: 5px 8px;
-  margin-bottom: 6px;
-  background: var(--fundo-3);
-  border: 1px solid var(--borda);
-  border-radius: 5px;
-  color: var(--texto-fraco);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
+.switch {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 15px;
+  border-radius: 20px;
+  padding: 2px;
+  display: flex;
+  justify-content: flex-start;
+  background: var(--line2);
+  transition: background .16s ease;
 }
 
-#btn-atualizar[hidden] { display: none; }
-#btn-atualizar:disabled { cursor: default; }
-
-#btn-atualizar.atualizar-pronta {
-  color: var(--terminou);
-  border-color: rgba(97, 175, 239, .45);
-}
-
-#btn-atualizar.atualizar-pronta:hover { border-color: var(--terminou); }
-
-/* ------------------------------------------------------------ bolinhas */
-
-.bolinha {
-  width: 9px;
-  height: 9px;
+.switch-bolota {
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  flex: 0 0 auto;
-  margin-top: 4px;
-  background: var(--iniciando);
+  background: var(--bg1);
+  transition: transform .16s ease;
 }
 
-.bolinha-esperando { background: var(--esperando); }
-.bolinha-rodando   { background: var(--rodando); }
-.bolinha-terminou  { background: var(--terminou); }
-.bolinha-encerrada { background: var(--encerrada); }
-.bolinha-iniciando { background: var(--iniciando); }
+#btn-hooks.hooks-ok .switch { background: var(--acc); }
+#btn-hooks.hooks-ok .switch-bolota {
+  background: var(--acc-texto);
+  transform: translateX(11px);
+}
+#btn-hooks.hooks-ok #hooks-rotulo { color: var(--acc); }
 
-/* ----------------------------------------------------------- principal */
+/* ============================================================== principal */
 
 #principal {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  position: relative;
+  overflow: hidden;
 }
 
+/* Envolve em vez de estourar. Em 924px (a largura minima da janela) os
+   controles nao cabem numa linha so, e a escolha e entre esconder um deles ou
+   deixar cair para a linha de baixo. Cair e melhor: nada fica inalcancavel, e
+   a grade abaixo rola de qualquer jeito. */
 #barra {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--borda);
-  background: var(--fundo-2);
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--bg1);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
+}
+
+.campo-feature {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 1 280px;
+  min-width: 208px;
+}
+
+.campo-feature .prefixo {
+  position: absolute;
+  left: 12px;
+  font-size: 10px;
+  color: var(--fg3);
+  pointer-events: none;
 }
 
 #nome-feature {
-  width: 220px;
-  padding: 5px 9px;
-  background: var(--fundo);
-  border: 1px solid var(--borda);
-  border-radius: 5px;
-  color: var(--texto);
-  font: inherit;
+  width: 100%;
+  min-width: 0;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 12px 9px 44px;
+  font-family: var(--mono);
+  font-size: 12.5px;
 }
 
-#nome-feature:focus {
-  outline: none;
-  border-color: var(--realce);
+#nome-feature:focus { border-color: var(--acc); background: var(--bg3); outline: none; }
+#nome-feature::placeholder { color: var(--fg3); }
+
+#barra button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--fg2);
+  font-size: 12.5px;
+  padding: 9px 12px;
 }
 
-#btn-novo {
-  padding: 5px 12px;
-  background: var(--fundo-3);
-  border: 1px solid var(--borda);
-  border-radius: 5px;
-  color: var(--texto);
-  font: inherit;
-  cursor: pointer;
+#barra button:hover { border-color: var(--line2); color: var(--fg); }
+
+button.primario {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--acc);
+  border: none;
+  border-radius: 10px;
+  color: var(--acc-texto);
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 9px 14px;
+  box-shadow: 0 6px 18px -8px rgba(61, 220, 151, .7);
 }
 
-#btn-novo:hover { border-color: var(--realce); }
+button.primario:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  color: var(--acc-texto);
+}
+
+.mais { font-size: 14px; line-height: 1; }
 
 #barra-dica {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--fg3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.barra-direita {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pilulas {
+  display: flex;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 2px;
+}
+
+.pilulas button {
+  border: none;
+  border-radius: 7px;
   font-size: 11px;
-  color: var(--texto-fraco);
+  padding: 5px 10px;
+  background: transparent;
+  color: var(--fg3);
 }
 
-#barra-dica code {
-  background: var(--fundo-3);
-  padding: 1px 5px;
-  border-radius: 3px;
+.pilulas button.mono { padding: 5px 9px; }
+.pilulas button:hover { color: var(--fg2); }
+.pilulas button.ativa { background: var(--bg3); color: var(--fg); }
+
+/* ================================================================== grade */
+
+#conteudo {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  padding: 14px;
+  background: radial-gradient(900px 500px at 80% -20%, var(--bg2) 0%, var(--bg0) 65%);
 }
 
-/* --------------------------------------------------------------- grade */
+/* Densidade: uma unica fonte de verdade para colunas e altura. A altura fixa
+   e de proposito -- a grade fica previsivel e o scroll do terminal acontece
+   dentro do painel, nao na pagina. */
+#app { --cols: 2; --altura-painel: 320px; }
+#app[data-densidade="1"] { --cols: 1; --altura-painel: 460px; }
+#app[data-densidade="3"] { --cols: 3; --altura-painel: 268px; }
 
 #grade {
   display: grid;
-  grid-template-columns: repeat(var(--colunas), minmax(0, 1fr));
-  /* Altura minima em vez de so 1fr: com 16 painéis, `1fr` puro os espremia em
-     faixas de ~110px, ilegiveis. 220px sao o cabecalho mais umas 12 linhas de
-     terminal -- abaixo disso o painel deixa de servir para ler saida.
-     Poucos painéis continuam esticando; muitos fazem a grade rolar, e ai
-     existe "painel fora da tela" para o IntersectionObserver otimizar. */
-  grid-auto-rows: minmax(220px, 1fr);
-  gap: 8px;
-  padding: 8px;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: 12px;
+  align-content: start;
 }
+
+#grade:empty { display: none; }
 
 .painel {
   display: flex;
   flex-direction: column;
-  min-width: 0;
   min-height: 0;
-  background: var(--fundo);
-  border: 1px solid var(--borda);
-  border-radius: 7px;
+  height: var(--altura-painel);
+  /* Deixa o cabecalho reagir a largura DO PAINEL, nao a da janela: densidade 3
+     em 924px da painéis de 200px, e o que cabe ali nao tem nada a ver com o
+     tamanho da tela. */
+  container-type: inline-size;
+  border-radius: 14px;
   overflow: hidden;
+  background: var(--bg1);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  animation: orqPop .32s ease both;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
 }
 
-.painel-focado { border-color: var(--realce); }
+.painel:hover { transform: translateY(-2px); }
+
+.painel-focado {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 1px var(--acc), var(--shadow);
+}
+
+.painel-esperando { border-color: var(--warn-linha); }
 
 .painel-cab {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 9px;
-  background: var(--fundo-2);
-  border-bottom: 1px solid var(--borda);
-  font-size: 12px;
-  flex: 0 0 auto;
+  padding: 9px 10px 9px 12px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--line);
+  min-width: 0;
 }
 
-.painel-cab .bolinha { margin-top: 0; }
-
+/* A ORDEM DA COMPRESSAO ESTA NOS flex-shrink, e nao em media query.
+   O flexbox encolhe cada item em proporcao a `flex-shrink x tamanho base`, e
+   distribui tudo numa passada so -- nao ha prioridade estrita. Por isso os
+   pesos sao 1000 / 200 / 1 e nao 3 / 2 / 1: com numeros proximos o nome ainda
+   perderia alguns pixels (medido: 4px em 924px) enquanto a pill do projeto
+   ainda tinha espaco para ceder. Com esta distancia, o nome so comeca a ceder
+   quando os outros dois ja estao praticamente em zero.
+   Na pratica o nome nunca encolhe -- mas PODE, e e isso que impede o
+   cabecalho de estourar e levar o botao de fechar para fora da tela quando
+   alguem cria uma feature de 40 caracteres. */
 .painel-feature {
-  font-weight: 600;
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: -.01em;
   white-space: nowrap;
 }
 
 .painel-local {
-  color: var(--texto-fraco);
-  font-size: 11px;
+  flex: 0 200 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg3);
+  background: var(--bg3);
+  border-radius: 5px;
+  padding: 2px 6px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.painel-status {
+  flex: 0 1000 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 10px;
   white-space: nowrap;
-  flex: 1;
+  overflow: hidden;
+  color: var(--fg3);
 }
 
-.painel-render {
-  font-size: 10px;
-  color: var(--texto-fraco);
-  border: 1px solid var(--borda);
-  border-radius: 3px;
-  padding: 0 4px;
-}
+/* Na densidade 3 o espaco vale mais que a redundancia: a bolinha assume. */
+#app[data-densidade="3"] .painel-status { display: none; }
 
-.painel-ligacoes {
-  font-size: 10px;
-  color: var(--texto-fraco);
-  background: none;
-  border: 1px solid var(--borda);
-  border-radius: 3px;
-  padding: 0 4px;
-  font-family: inherit;
-  cursor: pointer;
+.painel-status.status-rodando { color: var(--acc); }
+.painel-status.status-esperando { color: var(--warn); }
+.painel-status.status-terminou { color: var(--info); }
+
+/* Grupo inegociavel: o botao fechar sempre alcancavel. */
+.painel-acoes {
+  margin-left: auto;
   flex: 0 0 auto;
-}
-
-.painel-ligacoes:hover { border-color: var(--realce); color: var(--realce); }
-.painel-ligacoes.tem-ligacao { color: var(--magenta, #c678dd); border-color: rgba(198, 120, 221, .45); }
-
-/* ------------------------------------------------------------- ajuda */
-
-#ajuda {
-  position: absolute;
-  inset: 0;
-  z-index: 30;
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(10, 11, 14, .78);
+  gap: 4px;
 }
-
-#ajuda[hidden] { display: none; }
-
-.ajuda-caixa {
-  width: min(980px, 94%);
-  height: 88%;
-  display: flex;
-  flex-direction: column;
-  background: var(--fundo-2);
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.ajuda-topo {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--borda);
-}
-
-.ajuda-topo h2 { margin: 0; font-size: 14px; font-weight: 600; }
-
-#ajuda-fechar {
-  background: none;
-  border: none;
-  color: var(--texto-fraco);
-  font-size: 20px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-#ajuda-fechar:hover { color: var(--esperando); }
-
-.ajuda-conteudo {
-  display: grid;
-  grid-template-columns: 230px 1fr;
-  flex: 1;
-  min-height: 0;
-}
-
-#ajuda-indice {
-  list-style: none;
-  margin: 0;
-  padding: 10px 8px;
-  overflow-y: auto;
-  border-right: 1px solid var(--borda);
-  counter-reset: secao;
-}
-
-#ajuda-indice button {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  border-radius: 5px;
-  color: var(--texto-fraco);
-  font: inherit;
-  font-size: 12px;
-  padding: 6px 10px;
-  cursor: pointer;
-}
-
-#ajuda-indice button:hover { background: var(--fundo-3); color: var(--texto); }
-#ajuda-indice button.ativo { color: var(--realce); background: var(--fundo-3); }
-
-#ajuda-corpo {
-  overflow-y: auto;
-  padding: 4px 24px 40px;
-  scroll-behavior: smooth;
-}
-
-.ajuda-secao { padding-top: 20px; }
-
-.ajuda-secao h3 {
-  margin: 0 0 8px;
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: .04em;
-  text-transform: uppercase;
-  color: var(--realce);
-}
-
-#ajuda-corpo p { margin: 0 0 10px; font-size: 13px; line-height: 1.55; }
-
-.ajuda-aviso {
-  border-left: 2px solid var(--esperando);
-  padding: 6px 0 6px 10px;
-  color: var(--esperando);
-}
-
-.ajuda-lista, .ajuda-passos { margin: 0 0 12px; padding-left: 20px; }
-.ajuda-lista li, .ajuda-passos li { font-size: 13px; line-height: 1.55; margin-bottom: 5px; }
-
-.ajuda-tabela {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 0 0 14px;
-  font-size: 12px;
-}
-
-.ajuda-tabela th, .ajuda-tabela td {
-  text-align: left;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--borda);
-  vertical-align: top;
-  line-height: 1.5;
-}
-
-.ajuda-tabela th { color: var(--texto-fraco); font-weight: 600; }
-.ajuda-tabela td:first-child { white-space: nowrap; }
-.ajuda-tabela td:last-child { white-space: normal; }
-
-#ajuda-corpo code {
-  background: var(--fundo-3);
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 11px;
-}
-
-#ajuda-corpo kbd {
-  background: var(--fundo-3);
-  border: 1px solid var(--borda);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  padding: 1px 6px;
-  font-size: 11px;
-  font-family: inherit;
-}
-
-.ajuda-bolinha {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  margin-right: 5px;
-  vertical-align: baseline;
-}
-
-#btn-ajuda {
-  width: 100%;
-  padding: 5px 8px;
-  margin-bottom: 6px;
-  background: var(--fundo-3);
-  border: 1px solid var(--borda);
-  border-radius: 5px;
-  color: var(--texto);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-#btn-ajuda:hover { border-color: var(--realce); color: var(--realce); }
-
-#vazio a { color: var(--realce); pointer-events: auto; }
-#vazio p:last-child { pointer-events: auto; }
-
-/* ------------------------------------------------- seletor de ligacoes */
-
-#seletor-ligacoes {
-  position: absolute;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(10, 11, 14, .72);
-}
-
-#seletor-ligacoes[hidden] { display: none; }
-
-.seletor-caixa {
-  width: min(620px, 90%);
-  max-height: 76%;
-  display: flex;
-  flex-direction: column;
-  background: var(--fundo-2);
-  border: 1px solid var(--borda);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.seletor-topo {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--borda);
-}
-
-.seletor-topo h2 { margin: 0; font-size: 13px; font-weight: 600; }
-
-#seletor-fechar {
-  background: none;
-  border: none;
-  color: var(--texto-fraco);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-#seletor-fechar:hover { color: var(--esperando); }
-
-#seletor-lista {
-  list-style: none;
-  margin: 0;
-  padding: 6px;
-  overflow-y: auto;
-  flex: 1;
-}
-
-.seletor-item {
-  display: grid;
-  grid-template-columns: 1fr auto auto;
-  grid-template-areas: 'nome tipo botao' 'caminho caminho botao';
-  gap: 2px 8px;
-  align-items: center;
-  padding: 8px 10px;
-  border-radius: 6px;
-  border: 1px solid transparent;
-}
-
-.seletor-item:hover { background: var(--fundo-3); }
-.seletor-ligado { border-color: rgba(198, 120, 221, .35); }
-
-.seletor-nome { grid-area: nome; font-weight: 600; font-size: 12px; }
-
-.seletor-tipo {
-  grid-area: tipo;
-  font-size: 10px;
-  color: var(--texto-fraco);
-  border: 1px solid var(--borda);
-  border-radius: 3px;
-  padding: 0 4px;
-  cursor: help;
-}
-
-.seletor-caminho {
-  grid-area: caminho;
-  font-size: 11px;
-  color: var(--encerrada);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.seletor-item button {
-  grid-area: botao;
-  background: var(--fundo-3);
-  border: 1px solid var(--borda);
-  border-radius: 5px;
-  color: var(--texto);
-  font: inherit;
-  font-size: 11px;
-  padding: 4px 10px;
-  cursor: pointer;
-}
-
-.seletor-ligar:hover { border-color: var(--rodando); color: var(--rodando); }
-.seletor-desligar:hover { border-color: var(--esperando); color: var(--esperando); }
-.seletor-item button:disabled { color: var(--texto-fraco); cursor: default; }
-
-.seletor-vazio, .seletor-dica {
-  margin: 0;
-  padding: 10px 14px;
-  font-size: 11px;
-  color: var(--texto-fraco);
-}
-
-.seletor-dica { border-top: 1px solid var(--borda); }
-.seletor-dica code { background: var(--fundo-3); padding: 1px 4px; border-radius: 3px; }
-
-.painel-fila {
-  font-size: 10px;
-  color: var(--esperando);
-  background: none;
-  border: 1px solid rgba(229, 192, 123, .4);
-  border-radius: 3px;
-  padding: 0 4px;
-  font-family: inherit;
-  cursor: pointer;
-  flex: 0 0 auto;
-}
-
-.painel-fila:hover { border-color: var(--esperando); }
-.painel-fila[hidden] { display: none; }
 
 .painel-porta {
+  font-family: var(--mono);
   font-size: 10px;
-  color: var(--terminou);
-  border: 1px solid var(--borda);
-  border-radius: 3px;
-  padding: 0 4px;
-  cursor: help;
-  flex: 0 0 auto;
+  color: var(--info);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 6px;
+  white-space: nowrap;
 }
 
 .painel-porta:empty { display: none; }
 
-.render-webgl { color: var(--rodando); }
-
-.painel-fechar {
-  background: none;
-  border: none;
-  color: var(--texto-fraco);
-  font-size: 17px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 2px;
+.painel-ligacoes {
+  font-family: var(--mono);
+  font-size: 10px;
+  border-radius: 6px;
+  padding: 2px 7px;
+  white-space: nowrap;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg3);
 }
 
-.painel-fechar:hover { color: var(--esperando); }
+.painel-ligacoes:hover { border-color: var(--line2); color: var(--fg2); }
+
+.painel-ligacoes.tem-ligacao {
+  background: var(--accd);
+  border-color: var(--acc);
+  color: var(--acc);
+}
+
+.painel-fila {
+  font-family: var(--mono);
+  font-size: 10px;
+  border-radius: 6px;
+  padding: 2px 7px;
+  white-space: nowrap;
+  background: var(--warnd);
+  border: 1px solid var(--warn-linha);
+  color: var(--warn);
+}
+
+/* So aparece quando o painel CAIU para canvas ou dom. WebGL e o esperado, e
+   anunciar o esperado e ruido ocupando o espaco que o cabecalho nao tem. */
+.painel-render {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--warn);
+  opacity: .7;
+}
+
+.painel-render.render-webgl { display: none; }
+
+.painel-fechar {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--fg3);
+  font-size: 11px;
+  line-height: 1;
+  padding: 0;
+}
+
+.painel-fechar:hover { color: var(--danger); border-color: var(--danger); }
+
+/* Painel muito estreito: encolher texto ate sumir nao ajuda ninguem. Aqui a
+   escolha e por PRIORIDADE, do menos util para o mais util -- primeiro sai a
+   pill do projeto e o chip de ligar, depois a porta. O nome e o fechar nunca
+   saem: um identifica o painel, o outro e a saida. */
+@container (max-width: 260px) {
+  .painel-local { display: none; }
+  .painel-ligacoes:not(.tem-ligacao) { display: none; }
+}
+
+@container (max-width: 210px) {
+  .painel-porta { display: none; }
+  .painel-ligacoes { display: none; }
+}
 
 .painel-term {
   position: relative;
   flex: 1;
   min-height: 0;
-  padding: 4px 0 0 6px;
-  overflow: hidden;
+  background: var(--term);
+  padding: 8px 10px;
 }
 
 .painel-term .xterm { height: 100%; }
 
-/* --------------------------------------------------------------- vazio */
+/* ------------------------------------------------------ painel adormecido */
 
-#vazio {
+.painel-dormindo {
   position: absolute;
-  inset: 45px 0 0 0;
+  inset: 0;
+  z-index: 5;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 12px;
+  padding: 22px;
+  background: var(--bg1);
+}
+
+.dormindo-titulo {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--fg3);
+}
+
+.dormindo-onde {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg2);
+  text-align: center;
+  word-break: break-all;
+  max-width: 340px;
+}
+
+.dormindo-retomar, .dormindo-remover {
+  background: var(--accd);
+  border: 1px solid var(--acc);
+  border-radius: 9px;
+  color: var(--acc);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 20px;
+}
+
+.dormindo-retomar:hover { background: var(--acc); color: var(--acc-texto); }
+
+.dormindo-remover {
+  background: none;
+  border-color: var(--line2);
+  color: var(--fg2);
+}
+
+.dormindo-remover:hover { border-color: var(--danger); color: var(--danger); }
+
+/* ============================================================== bolinhas */
+
+.bolinha {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 7px;
+  background: var(--fg3);
+}
+
+/* O anel que pulsa e um pseudo-elemento: assim a animacao mexe so em transform
+   e opacity, sem repintar a bolinha nem o cabecalho em volta. */
+.bolinha-rodando::after, .bolinha-esperando::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
   pointer-events: none;
-  color: var(--texto-fraco);
+}
+
+.bolinha-rodando { background: var(--acc); }
+.bolinha-rodando::after {
+  box-shadow: 0 0 0 1.5px var(--acc);
+  animation: orqPulse 2.4s ease-out infinite;
+}
+
+.bolinha-esperando { background: var(--warn); }
+.bolinha-esperando::after {
+  box-shadow: 0 0 0 1.5px var(--warn);
+  animation: orqWait 1.8s ease-out infinite;
+}
+
+.bolinha-terminou { background: var(--info); }
+.bolinha-iniciando { background: var(--fg3); }
+.bolinha-encerrada { background: var(--line2); }
+
+/* Vazada: sessao salva, sem processo vivo. */
+.bolinha-dormindo {
+  background: transparent;
+  border: 1px solid var(--fg3);
+}
+
+.card .bolinha { width: 6px; height: 6px; flex: 0 0 6px; }
+
+/* ================================================================ vazio */
+
+#vazio {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  animation: orqFade .4s ease;
 }
 
 #vazio[hidden] { display: none; }
-.fraco { color: var(--encerrada); font-size: 12px; margin: 0; }
+
+.vazio-marca {
+  width: 76px;
+  height: 76px;
+  border-radius: 24px;
+  border: 1px solid var(--line2);
+  background: var(--bg1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+}
+
+.vazio-marca span {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--acc);
+}
+
+.vazio-marca span::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--acc);
+  animation: orqPulse 2.4s ease-out infinite;
+}
+
+.vazio-texto { text-align: center; max-width: 460px; }
+
+.vazio-texto h2 {
+  margin: 0 0 8px 0;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -.025em;
+}
+
+.vazio-texto p {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--fg2);
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.vazio-acoes { display: flex; gap: 10px; }
+
+.vazio-acoes button:not(.primario) {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--fg2);
+  font-size: 12.5px;
+  padding: 10px 16px;
+}
+
+.vazio-acoes button:not(.primario):hover { color: var(--fg); border-color: var(--line2); }
+.vazio-acoes button.primario { padding: 10px 16px; }
+
+.vazio-fatos { display: flex; gap: 26px; margin-top: 8px; }
+
+.vazio-fatos div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: center;
+}
+
+.vazio-fatos .mono { font-size: 11px; color: var(--acc); }
+.vazio-fatos div span:last-child { font-size: 11.5px; color: var(--fg3); }
+
+/* ============================================================= overlays */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(4, 6, 8, .62);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: orqFade .18s ease;
+}
+
+.overlay[hidden] { display: none; }
+
+/* ---------------------------------------------------------------- ajuda */
+
+.ajuda-caixa {
+  width: 900px;
+  max-width: 92vw;
+  height: 620px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg1);
+  border: 1px solid var(--line2);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  animation: orqPop .24s ease;
+}
+
+.ajuda-topo {
+  display: flex;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.ajuda-topo h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+#ajuda-fechar, #seletor-fechar {
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg2);
+  color: var(--fg2);
+  font-size: 12px;
+  line-height: 1;
+}
+
+#ajuda-fechar:hover, #seletor-fechar:hover { color: var(--danger); border-color: var(--danger); }
+
+.ajuda-conteudo {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+#ajuda-indice {
+  width: 232px;
+  flex: 0 0 232px;
+  margin: 0;
+  padding: 18px 12px;
+  list-style: none;
+  background: var(--bg2);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+
+#ajuda-indice button {
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 8px;
+  font-size: 12.5px;
+  padding: 8px 10px;
+  background: transparent;
+  color: var(--fg2);
+}
+
+#ajuda-indice button:hover { background: var(--bg3); }
+#ajuda-indice button.ativo { background: var(--bg1); color: var(--fg); }
+
+#ajuda-corpo {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 20px 22px 28px 22px;
+}
+
+.ajuda-secao { margin-bottom: 26px; }
+
+.ajuda-secao h3 {
+  margin: 0 0 12px 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.ajuda-secao p {
+  margin: 0 0 14px 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--fg2);
+  text-wrap: pretty;
+}
+
+.ajuda-secao ul, .ajuda-secao ol {
+  margin: 0 0 14px 0;
+  padding-left: 20px;
+}
+
+.ajuda-secao li {
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--fg2);
+  margin-bottom: 8px;
+}
+
+.ajuda-secao li::marker { color: var(--acc); }
+
+.ajuda-secao b { color: var(--fg); font-weight: 600; }
+
+.ajuda-secao code, .seletor-dica code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--bg3);
+  border-radius: 5px;
+  padding: 1px 5px;
+  color: var(--fg);
+}
+
+.ajuda-aviso {
+  border-left: 2px solid var(--acc);
+  background: var(--accd);
+  border-radius: 0 10px 10px 0;
+  padding: 12px 14px;
+  margin: 4px 0 16px 0;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--fg2);
+}
+
+.ajuda-tabela {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 16px 0;
+  font-size: 12.5px;
+}
+
+.ajuda-tabela th {
+  text-align: left;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--fg3);
+  padding: 0 10px 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.ajuda-tabela td {
+  padding: 9px 10px 9px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg2);
+  line-height: 1.6;
+  vertical-align: top;
+}
+
+.ajuda-tabela td:first-child {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg);
+  white-space: nowrap;
+}
+
+.ajuda-bolinha {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 5px;
+  animation: none;
+}
+
+/* -------------------------------------------------- seletor de ligacoes */
+
+.seletor-caixa {
+  width: 520px;
+  max-width: 92vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg1);
+  border: 1px solid var(--line2);
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: var(--shadow);
+  animation: orqPop .24s ease;
+}
+
+.seletor-topo { display: flex; align-items: center; margin-bottom: 14px; }
+
+.seletor-topo h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+#seletor-lista {
+  margin: 0 0 14px 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.seletor-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  color: var(--fg);
+}
+
+.seletor-item:hover { border-color: var(--acc); }
+
+.seletor-nome { font-size: 12.5px; font-weight: 600; }
+
+.seletor-tipo {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg3);
+}
+
+.seletor-caminho {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg3);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seletor-vazio, .seletor-dica {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--fg3);
+  line-height: 1.6;
+}
+
+/* =========================================================== compressao */
+
+/* A dica da toolbar e a primeira coisa a sair, como manda o doc 03: ela
+   explica o que o campo ao lado ja mostra. Sem isto ela sozinha empurra a
+   ordenacao e a densidade para a segunda linha. */
+@media (max-width: 1180px) {
+  #barra-dica { display: none; }
+  .campo-feature { min-width: 168px; }
+}
+
+/* ================================================ movimento sob demanda */
+
+/* Pulso, espera e cursor piscando desligam; mudanca de cor permanece. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+  .painel:hover, button.primario:hover { transform: none; }
+  #fila-lista li:hover { transform: none; }
+}

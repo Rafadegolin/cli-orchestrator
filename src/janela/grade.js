@@ -20,11 +20,15 @@ function novoId() {
   return `p${seq}-${Date.now().toString(36)}`;
 }
 
-function ajustarColunas() {
-  const n = elGrade.childElementCount;
-  const colunas = n <= 1 ? 1 : n <= 4 ? 2 : 3;
-  elGrade.style.setProperty('--colunas', String(colunas));
-  elVazio.hidden = n > 0;
+// As colunas vem da DENSIDADE escolhida pelo usuario (casca.js), nao mais da
+// contagem de painéis: um numero que muda sozinho a cada painel aberto e
+// exatamente o oposto de uma grade previsivel.
+function atualizarVazio() {
+  elVazio.hidden = elGrade.childElementCount > 0;
+  // A grade mudou, entao a conta de "retomar todas" mudou junto. Sem isto o
+  // botao ficava com o numero da restauracao para sempre -- fechei os quatro
+  // painéis restaurados, abri quatro novos, e ele seguia dizendo "(4)".
+  window.OrqLateral?.atualizarRetomarTodas?.();
 }
 
 async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponivel, ligacoes }) {
@@ -36,7 +40,7 @@ async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponive
     cwd,
     aoFocar: (pid) => { focado = pid; marcarFocado(); },
     aoFechar: () => {
-      ajustarColunas();
+      atualizarVazio();
       window.OrqLateral?.remover(id);
       // Painel fechado antes de partir nao pode deixar entrada presa na fila.
       window.OrqFila?.remover(id);
@@ -49,7 +53,7 @@ async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponive
   painel.ligacoes = Array.isArray(ligacoes) ? [...ligacoes] : [];
 
   elGrade.append(painel.el);
-  ajustarColunas();
+  atualizarVazio();
 
   // O fit precisa do elemento ja no DOM e com tamanho para calcular cols/rows.
   painel.ajustar();
@@ -212,6 +216,11 @@ function marcarFocado() {
   for (const [id, p] of porId) {
     p.el.classList.toggle('painel-focado', id === focado);
   }
+  // O card da lateral acompanha: uma sessao focada por vez, e voce tem de
+  // conseguir ver qual e sem olhar para a grade.
+  for (const li of document.querySelectorAll('#lateral-lista .card')) {
+    li.classList.toggle('card-focado', li.dataset.id === focado);
+  }
 }
 
 function focarPainel(id) {
@@ -254,6 +263,7 @@ window.addEventListener('resize', () => {
 window.OrqGrade = {
   criarPainel, focarPainel, painelPorId: porId,
   despertar, restaurarSessao, retomarTodas, dormindos, retratoSessao, salvarSessao,
+  focado: () => focado,
 };
 
 // No evento `load`, e NAO no carregamento deste script: grade.js e avaliado

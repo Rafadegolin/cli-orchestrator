@@ -14,6 +14,8 @@ const portas = require('./portas');
 const worktrees = require('./worktrees');
 const sessao = require('./sessao');
 const arquivo = require('./arquivo');
+const preferencias = require('./preferencias');
+const metricas = require('./metricas');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -41,18 +43,39 @@ const SHELL_PADRAO = process.platform === 'win32'
 
 let janela = null;
 
+// Os botoes de janela sao desenhados pelo Windows, entao a cor deles nao sai do
+// CSS -- tem de ser dita ao Electron. Os valores sao os mesmos tokens --bg1 e
+// --fg2 de cada tema, e trocar de tema chama setTitleBarOverlay.
+const CORES_TITULO = {
+  escuro: { color: '#0d1014', symbolColor: '#a3adba' },
+  claro: { color: '#ffffff', symbolColor: '#4d5661' },
+};
+
 // Trava para o dialogo de confirmacao nao aparecer quando quem esta fechando
 // nao e o usuario. O quitAndInstall do updater tambem fecha a janela: sem isto,
 // aplicar atualizacao pediria confirmacao no meio do reinicio.
 let fechamentoAutorizado = false;
 
 function criarJanela() {
+  // Le o tema ANTES de criar a janela: comecar sempre no escuro faria o tema
+  // claro piscar preto no arranque, e a cor dos botoes de janela nao pode ser
+  // corrigida depois sem o mesmo pisca.
+  const cores = CORES_TITULO[preferencias.carregar().tema] || CORES_TITULO.escuro;
+
   janela = new BrowserWindow({
     width: 1400,
     height: 900,
-    backgroundColor: '#14161a',
+    minWidth: 924,
+    minHeight: 560,
+    backgroundColor: cores.color,
     show: false,
     title: 'Orquestrador',
+    // A faixa de 38px e desenhada por nos; os TRES BOTOES continuam sendo os do
+    // Windows, pintados por cima pelo overlay. E o que preserva o Snap Layouts
+    // (arrastar para a borda, o menu que aparece ao pairar no maximizar) --
+    // `frame: false` daria controle total do visual e custaria isso.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { ...cores, height: 38 },
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'ponte.js'),
       contextIsolation: true,
@@ -92,12 +115,14 @@ function criarJanela() {
 
   janela.on('closed', () => {
     terminais.fecharTodos();
+    metricas.parar();
     janela = null;
   });
 
   terminais.definirJanela(janela);
   estado.definirJanela(janela);
   atualizacao.iniciar(janela);
+  metricas.iniciar(janela);
   janela.loadFile(path.join(__dirname, '..', 'janela', 'index.html'));
 }
 
@@ -135,6 +160,7 @@ app.on('before-quit', () => {
   terminais.fecharTodos();
   eventos.parar();
   atualizacao.parar();
+  metricas.parar();
 });
 
 // ---------------------------------------------------------------- IPC
@@ -309,6 +335,25 @@ ipcMain.handle('app:constantes', () => ({
   pastaDados: arquivo.PASTA,
   arquivoHooks: instalarHooks.ARQ_SETTINGS,
 }));
+
+ipcMain.handle('ui:carregar', () => preferencias.carregar());
+
+// Trocar de tema tem de repintar os botoes de janela junto: eles sao desenhados
+// pelo Windows e nao enxergam o CSS. Sem isto, o tema claro fica com uma faixa
+// preta no canto superior direito.
+ipcMain.handle('ui:salvar', (_e, parcial) => {
+  const ui = preferencias.salvar(parcial);
+  if (janela && !janela.isDestroyed()) {
+    const cores = CORES_TITULO[ui.tema] || CORES_TITULO.escuro;
+    try {
+      janela.setTitleBarOverlay({ ...cores, height: 38 });
+    } catch { /* plataforma sem overlay: a faixa continua nossa, so os botoes nao */ }
+    janela.setBackgroundColor(cores.color);
+  }
+  return ui;
+});
+
+ipcMain.handle('app:metricas', () => metricas.agora());
 
 ipcMain.handle('atualizacao:situacao', () => ({ ...atualizacao.situacao }));
 ipcMain.handle('atualizacao:verificar', () => { atualizacao.verificar(); return true; });

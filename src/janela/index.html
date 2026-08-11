@@ -4,80 +4,167 @@
 <title>Orquestrador</title>
 
 <link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css" />
+<link rel="stylesheet" href="fontes.css" />
 <link rel="stylesheet" href="estilo.css" />
 
 <div id="app">
-  <aside id="lateral">
-    <div class="lateral-topo">
-      <h1>Projetos</h1>
-      <span id="projetos-contagem">0</span>
-      <button id="btn-projeto-add" title="Cadastrar pasta de um projeto">+</button>
-    </div>
-    <ol id="projetos-lista"></ol>
 
-    <div class="lateral-topo">
-      <h1>Sessoes</h1>
-      <span id="lateral-contagem">0</span>
-    </div>
-    <ol id="lateral-lista"></ol>
-    <div class="lateral-pe">
-      <button id="btn-retomar-todas" hidden></button>
-      <button id="btn-atualizar" hidden></button>
-      <button id="btn-hooks">Hooks: verificando...</button>
-      <button id="btn-ajuda">Como usar (F1)</button>
-      <p class="lateral-dica">Ctrl+Enter pula para quem espera ha mais tempo</p>
-      <p class="lateral-versao" id="lateral-versao"></p>
-    </div>
-  </aside>
-
-  <main id="principal">
-    <div id="barra">
-      <input id="nome-feature" type="text" placeholder="nome da feature (opcional)" spellcheck="false" />
-      <button id="btn-novo">Novo painel</button>
-      <span id="barra-dica">clique num projeto ao lado para abrir com <code>claude</code> ja rodando</span>
+  <!-- Os tres botoes de janela sao os do Windows, desenhados por cima pelo
+       titleBarOverlay: e o que preserva o Snap Layouts. A faixa e nossa. -->
+  <header id="titulo">
+    <div class="marca">
+      <span class="marca-icone"></span>
+      <span class="marca-nome">Orquestrador</span>
+      <span class="mono" id="lateral-versao"></span>
     </div>
 
-    <div id="grade" style="--colunas: 1"></div>
+    <button id="btn-busca" title="Buscar sessao, projeto ou comando (Ctrl+K)">
+      <span>Buscar sessao, projeto, comando...</span>
+      <span class="tecla mono">Ctrl+K</span>
+    </button>
 
-    <div id="seletor-ligacoes" hidden>
-      <div class="seletor-caixa">
-        <div class="seletor-topo">
-          <h2 id="seletor-titulo"></h2>
-          <button id="seletor-fechar" title="Fechar (Esc)">×</button>
+    <button id="btn-tema" title="Alternar tema claro e escuro"></button>
+  </header>
+
+  <div id="corpo">
+    <aside id="lateral">
+
+      <div id="placar">
+        <div class="placar-linha">
+          <span id="placar-num">0</span>
+          <span class="placar-rotulo">sessoes vivas</span>
+          <span id="placar-cpu" class="mono"></span>
         </div>
-        <ol id="seletor-lista"></ol>
-        <p class="seletor-dica">
-          Ligar da a esta sessao acesso de leitura ao codigo do outro repositorio,
-          usando o <code>--add-dir</code> do proprio Claude Code.
-        </p>
+        <div id="placar-carga"></div>
+      </div>
+
+      <div id="lateral-rolagem">
+
+        <!-- So existe quando ha quem esperando: fila vazia nao ocupa espaco. -->
+        <section id="bloco-fila" hidden>
+          <div class="secao-topo">
+            <h1 class="secao-titulo atencao">Esperando voce</h1>
+            <span id="fila-contagem" class="mono badge-atencao">0</span>
+          </div>
+          <ol id="fila-lista"></ol>
+          <button id="fila-dica" class="mono">ctrl+enter &rsaquo; ir para a mais antiga</button>
+        </section>
+
+        <section id="bloco-projetos">
+          <div class="secao-topo">
+            <h1 class="secao-titulo">Projetos</h1>
+            <span id="projetos-contagem" class="mono"></span>
+            <button id="btn-projeto-add" title="Cadastrar pasta de um projeto">+</button>
+          </div>
+          <ol id="projetos-lista"></ol>
+        </section>
+
+        <section id="bloco-sessoes">
+          <div class="secao-topo">
+            <h1 class="secao-titulo">Sessoes</h1>
+            <span id="lateral-contagem" class="mono"></span>
+          </div>
+          <ol id="lateral-lista"></ol>
+        </section>
+
+      </div>
+
+      <div id="lateral-pe">
+        <button id="btn-retomar-todas" hidden></button>
+        <button id="btn-atualizar" hidden></button>
+        <button id="btn-hooks">
+          <span class="switch"><span class="switch-bolota"></span></span>
+          <span>Hooks</span>
+          <span id="hooks-rotulo" class="mono">verificando...</span>
+        </button>
+        <button id="btn-ajuda">
+          <span>Como usar</span>
+          <span class="mono">F1</span>
+        </button>
+      </div>
+    </aside>
+
+    <main id="principal">
+      <div id="barra">
+        <div class="campo-feature">
+          <span class="mono prefixo">feat/</span>
+          <input id="nome-feature" type="text" placeholder="nome-da-feature" spellcheck="false" />
+        </div>
+        <button id="btn-nova-sessao" class="primario"><span class="mais">+</span>Nova sessao</button>
+        <button id="btn-novo">Painel avulso</button>
+        <span id="barra-dica"></span>
+
+        <div class="barra-direita">
+          <div id="ordenacao" class="pilulas">
+            <button data-ordem="urgencia" class="ativa">Urgencia</button>
+            <button data-ordem="projeto">Projeto</button>
+          </div>
+          <div id="densidade" class="pilulas">
+            <button data-cols="1" class="mono" title="1 coluna">1</button>
+            <button data-cols="2" class="mono ativa" title="2 colunas">2</button>
+            <button data-cols="3" class="mono" title="3 colunas">3</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="conteudo">
+        <div id="grade"></div>
+
+        <div id="vazio">
+          <div class="vazio-marca"><span></span></div>
+          <div class="vazio-texto">
+            <h2>Nenhuma sessao aberta</h2>
+            <p>Cadastre um repositorio, digite o nome da feature e o Orquestrador cria o worktree,
+              reserva a faixa de portas e sobe o Claude sozinho.</p>
+          </div>
+          <div class="vazio-acoes">
+            <button id="vazio-cadastrar" class="primario">Cadastrar projeto</button>
+            <button id="vazio-ajuda">Como usar</button>
+          </div>
+          <div class="vazio-fatos">
+            <div><span class="mono">worktree</span><span>isolamento por feature</span></div>
+            <div><span class="mono">portas</span><span>faixa propria por projeto</span></div>
+            <div><span class="mono">hooks</span><span>status em tempo real</span></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="seletor-ligacoes" class="overlay" hidden>
+    <div class="seletor-caixa">
+      <div class="seletor-topo">
+        <h2 id="seletor-titulo"></h2>
+        <button id="seletor-fechar" title="Fechar (Esc)">&times;</button>
+      </div>
+      <ol id="seletor-lista"></ol>
+      <p class="seletor-dica">
+        Ligar da a esta sessao acesso de leitura ao codigo do outro repositorio,
+        usando o <code>--add-dir</code> do proprio Claude Code.
+      </p>
+    </div>
+  </div>
+
+  <div id="ajuda" class="overlay" hidden>
+    <div class="ajuda-caixa">
+      <div class="ajuda-topo">
+        <h2>Como usar o Orquestrador</h2>
+        <button id="ajuda-fechar" title="Fechar (Esc)">&times;</button>
+      </div>
+      <div class="ajuda-conteudo">
+        <ol id="ajuda-indice"></ol>
+        <div id="ajuda-corpo"></div>
       </div>
     </div>
+  </div>
 
-    <div id="vazio">
-      <p>Nenhum painel aberto.</p>
-      <p class="fraco">Cadastre um projeto na barra lateral para comecar.</p>
-      <p class="fraco"><a href="#" id="vazio-ajuda">Ver como usar o app</a></p>
-    </div>
-
-    <div id="ajuda" hidden>
-      <div class="ajuda-caixa">
-        <div class="ajuda-topo">
-          <h2>Como usar o Orquestrador</h2>
-          <button id="ajuda-fechar" title="Fechar (Esc)">×</button>
-        </div>
-        <div class="ajuda-conteudo">
-          <ol id="ajuda-indice"></ol>
-          <div id="ajuda-corpo"></div>
-        </div>
-      </div>
-    </div>
-  </main>
 </div>
 
 <script src="../../node_modules/@xterm/xterm/lib/xterm.js"></script>
 <script src="../../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
 <script src="../../node_modules/@xterm/addon-webgl/lib/addon-webgl.js"></script>
 <script src="../../node_modules/@xterm/addon-canvas/lib/addon-canvas.js"></script>
+<script src="casca.js"></script>
 <script src="painel.js"></script>
 <script src="fila.js"></script>
 <script src="ligacoes.js"></script>

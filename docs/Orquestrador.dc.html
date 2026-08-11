@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; background: #08090b; -webkit-font-smoothing: antialiased; font-family: 'Space Grotesk', system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+  a { color: #3ddc97; text-decoration: none; }
+  a:hover { color: #7fe9bd; }
+  .orq { --bg0:#0a0c0f; --bg1:#0d1014; --bg2:#12161b; --bg3:#171d24; --line:#1e242c; --line2:#2b333d; --fg:#e8ecf2; --fg2:#a3adba; --fg3:#68727e; --acc:#3ddc97; --accd:rgba(61,220,151,.10); --warn:#ffb454; --warnd:rgba(255,180,84,.10); --info:#7aa2f7; --danger:#f7768e; --term:#0b0e12; --termfg:#c8d3e0; --shadow:0 18px 50px -20px rgba(0,0,0,.9); --glass:rgba(18,22,27,.86); }
+  .orq.light { --bg0:#eef0f3; --bg1:#ffffff; --bg2:#f6f7f9; --bg3:#eceff3; --line:#e0e4ea; --line2:#ccd2db; --fg:#121619; --fg2:#4d5661; --fg3:#828c99; --acc:#0e9d68; --accd:rgba(14,157,104,.09); --warn:#b8721a; --warnd:rgba(184,114,26,.10); --info:#3b6fd4; --danger:#d1435f; --term:#0b0e12; --termfg:#c8d3e0; --shadow:0 18px 44px -24px rgba(16,24,40,.35); --glass:rgba(255,255,255,.9); }
+  ::selection { background: rgba(61,220,151,.28); }
+  .orq ::-webkit-scrollbar { width: 9px; height: 9px; }
+  .orq ::-webkit-scrollbar-track { background: transparent; }
+  .orq ::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  @keyframes orqPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(61,220,151,.5); } 50% { box-shadow: 0 0 0 5px rgba(61,220,151,0); } }
+  @keyframes orqWait { 0%,100% { box-shadow: 0 0 0 0 rgba(255,180,84,.55); } 50% { box-shadow: 0 0 0 6px rgba(255,180,84,0); } }
+  @keyframes orqBlink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+  @keyframes orqUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes orqPop { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: none; } }
+  @keyframes orqFade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes orqSweep { from { background-position: 0% 50%; } to { background-position: 200% 50%; } }
+  input, button, textarea { font-family: inherit; }
+  input:focus, button:focus { outline: none; }
+</style>
+</helmet>
+
+<div class="orq {{ themeClass }}" style="height: 100vh; width: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--bg0); color: var(--fg);">
+
+  <div style="height: 38px; flex: 0 0 38px; display: flex; align-items: center; gap: 14px; padding: 0 12px 0 14px; background: var(--bg1); border-bottom: 1px solid var(--line); -webkit-app-region: drag;">
+    <div style="display: flex; align-items: center; gap: 7px;">
+      <div style="width: 18px; height: 18px; border-radius: 6px; background: linear-gradient(150deg, var(--acc), rgba(61,220,151,.18)); display: flex; align-items: center; justify-content: center;">
+        <div style="width: 5px; height: 5px; border-radius: 50%; background: var(--bg0);"></div>
+      </div>
+      <span style="font-size: 12.5px; font-weight: 600; letter-spacing: -.01em;">Orquestrador</span>
+      <span style="font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: var(--fg3); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px;">v0.2</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2px; margin-left: 6px;">
+      <sc-for list="{{ menus }}" as="m" hint-placeholder-count="4">
+        <button style="background: none; border: none; color: var(--fg2); font-size: 12px; padding: 4px 9px; border-radius: 6px; cursor: pointer;" style-hover="background: var(--bg3); color: var(--fg);">{{ m }}</button>
+      </sc-for>
+    </div>
+    <button onClick="{{ onOpenPalette }}" style="margin-left: auto; display: flex; align-items: center; gap: 8px; background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px 4px 10px; color: var(--fg3); font-size: 11.5px; cursor: pointer; flex: 0 1 240px; min-width: 0; overflow: hidden;" style-hover="border-color: var(--line2); color: var(--fg2);">
+      <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Buscar sessão, projeto, comando…</span>
+      <span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; border: 1px solid var(--line2); border-radius: 4px; padding: 1px 4px;">⌘K</span>
+    </button>
+    <button onClick="{{ onToggleTheme }}" title="Tema" style="width: 26px; height: 24px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg2); color: var(--fg2); cursor: pointer; font-size: 11px; display: flex; align-items: center; justify-content: center;" style-hover="color: var(--acc); border-color: var(--acc);">{{ themeIcon }}</button>
+    <div style="display: flex; gap: 14px; margin-left: 8px; color: var(--fg3); font-size: 11px;">
+      <span>—</span><span>▢</span><span>✕</span>
+    </div>
+  </div>
+
+  <div style="flex: 1; display: flex; min-height: 0;">
+
+    <aside style="width: 272px; flex: 0 0 272px; display: flex; flex-direction: column; background: var(--bg1); border-right: 1px solid var(--line); min-height: 0; min-width: 0; overflow-x: hidden;">
+
+      <div style="padding: 14px 14px 12px 14px; border-bottom: 1px solid var(--line);">
+        <div style="display: flex; align-items: baseline; gap: 8px;">
+          <span style="font-size: 26px; font-weight: 700; letter-spacing: -.03em; line-height: 1;">{{ activeCount }}</span>
+          <span style="font-size: 11.5px; color: var(--fg2);">sessões vivas</span>
+          <span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--fg3);">{{ cpuLabel }}</span>
+        </div>
+        <div style="display: flex; gap: 3px; margin-top: 10px; height: 4px;">
+          <sc-for list="{{ loadBars }}" as="b" hint-placeholder-count="12">
+            <div style="flex: 1; border-radius: 2px; background: {{ b.color }};"></div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="flex: 1; overflow-y: auto; overflow-x: hidden; min-height: 0; min-width: 0;">
+
+        <sc-if value="{{ hasQueue }}" hint-placeholder-val="{{ true }}">
+          <div style="padding: 14px 12px 4px 14px;">
+            <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 9px;">
+              <span style="font-size: 9.5px; font-weight: 700; letter-spacing: .16em; color: var(--warn); text-transform: uppercase;">Esperando você</span>
+              <span style="font-family: 'JetBrains Mono', monospace; font-size: 9.5px; font-weight: 700; color: var(--bg0); background: var(--warn); border-radius: 20px; padding: 1px 6px;">{{ queueCount }}</span>
+            </div>
+            <sc-for list="{{ queue }}" as="q" hint-placeholder-count="2">
+              <button onClick="{{ q.onFocus }}" style="width: 100%; display: flex; align-items: center; gap: 9px; text-align: left; background: var(--warnd); border: 1px solid rgba(255,180,84,.22); border-radius: 10px; padding: 9px 10px; margin-bottom: 6px; cursor: pointer; color: var(--fg); transition: transform .15s ease, background .15s ease;" style-hover="transform: translateX(3px);">
+                <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--warn); flex: 0 0 6px; animation: orqWait 2s ease-in-out infinite;"></span>
+                <span style="font-size: 12.5px; font-weight: 600;">{{ q.name }}</span>
+                <span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--warn);">{{ q.wait }}</span>
+              </button>
+            </sc-for>
+            <button onClick="{{ onJumpNext }}" style="width: 100%; text-align: left; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--fg3); background: none; border: none; padding: 3px 2px 4px 2px; cursor: pointer;" style-hover="color: var(--warn);">ctrl+enter › ir para a mais antiga</button>
+          </div>
+        </sc-if>
+
+        <div style="padding: 14px 12px 4px 14px;">
+          <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 9px;">
+            <span style="font-size: 9.5px; font-weight: 700; letter-spacing: .16em; color: var(--fg3); text-transform: uppercase;">Projetos</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--fg3);">{{ projectCount }}</span>
+            <button onClick="{{ onOpenNewProject }}" style="margin-left: auto; width: 20px; height: 20px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg2); color: var(--fg2); cursor: pointer; font-size: 13px; line-height: 1; display: flex; align-items: center; justify-content: center;" style-hover="border-color: var(--acc); color: var(--acc);">+</button>
+          </div>
+
+          <sc-if value="{{ noProjects }}" hint-placeholder-val="{{ false }}">
+            <div style="border: 1px dashed var(--line2); border-radius: 11px; padding: 12px; margin-bottom: 8px;">
+              <div style="font-size: 11.5px; color: var(--fg2); line-height: 1.5; margin-bottom: 9px;">Nenhum repositório ainda. Cadastre um para abrir sessões com um clique.</div>
+              <button onClick="{{ onOpenNewProject }}" style="width: 100%; background: var(--accd); border: 1px solid var(--acc); border-radius: 8px; color: var(--acc); font-size: 11.5px; font-weight: 600; padding: 7px; cursor: pointer;" style-hover="background: var(--acc); color: var(--bg0);">Cadastrar projeto</button>
+            </div>
+          </sc-if>
+
+          <sc-for list="{{ projects }}" as="p" hint-placeholder-count="2">
+            <div style="margin-bottom: 3px;">
+              <button onClick="{{ p.onOpen }}" style="width: 100%; display: flex; align-items: center; gap: 9px; text-align: left; background: none; border: 1px solid transparent; border-radius: 9px; padding: 7px 8px; cursor: pointer; color: var(--fg); transition: background .14s ease;" style-hover="background: var(--bg3); border-color: var(--line);">
+                <span style="width: 6px; height: 6px; border-radius: 2px; flex: 0 0 6px; background: {{ p.tint }};"></span>
+                <span style="flex: 1 1 0; min-width: 0; font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ p.name }}</span>
+                <span style="margin-left: auto; flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: var(--fg3); border: 1px solid var(--line); border-radius: 5px; padding: 1px 5px;">{{ p.badge }}</span>
+              </button>
+              <sc-for list="{{ p.worktrees }}" as="w" hint-placeholder-count="2">
+                <button onClick="{{ w.onOpen }}" style="width: 100%; display: flex; align-items: center; gap: 8px; text-align: left; background: none; border: none; border-left: 1px solid var(--line); margin-left: 11px; padding: 5px 8px 5px 12px; cursor: pointer; color: var(--fg2);" style-hover="color: var(--acc); border-color: var(--acc);">
+                  <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px;">{{ w.branch }}</span>
+                  <span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 9.5px; color: var(--fg3);">{{ w.state }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="padding: 16px 12px 4px 14px;">
+          <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 9px;">
+            <span style="font-size: 9.5px; font-weight: 700; letter-spacing: .16em; color: var(--fg3); text-transform: uppercase;">Sessões</span>
+            <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--fg3);">{{ sessionCount }}</span>
+          </div>
+          <sc-for list="{{ sessions }}" as="s" hint-placeholder-count="3">
+            <button onClick="{{ s.onFocus }}" style="width: 100%; display: flex; align-items: center; gap: 9px; text-align: left; background: {{ s.navBg }}; border: 1px solid {{ s.navBorder }}; border-radius: 9px; padding: 8px; margin-bottom: 4px; cursor: pointer; color: var(--fg);" style-hover="background: var(--bg3);">
+              <span style="width: 6px; height: 6px; border-radius: 50%; flex: 0 0 6px; background: {{ s.dot }}; animation: {{ s.anim }};"></span>
+              <span style="display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 0; overflow: hidden;">
+                <span style="font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ s.name }}</span>
+                <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ s.statusLabel }}</span>
+              </span>
+              <span style="margin-left: auto; flex: 0 0 auto; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--fg3);">{{ s.port }}</span>
+            </button>
+          </sc-for>
+        </div>
+
+      </div>
+
+      <div style="padding: 10px 12px 12px 12px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px;">
+        <sc-if value="{{ hasSuspended }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ onResumeAll }}" style="width: 100%; background: var(--acc); border: none; border-radius: 9px; color: #06231a; font-size: 12px; font-weight: 700; padding: 9px; cursor: pointer;" style-hover="filter: brightness(1.08);">Retomar todas ({{ suspendedCount }})</button>
+        </sc-if>
+        <button onClick="{{ onToggleHooks }}" style="width: 100%; display: flex; align-items: center; gap: 8px; background: var(--bg2); border: 1px solid var(--line); border-radius: 9px; color: var(--fg2); font-size: 12px; padding: 8px 10px; cursor: pointer;" style-hover="border-color: var(--line2); color: var(--fg);">
+          <span style="width: 26px; height: 15px; border-radius: 20px; padding: 2px; display: flex; background: {{ hooksTrackBg }}; justify-content: {{ hooksJustify }};">
+            <span style="width: 11px; height: 11px; border-radius: 50%; background: {{ hooksKnob }};"></span>
+          </span>
+          <span>Hooks</span>
+          <span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: {{ hooksTextColor }};">{{ hooksLabel }}</span>
+        </button>
+        <button onClick="{{ onOpenHelp }}" style="width: 100%; display: flex; align-items: center; background: none; border: 1px solid var(--line); border-radius: 9px; color: var(--fg2); font-size: 12px; padding: 8px 10px; cursor: pointer;" style-hover="border-color: var(--line2); color: var(--fg);">
+          <span>Como usar</span>
+          <span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--fg3);">F1</span>
+        </button>
+      </div>
+    </aside>
+
+    <main style="flex: 1 1 0; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden;">
+
+      <div style="padding: 12px 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--line); background: var(--bg1); min-width: 0;">
+        <div style="position: relative; display: flex; align-items: center; flex: 0 1 280px; min-width: 208px;">
+          <span style="position: absolute; left: 12px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--fg3); pointer-events: none;">feat/</span>
+          <input value="{{ featureName }}" onChange="{{ onFeatureChange }}" placeholder="nome-da-feature" style="width: 100%; min-width: 0; background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px 9px 44px; color: var(--fg); font-size: 12.5px; font-family: 'JetBrains Mono', monospace;" style-focus="border-color: var(--acc); background: var(--bg3);" />
+        </div>
+        <button onClick="{{ onNewSession }}" style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px; white-space: nowrap; background: var(--acc); border: none; border-radius: 10px; color: #06231a; font-size: 12.5px; font-weight: 700; padding: 9px 14px; cursor: pointer; box-shadow: 0 6px 18px -8px rgba(61,220,151,.7);" style-hover="filter: brightness(1.08); transform: translateY(-1px);">
+          <span style="font-size: 14px; line-height: 1;">+</span>
+          <span>Nova sessão</span>
+        </button>
+        <button onClick="{{ onNewPanel }}" style="flex: 0 0 auto; white-space: nowrap; background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; color: var(--fg2); font-size: 12.5px; padding: 9px 12px; cursor: pointer;" style-hover="border-color: var(--line2); color: var(--fg);">Painel avulso</button>
+        <span style="flex: 1 1 0; min-width: 0; font-size: 11.5px; color: var(--fg3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ hintText }}</span>
+
+        <div style="flex: 0 0 auto; display: flex; align-items: center; gap: 8px;">
+          <div style="display: flex; background: var(--bg2); border: 1px solid var(--line); border-radius: 9px; padding: 2px;">
+            <sc-for list="{{ sortModes }}" as="sm" hint-placeholder-count="2">
+              <button onClick="{{ sm.onPick }}" style="border: none; border-radius: 7px; font-size: 11px; padding: 5px 10px; cursor: pointer; background: {{ sm.bg }}; color: {{ sm.color }};">{{ sm.label }}</button>
+            </sc-for>
+          </div>
+          <div style="display: flex; background: var(--bg2); border: 1px solid var(--line); border-radius: 9px; padding: 2px;">
+            <sc-for list="{{ densities }}" as="d" hint-placeholder-count="3">
+              <button onClick="{{ d.onPick }}" title="{{ d.title }}" style="border: none; border-radius: 7px; font-family: 'JetBrains Mono', monospace; font-size: 11px; padding: 5px 9px; cursor: pointer; background: {{ d.bg }}; color: {{ d.color }};">{{ d.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex: 1; overflow-y: auto; min-height: 0; padding: 14px; background: radial-gradient(900px 500px at 80% -20%, var(--bg2) 0%, var(--bg0) 65%);">
+
+        <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; animation: orqFade .4s ease;">
+            <div style="width: 76px; height: 76px; border-radius: 24px; border: 1px solid var(--line2); background: var(--bg1); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow);">
+              <div style="width: 12px; height: 12px; border-radius: 50%; background: var(--acc); animation: orqPulse 2.4s ease-in-out infinite;"></div>
+            </div>
+            <div style="text-align: center; max-width: 460px;">
+              <div style="font-size: 24px; font-weight: 700; letter-spacing: -.025em; margin-bottom: 8px;">Nenhuma sessão aberta</div>
+              <div style="font-size: 13.5px; color: var(--fg2); line-height: 1.6; text-wrap: pretty;">Cadastre um repositório, digite o nome da feature e o Orquestrador cria o worktree, reserva a faixa de portas e sobe o Claude sozinho.</div>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button onClick="{{ onOpenNewProject }}" style="background: var(--acc); border: none; border-radius: 10px; color: #06231a; font-size: 12.5px; font-weight: 700; padding: 10px 16px; cursor: pointer;" style-hover="filter: brightness(1.08);">Cadastrar projeto</button>
+              <button onClick="{{ onOpenHelp }}" style="background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; color: var(--fg2); font-size: 12.5px; padding: 10px 16px; cursor: pointer;" style-hover="color: var(--fg); border-color: var(--line2);">Como usar</button>
+            </div>
+            <div style="display: flex; gap: 26px; margin-top: 8px;">
+              <sc-for list="{{ emptyFacts }}" as="f" hint-placeholder-count="3">
+                <div style="text-align: center;">
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--acc); margin-bottom: 4px;">{{ f.k }}</div>
+                  <div style="font-size: 11.5px; color: var(--fg3);">{{ f.v }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <div style="{{ gridStyle }}">
+          <sc-for list="{{ panels }}" as="p" hint-placeholder-count="3">
+            <div onClick="{{ p.onFocus }}" style="display: flex; flex-direction: column; min-height: 0; border-radius: 14px; overflow: hidden; background: var(--bg1); border: 1px solid {{ p.border }}; box-shadow: {{ p.shadow }}; animation: orqPop .32s ease both; transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; height: {{ p.height }};" style-hover="transform: translateY(-2px);">
+
+              <div style="display: flex; align-items: center; gap: 8px; padding: 9px 10px 9px 12px; background: var(--bg2); border-bottom: 1px solid var(--line); min-width: 0;">
+                <span style="width: 7px; height: 7px; border-radius: 50%; flex: 0 0 7px; background: {{ p.dot }}; animation: {{ p.anim }};"></span>
+                <span style="flex: 0 0 auto; font-size: 12.5px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap;">{{ p.name }}</span>
+                <span style="flex: 0 1 auto; min-width: 0; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--fg3); background: var(--bg3); border-radius: 5px; padding: 2px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ p.project }}</span>
+                <span style="flex: 0 1 auto; min-width: 0; font-family: 'JetBrains Mono', monospace; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: clip; color: {{ p.statusColor }}; display: {{ p.statusDisplay }};">{{ p.statusLabel }}</span>
+                <span style="margin-left: auto; flex: 0 0 auto; display: flex; align-items: center; gap: 4px;">
+                  <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--info); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; white-space: nowrap;">{{ p.port }}</span>
+                  <button onClick="{{ p.onLink }}" title="Ligar a outra sessão" style="font-family: 'JetBrains Mono', monospace; font-size: 10px; border-radius: 6px; padding: 2px 7px; cursor: pointer; white-space: nowrap; max-width: 130px; overflow: hidden; text-overflow: ellipsis; background: {{ p.linkBg }}; border: 1px solid {{ p.linkBorder }}; color: {{ p.linkColor }};">{{ p.linkLabel }}</button>
+                  <button onClick="{{ p.onClose }}" style="flex: 0 0 20px; width: 20px; height: 20px; border-radius: 6px; border: 1px solid transparent; background: none; color: var(--fg3); font-size: 11px; cursor: pointer;" style-hover="color: var(--danger); border-color: var(--danger);">✕</button>
+                </span>
+              </div>
+
+              <sc-if value="{{ p.isSuspended }}" hint-placeholder-val="{{ false }}">
+                <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 22px; background: var(--bg1);">
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: .16em; color: var(--fg3); text-transform: uppercase;">Sessão anterior</div>
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--fg2); text-align: center; word-break: break-all; max-width: 340px;">{{ p.path }}</div>
+                  <div style="display: flex; gap: 12px; font-size: 11px; color: var(--fg3);">
+                    <span>{{ p.lastMsg }}</span>
+                    <span style="color: var(--line2);">•</span>
+                    <span>{{ p.diffLabel }}</span>
+                  </div>
+                  <button onClick="{{ p.onResume }}" style="background: var(--accd); border: 1px solid var(--acc); border-radius: 9px; color: var(--acc); font-size: 12px; font-weight: 700; padding: 8px 20px; cursor: pointer;" style-hover="background: var(--acc); color: #06231a;">Retomar</button>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ p.isLive }}" hint-placeholder-val="{{ true }}">
+                <div style="flex: 1; min-height: 0; overflow-y: auto; background: var(--term); padding: 11px 13px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; line-height: 1.65;">
+                  <sc-for list="{{ p.lines }}" as="l" hint-placeholder-count="5">
+                    <div style="white-space: pre-wrap; word-break: break-word; color: {{ l.c }};">{{ l.t }}</div>
+                  </sc-for>
+                  <div style="display: flex; align-items: center; gap: 6px; color: var(--termfg);">
+                    <span style="color: var(--acc);">›</span>
+                    <span style="display: inline-block; width: 7px; height: 14px; background: var(--acc); animation: orqBlink 1.05s step-end infinite;"></span>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ p.isWaiting }}" hint-placeholder-val="{{ false }}">
+                <div style="display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--warnd); border-top: 1px solid rgba(255,180,84,.2);">
+                  <span style="font-size: 11.5px; color: var(--warn); font-weight: 600;">{{ p.askLabel }}</span>
+                  <span style="margin-left: auto; display: flex; gap: 6px;">
+                    <button onClick="{{ p.onApprove }}" style="background: var(--warn); border: none; border-radius: 7px; color: #241704; font-size: 11px; font-weight: 700; padding: 5px 12px; cursor: pointer;" style-hover="filter: brightness(1.08);">Aprovar</button>
+                    <button onClick="{{ p.onFocus }}" style="background: none; border: 1px solid rgba(255,180,84,.35); border-radius: 7px; color: var(--warn); font-size: 11px; padding: 5px 10px; cursor: pointer;" style-hover="background: rgba(255,180,84,.14);">Ver</button>
+                  </span>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <sc-if value="{{ helpOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onCloseHelp }}" style="position: fixed; inset: 0; background: rgba(4,6,8,.62); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 40; animation: orqFade .18s ease;">
+      <div onClick="{{ stop }}" style="width: 900px; max-width: 92vw; height: 620px; max-height: 88vh; display: flex; background: var(--bg1); border: 1px solid var(--line2); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow); animation: orqPop .24s ease;">
+        <div style="width: 232px; flex: 0 0 232px; background: var(--bg2); border-right: 1px solid var(--line); padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto;">
+          <div style="font-size: 9.5px; font-weight: 700; letter-spacing: .16em; color: var(--fg3); text-transform: uppercase; padding: 0 8px 12px 8px;">Como usar</div>
+          <sc-for list="{{ helpSections }}" as="h" hint-placeholder-count="6">
+            <button onClick="{{ h.onPick }}" style="text-align: left; border: none; border-radius: 8px; font-size: 12.5px; padding: 8px 10px; cursor: pointer; background: {{ h.bg }}; color: {{ h.color }};" style-hover="background: var(--bg3);">{{ h.title }}</button>
+          </sc-for>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+          <div style="display: flex; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line);">
+            <span style="font-size: 15px; font-weight: 700; letter-spacing: -.02em;">{{ helpTitle }}</span>
+            <button onClick="{{ onCloseHelp }}" style="margin-left: auto; width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg2); color: var(--fg2); cursor: pointer; font-size: 12px;" style-hover="color: var(--danger); border-color: var(--danger);">✕</button>
+          </div>
+          <div style="flex: 1; overflow-y: auto; padding: 20px 22px 28px 22px;">
+            <sc-for list="{{ helpBlocks }}" as="b" hint-placeholder-count="4">
+              <div>
+                <sc-if value="{{ b.isP }}" hint-placeholder-val="{{ true }}">
+                  <p style="font-size: 13.5px; line-height: 1.7; color: var(--fg2); margin: 0 0 14px 0; text-wrap: pretty;">{{ b.text }}</p>
+                </sc-if>
+                <sc-if value="{{ b.isLi }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; gap: 10px; margin: 0 0 10px 0;">
+                    <span style="width: 5px; height: 5px; border-radius: 50%; background: var(--acc); margin-top: 8px; flex: 0 0 5px;"></span>
+                    <span style="font-size: 13.5px; line-height: 1.65; color: var(--fg2);">{{ b.text }}</span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ b.isNote }}" hint-placeholder-val="{{ false }}">
+                  <div style="border-left: 2px solid var(--acc); background: var(--accd); border-radius: 0 10px 10px 0; padding: 12px 14px; margin: 4px 0 16px 0; font-size: 12.5px; line-height: 1.65; color: var(--fg2);">{{ b.text }}</div>
+                </sc-if>
+                <sc-if value="{{ b.isKey }}" hint-placeholder-val="{{ false }}">
+                  <div style="display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line);">
+                    <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--fg); background: var(--bg3); border: 1px solid var(--line2); border-radius: 6px; padding: 3px 8px; min-width: 92px; text-align: center;">{{ b.key }}</span>
+                    <span style="font-size: 12.5px; color: var(--fg2);">{{ b.text }}</span>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ projectModalOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onCloseNewProject }}" style="position: fixed; inset: 0; background: rgba(4,6,8,.62); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; z-index: 40; animation: orqFade .18s ease;">
+      <div onClick="{{ stop }}" style="width: 520px; max-width: 92vw; background: var(--bg1); border: 1px solid var(--line2); border-radius: 18px; padding: 22px; box-shadow: var(--shadow); animation: orqPop .24s ease;">
+        <div style="font-size: 16px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 6px;">Cadastrar projeto</div>
+        <div style="font-size: 12.5px; color: var(--fg3); line-height: 1.6; margin-bottom: 18px;">Aponte para a pasta do repositório. O Orquestrador detecta o git e reserva uma faixa de portas para as worktrees.</div>
+
+        <div style="font-size: 10px; font-weight: 700; letter-spacing: .14em; color: var(--fg3); text-transform: uppercase; margin-bottom: 7px;">Pasta</div>
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+          <input value="{{ newProjectPath }}" onChange="{{ onNewProjectPathChange }}" placeholder="C:\Users\rafae\Documents\meu-repo" style="flex: 1; background: var(--bg2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--fg); font-family: 'JetBrains Mono', monospace; font-size: 11.5px;" style-focus="border-color: var(--acc);" />
+          <button style="background: var(--bg3); border: 1px solid var(--line); border-radius: 10px; color: var(--fg2); font-size: 12px; padding: 0 14px; cursor: pointer;" style-hover="border-color: var(--line2); color: var(--fg);">Procurar</button>
+        </div>
+
+        <div style="font-size: 10px; font-weight: 700; letter-spacing: .14em; color: var(--fg3); text-transform: uppercase; margin-bottom: 7px;">Faixa de portas</div>
+        <div style="display: flex; gap: 8px; margin-bottom: 18px;">
+          <sc-for list="{{ portRanges }}" as="r" hint-placeholder-count="3">
+            <button onClick="{{ r.onPick }}" style="flex: 1; border-radius: 10px; padding: 9px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; background: {{ r.bg }}; border: 1px solid {{ r.border }}; color: {{ r.color }};">{{ r.label }}</button>
+          </sc-for>
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button onClick="{{ onConfirmNewProject }}" style="flex: 1; background: var(--acc); border: none; border-radius: 10px; color: #06231a; font-size: 12.5px; font-weight: 700; padding: 11px; cursor: pointer;" style-hover="filter: brightness(1.08);">Cadastrar</button>
+          <button onClick="{{ onCloseNewProject }}" style="background: none; border: 1px solid var(--line); border-radius: 10px; color: var(--fg2); font-size: 12.5px; padding: 11px 18px; cursor: pointer;" style-hover="color: var(--fg); border-color: var(--line2);">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ paletteOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ onClosePalette }}" style="position: fixed; inset: 0; background: rgba(4,6,8,.55); backdrop-filter: blur(6px); display: flex; align-items: flex-start; justify-content: center; padding-top: 14vh; z-index: 50; animation: orqFade .16s ease;">
+      <div onClick="{{ stop }}" style="width: 560px; max-width: 92vw; background: var(--glass); border: 1px solid var(--line2); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); animation: orqPop .2s ease;">
+        <input value="{{ paletteQuery }}" onChange="{{ onPaletteChange }}" placeholder="Digite um comando ou nome de sessão…" style="width: 100%; background: none; border: none; border-bottom: 1px solid var(--line); padding: 16px 18px; color: var(--fg); font-size: 14px;" />
+        <div style="max-height: 320px; overflow-y: auto; padding: 6px;">
+          <sc-for list="{{ paletteItems }}" as="c" hint-placeholder-count="5">
+            <button onClick="{{ c.onRun }}" style="width: 100%; display: flex; align-items: center; gap: 11px; text-align: left; background: none; border: none; border-radius: 9px; padding: 10px 12px; cursor: pointer; color: var(--fg);" style-hover="background: var(--bg3);">
+              <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: {{ c.tagColor }}; border: 1px solid var(--line2); border-radius: 5px; padding: 2px 6px;">{{ c.tag }}</span>
+              <span style="font-size: 13px;">{{ c.label }}</span>
+              <span style="margin-left: auto; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--fg3);">{{ c.hint }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ toastVisible }}" hint-placeholder-val="{{ false }}">
+    <div style="position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--glass); border: 1px solid var(--line2); border-radius: 12px; padding: 11px 18px; font-size: 12.5px; color: var(--fg); box-shadow: var(--shadow); z-index: 60; animation: orqUp .22s ease; display: flex; align-items: center; gap: 10px;">
+      <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--acc);"></span>
+      <span>{{ toastText }}</span>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+const PATH = "C:\\Users\\rafae\\Documents\\pronix-tech\\cli-orchestrator";
+
+const TERM = {
+  fg: "var(--termfg)", dim: "#6b7686", acc: "var(--acc)", warn: "var(--warn)", info: "var(--info)"
+};
+
+function lines(kind, name) {
+  const base = [
+    { t: "claude --worktree " + name, c: TERM.acc },
+    { t: PATH + "\\.worktrees\\" + name, c: TERM.dim },
+    { t: "", c: TERM.dim }
+  ];
+  if (kind === "building") {
+    return base.concat([
+      { t: "● Lendo src/orchestrator/panel-grid.tsx", c: TERM.fg },
+      { t: "● Editando 3 arquivos…", c: TERM.fg },
+      { t: "  ✔ panel-grid.tsx", c: TERM.acc },
+      { t: "  ✔ session-store.ts", c: TERM.acc },
+      { t: "  ⟳ hooks/use-status.ts", c: TERM.info }
+    ]);
+  }
+  if (kind === "waiting") {
+    return base.concat([
+      { t: "● Rodando testes de integração", c: TERM.fg },
+      { t: "  12 passed · 1 failed", c: TERM.warn },
+      { t: "", c: TERM.dim },
+      { t: "Posso reescrever o teste de porta duplicada?", c: TERM.warn }
+    ]);
+  }
+  if (kind === "idle") {
+    return base.concat([
+      { t: "● Pronto. 4 arquivos alterados, 118 linhas.", c: TERM.fg },
+      { t: "  git status → limpo no worktree", c: TERM.dim }
+    ]);
+  }
+  return base.concat([
+    { t: "> echo ORQ_ECO_1", c: TERM.fg },
+    { t: "ORQ_ECO_1", c: TERM.dim }
+  ]);
+}
+
+const HELP = [
+  { id: "oque", title: "O que este app faz", blocks: [
+    { kind: "p", text: "Ele mostra várias sessões do Claude Code ao mesmo tempo, numa grade, cada uma identificada pela feature — misturando projetos diferentes sem confusão." },
+    { kind: "li", text: "Ver todos os terminais de uma vez, em vez de um por vez." },
+    { kind: "li", text: "Saber na hora quem parou te esperando, e há quanto tempo." },
+    { kind: "li", text: "Ordenar por urgência: quem espera há mais tempo aparece primeiro." },
+    { kind: "p", text: "Cada sessão roda no próprio worktree, com a própria faixa de portas. Duas features do mesmo projeto não brigam pelos arquivos nem pela porta 3000." }
+  ]},
+  { id: "primeiros", title: "Primeiros passos", blocks: [
+    { kind: "li", text: "Ative os hooks no rodapé da barra lateral — é o que faz as bolinhas mudarem sozinhas." },
+    { kind: "li", text: "Cadastre um projeto no + da seção Projetos e escolha a pasta do repositório." },
+    { kind: "li", text: "Digite o nome da feature no campo do topo e clique no projeto. O painel abre e o Claude sobe sozinho." },
+    { kind: "note", text: "Sem os hooks o app funciona, mas os status ficam parados. O app pergunta antes de editar settings.json, faz backup e preserva o que já estiver lá." }
+  ]},
+  { id: "status", title: "As bolinhas de status", blocks: [
+    { kind: "p", text: "A cor da bolinha é o resumo da sessão — é por ela que você decide para onde olhar." },
+    { kind: "li", text: "Verde pulsando: o Claude está trabalhando agora." },
+    { kind: "li", text: "Âmbar: parou e está esperando sua resposta — vai para a Fila de atenção." },
+    { kind: "li", text: "Cinza: terminou e está ocioso, sem nada pendente." },
+    { kind: "li", text: "Contorno vazado: sessão anterior salva, esperando você retomar." }
+  ]},
+  { id: "worktrees", title: "Worktrees e portas", blocks: [
+    { kind: "p", text: "Com nome de feature preenchido, roda claude -w nome e cria um worktree isolado. O nome é limpo automaticamente porque vira nome de branch." },
+    { kind: "p", text: "Com o campo vazio, roda na pasta do projeto, sem worktree." },
+    { kind: "note", text: "Cada worktree recebe uma porta da faixa do projeto (:3100, :3105, :3110…), então dá para subir dois servidores ao mesmo tempo." }
+  ]},
+  { id: "ligar", title: "Ligar sessões", blocks: [
+    { kind: "p", text: "O botão ligar no cabeçalho do painel conecta duas sessões: a saída de uma vira contexto da outra, mesmo entre repositórios diferentes." },
+    { kind: "li", text: "Útil para um painel de back-end alimentar o de front-end." },
+    { kind: "li", text: "A ligação aparece no cabeçalho como o nome da sessão de origem." }
+  ]},
+  { id: "atalhos", title: "Atalhos", blocks: [
+    { kind: "key", key: "Ctrl+Enter", text: "Pular para a sessão que espera há mais tempo" },
+    { kind: "key", key: "⌘K / Ctrl+K", text: "Paleta de comandos" },
+    { kind: "key", key: "F1", text: "Abrir esta ajuda" },
+    { kind: "key", key: "Esc", text: "Fechar o que estiver aberto" },
+    { kind: "key", key: "1 / 2 / 3", text: "Densidade da grade" }
+  ]}
+];
+
+class Component extends DCLogic {
+  state = {
+    theme: "dark",
+    feature: "",
+    density: 2,
+    sort: "urgencia",
+    hooks: true,
+    helpOpen: false,
+    helpSection: "oque",
+    projectModalOpen: false,
+    newProjectPath: "",
+    portRange: 1,
+    paletteOpen: false,
+    paletteQuery: "",
+    focused: "auth-refresh",
+    toast: "",
+    tick: 0,
+    projects: [
+      { id: "pronix", name: "cli-orchestrator", badge: "git", tint: "var(--acc)", worktrees: [
+        { branch: "feat/auth-refresh", state: ":3100" },
+        { branch: "feat/painel-grid", state: ":3105" }
+      ]},
+      { id: "station", name: "projetordstation", badge: "git", tint: "var(--info)", worktrees: [
+        { branch: "feat/export-pdf", state: ":3110" }
+      ]},
+      { id: "postman", name: "postman-mocks", badge: "sem git", tint: "var(--fg3)", worktrees: [] }
+    ],
+    sessions: [
+      { id: "auth-refresh", name: "auth-refresh", project: "cli-orchestrator", port: ":3100", status: "waiting", waitMin: 12, kind: "waiting", ask: "Precisa da sua resposta para continuar", link: "" },
+      { id: "painel-grid", name: "painel-grid", project: "cli-orchestrator", port: ":3105", status: "running", waitMin: 0, kind: "building", ask: "", link: "" },
+      { id: "export-pdf", name: "export-pdf", project: "projetordstation", port: ":3110", status: "running", waitMin: 0, kind: "shell", ask: "", link: "painel-grid" },
+      { id: "mocks-v2", name: "mocks-v2", project: "postman-mocks", port: ":3115", status: "idle", waitMin: 0, kind: "idle", ask: "", link: "" },
+      { id: "telemetria", name: "telemetria", project: "cli-orchestrator", port: ":3120", status: "suspended", waitMin: 0, kind: "shell", ask: "", link: "" },
+      { id: "hooks-fix", name: "hooks-fix", project: "cli-orchestrator", port: ":3125", status: "waiting", waitMin: 4, kind: "waiting", ask: "Posso rodar git push --force-with-lease?", link: "" }
+    ]
+  };
+
+  componentDidMount() {
+    this._t = setInterval(() => this.setState(s => ({ tick: s.tick + 1 })), 1400);
+    this._k = (e) => {
+      const k = e.key;
+      if (k === "F1") { e.preventDefault(); this.setState({ helpOpen: true }); }
+      else if ((e.metaKey || e.ctrlKey) && k.toLowerCase() === "k") { e.preventDefault(); this.setState(s => ({ paletteOpen: !s.paletteOpen, paletteQuery: "" })); }
+      else if (e.ctrlKey && k === "Enter") { e.preventDefault(); this.jumpNext(); }
+      else if (k === "Escape") this.setState({ helpOpen: false, paletteOpen: false, projectModalOpen: false });
+      else if (["1","2","3"].includes(k) && !e.metaKey && !e.ctrlKey && document.activeElement.tagName !== "INPUT") this.setState({ density: Number(k) });
+    };
+    window.addEventListener("keydown", this._k);
+  }
+  componentWillUnmount() { clearInterval(this._t); window.removeEventListener("keydown", this._k); }
+
+  toast(text) {
+    this.setState({ toast: text });
+    clearTimeout(this._toastT);
+    this._toastT = setTimeout(() => this.setState({ toast: "" }), 2200);
+  }
+  waiting() { return this.state.sessions.filter(s => s.status === "waiting").sort((a, b) => b.waitMin - a.waitMin); }
+  jumpNext() {
+    const w = this.waiting()[0];
+    if (w) { this.setState({ focused: w.id }); this.toast("Foco em " + w.name); }
+    else this.toast("Ninguém esperando por você");
+  }
+  patch(id, fields) {
+    this.setState(s => ({ sessions: s.sessions.map(x => x.id === id ? Object.assign({}, x, fields) : x) }));
+  }
+
+  renderVals() {
+    const st = this.state;
+    const dark = st.theme === "dark";
+    const waitingList = this.waiting();
+    const suspended = st.sessions.filter(s => s.status === "suspended");
+
+    const dotFor = (s) => s.status === "running" ? "var(--acc)" : s.status === "waiting" ? "var(--warn)" : s.status === "idle" ? "var(--fg3)" : "transparent";
+    const animFor = (s) => s.status === "running" ? "orqPulse 2.4s ease-in-out infinite" : s.status === "waiting" ? "orqWait 1.8s ease-in-out infinite" : "none";
+    const statusText = (s) => s.status === "running" ? "trabalhando" : s.status === "waiting" ? "esperando há " + s.waitMin + "m" : s.status === "idle" ? "ocioso" : "sessão salva";
+    const statusColor = (s) => s.status === "running" ? "var(--acc)" : s.status === "waiting" ? "var(--warn)" : "var(--fg3)";
+
+    const rank = { waiting: 0, running: 1, idle: 2, suspended: 3 };
+    const ordered = st.sessions.slice().sort((a, b) => {
+      if (st.sort === "urgencia") return (rank[a.status] - rank[b.status]) || (b.waitMin - a.waitMin);
+      return a.project.localeCompare(b.project) || a.name.localeCompare(b.name);
+    });
+
+    const cols = st.density;
+    const rowH = cols === 1 ? "460px" : cols === 2 ? "320px" : "268px";
+
+    const panels = ordered.map(s => {
+      const focused = st.focused === s.id;
+      return {
+        name: s.name, project: s.project, port: s.port, path: PATH + "\\.worktrees\\" + s.name,
+        dot: s.status === "suspended" ? "transparent" : dotFor(s),
+        anim: animFor(s),
+        statusLabel: statusText(s), statusColor: statusColor(s),
+        statusDisplay: cols >= 3 ? "none" : "inline",
+        border: focused ? "var(--acc)" : s.status === "waiting" ? "rgba(255,180,84,.35)" : "var(--line)",
+        shadow: focused ? "0 0 0 1px var(--acc), var(--shadow)" : "var(--shadow)",
+        height: rowH,
+        isLive: s.status === "running" || s.status === "waiting" || s.status === "idle",
+        isSuspended: s.status === "suspended",
+        isWaiting: s.status === "waiting",
+        askLabel: s.ask || "Esperando você",
+        lastMsg: "última msg há 2h", diffLabel: "4 arquivos alterados",
+        lines: lines(s.kind, s.name),
+        linkLabel: s.link ? "↔ " + s.link : "ligar",
+        linkBg: s.link ? "var(--accd)" : "transparent",
+        linkBorder: s.link ? "var(--acc)" : "var(--line)",
+        linkColor: s.link ? "var(--acc)" : "var(--fg3)",
+        onFocus: () => this.setState({ focused: s.id }),
+        onClose: (e) => { e.stopPropagation(); this.setState(x => ({ sessions: x.sessions.filter(y => y.id !== s.id) })); this.toast("Painel " + s.name + " fechado"); },
+        onLink: (e) => { e.stopPropagation(); const other = st.sessions.find(o => o.id !== s.id); this.patch(s.id, { link: s.link ? "" : (other ? other.name : "") }); },
+        onResume: (e) => { e.stopPropagation(); this.patch(s.id, { status: "running", kind: "building" }); this.setState({ focused: s.id }); this.toast("Sessão " + s.name + " retomada"); },
+        onApprove: (e) => { e.stopPropagation(); this.patch(s.id, { status: "running", kind: "building", waitMin: 0, ask: "" }); this.toast("Aprovado em " + s.name); }
+      };
+    });
+
+    const loadBars = Array.from({ length: 14 }, (_, i) => {
+      const active = i < Math.min(14, st.sessions.filter(s => s.status !== "suspended").length * 2 + (st.tick % 3));
+      return { color: active ? (i > 10 ? "var(--warn)" : "var(--acc)") : "var(--line)" };
+    });
+
+    const helpSec = HELP.find(h => h.id === st.helpSection) || HELP[0];
+
+    const palette = [
+      { tag: "ir", label: "Pular para quem espera há mais tempo", hint: "ctrl+enter", tagColor: "var(--warn)", run: () => this.jumpNext() },
+      { tag: "nova", label: "Nova sessão no último projeto", hint: "", tagColor: "var(--acc)", run: () => this.createSession() },
+      { tag: "todas", label: "Retomar todas as sessões salvas", hint: "", tagColor: "var(--acc)", run: () => this.resumeAll() },
+      { tag: "tema", label: dark ? "Mudar para tema claro" : "Mudar para tema escuro", hint: "", tagColor: "var(--info)", run: () => this.setState({ theme: dark ? "light" : "dark" }) },
+      { tag: "ajuda", label: "Abrir Como usar", hint: "F1", tagColor: "var(--info)", run: () => this.setState({ helpOpen: true }) }
+    ].filter(c => !st.paletteQuery || c.label.toLowerCase().includes(st.paletteQuery.toLowerCase()));
+
+    const pill = (on) => ({ bg: on ? "var(--bg3)" : "transparent", color: on ? "var(--fg)" : "var(--fg3)" });
+
+    return {
+      themeClass: dark ? "" : "light",
+      themeIcon: dark ? "☾" : "☀",
+      menus: ["Arquivo", "Editar", "Ver", "Janela"],
+      activeCount: st.sessions.filter(s => s.status !== "suspended").length,
+      cpuLabel: "cpu " + (18 + (st.tick % 7) * 3) + "%",
+      loadBars,
+      hasQueue: waitingList.length > 0,
+      queueCount: waitingList.length,
+      queue: waitingList.map(s => ({ name: s.name, wait: s.waitMin + "m", onFocus: () => this.setState({ focused: s.id }) })),
+      projectCount: st.projects.length,
+      noProjects: st.projects.length === 0,
+      projects: st.projects.map(p => ({
+        name: p.name, badge: p.badge, tint: p.tint,
+        onOpen: () => this.createSession(p.name),
+        worktrees: p.worktrees.map(w => ({ branch: w.branch, state: w.state, onOpen: () => this.toast("Abrindo " + w.branch) }))
+      })),
+      sessionCount: st.sessions.length,
+      sessions: ordered.map(s => ({
+        name: s.name, port: s.port, dot: dotFor(s), anim: animFor(s), statusLabel: statusText(s),
+        navBg: st.focused === s.id ? "var(--bg3)" : "transparent",
+        navBorder: st.focused === s.id ? "var(--line2)" : "transparent",
+        onFocus: () => this.setState({ focused: s.id })
+      })),
+      hasSuspended: suspended.length > 0,
+      suspendedCount: suspended.length,
+      onResumeAll: () => this.resumeAll(),
+      hooksLabel: st.hooks ? "ligados" : "desligados",
+      hooksTrackBg: st.hooks ? "var(--acc)" : "var(--line2)",
+      hooksJustify: st.hooks ? "flex-end" : "flex-start",
+      hooksKnob: st.hooks ? "#06231a" : "var(--bg1)",
+      hooksTextColor: st.hooks ? "var(--acc)" : "var(--fg3)",
+      onToggleHooks: () => this.setState(s => ({ hooks: !s.hooks })),
+      onToggleTheme: () => this.setState({ theme: dark ? "light" : "dark" }),
+      featureName: st.feature,
+      onFeatureChange: (e) => this.setState({ feature: e.target.value }),
+      hintText: st.feature ? "cria worktree feat/" + st.feature.replace(/\s+/g, "-").toLowerCase() : "sem nome de feature, roda na pasta do projeto",
+      onNewSession: () => this.createSession(),
+      onNewPanel: () => { this.createSession("avulso"); },
+      sortModes: [
+        Object.assign({ label: "Urgência", onPick: () => this.setState({ sort: "urgencia" }) }, pill(st.sort === "urgencia")),
+        Object.assign({ label: "Projeto", onPick: () => this.setState({ sort: "projeto" }) }, pill(st.sort === "projeto"))
+      ],
+      densities: [1, 2, 3].map(n => Object.assign({ label: String(n), title: n + " colunas", onPick: () => this.setState({ density: n }) }, pill(st.density === n))),
+      isEmpty: st.sessions.length === 0,
+      emptyFacts: [
+        { k: "worktree", v: "isolamento por feature" },
+        { k: "portas", v: "faixa própria por projeto" },
+        { k: "hooks", v: "status em tempo real" }
+      ],
+      gridStyle: st.sessions.length === 0 ? "display: none;" : "display: grid; grid-template-columns: repeat(" + cols + ", minmax(0, 1fr)); gap: 12px; align-content: start;",
+      panels,
+      helpOpen: st.helpOpen,
+      onOpenHelp: () => this.setState({ helpOpen: true }),
+      onCloseHelp: () => this.setState({ helpOpen: false }),
+      helpSections: HELP.map(h => ({
+        title: h.title,
+        bg: h.id === st.helpSection ? "var(--bg1)" : "transparent",
+        color: h.id === st.helpSection ? "var(--fg)" : "var(--fg2)",
+        onPick: () => this.setState({ helpSection: h.id })
+      })),
+      helpTitle: helpSec.title,
+      helpBlocks: helpSec.blocks.map(b => ({
+        text: b.text, key: b.key || "",
+        isP: b.kind === "p", isLi: b.kind === "li", isNote: b.kind === "note", isKey: b.kind === "key"
+      })),
+      projectModalOpen: st.projectModalOpen,
+      onOpenNewProject: () => this.setState({ projectModalOpen: true }),
+      onCloseNewProject: () => this.setState({ projectModalOpen: false }),
+      newProjectPath: st.newProjectPath,
+      onNewProjectPathChange: (e) => this.setState({ newProjectPath: e.target.value }),
+      portRanges: ["3100–3199", "4000–4099", "5200–5299"].map((label, i) => ({
+        label,
+        bg: st.portRange === i ? "var(--accd)" : "var(--bg2)",
+        border: st.portRange === i ? "var(--acc)" : "var(--line)",
+        color: st.portRange === i ? "var(--acc)" : "var(--fg2)",
+        onPick: () => this.setState({ portRange: i })
+      })),
+      onConfirmNewProject: () => {
+        const raw = st.newProjectPath.trim();
+        const name = raw ? raw.split(/[\\\/]/).filter(Boolean).pop() : "novo-projeto";
+        this.setState(s => ({
+          projects: s.projects.concat([{ id: "p" + Date.now(), name, badge: "git", tint: "var(--info)", worktrees: [] }]),
+          projectModalOpen: false, newProjectPath: ""
+        }));
+        this.toast("Projeto " + name + " cadastrado");
+      },
+      paletteOpen: st.paletteOpen,
+      paletteQuery: st.paletteQuery,
+      onOpenPalette: () => this.setState({ paletteOpen: true, paletteQuery: "" }),
+      onClosePalette: () => this.setState({ paletteOpen: false }),
+      onPaletteChange: (e) => this.setState({ paletteQuery: e.target.value }),
+      paletteItems: palette.map(c => ({ tag: c.tag, label: c.label, hint: c.hint, tagColor: c.tagColor, onRun: () => { this.setState({ paletteOpen: false }); c.run(); } })),
+      onJumpNext: () => this.jumpNext(),
+      stop: (e) => e.stopPropagation(),
+      toastVisible: !!st.toast,
+      toastText: st.toast
+    };
+  }
+
+  resumeAll() {
+    this.setState(s => ({ sessions: s.sessions.map(x => x.status === "suspended" ? Object.assign({}, x, { status: "running", kind: "building" }) : x) }));
+    this.toast("Todas as sessões salvas foram retomadas");
+  }
+
+  createSession(projectName) {
+    const st = this.state;
+    const proj = projectName || (st.projects[0] ? st.projects[0].name : "cli-orchestrator");
+    const base = st.feature.trim() ? st.feature.trim().replace(/\s+/g, "-").toLowerCase() : "sessao-" + (st.sessions.length + 1);
+    const port = ":" + (3100 + st.sessions.length * 5);
+    const id = base + "-" + Date.now();
+    this.setState(s => ({
+      sessions: s.sessions.concat([{ id, name: base, project: proj, port, status: "running", waitMin: 0, kind: "shell", ask: "", link: "" }]),
+      feature: "", focused: id
+    }));
+    this.toast("Worktree feat/" + base + " criado em " + proj);
+  }
+}
+
+</script>
+</body>
+</html>
