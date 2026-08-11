@@ -6,6 +6,9 @@
 
 const path = require('path');
 
+const historico = require('./historico');
+const projetos = require('./projetos');
+
 // A ordem importa para a barra lateral: quem espera ha mais tempo primeiro.
 const STATUS = ['esperando', 'terminou', 'rodando', 'iniciando', 'encerrada'];
 
@@ -37,8 +40,28 @@ function registrar(id, { feature, cwd }) {
   });
 }
 
+// Uma passagem so por onde toda mudanca de status vai parar no historico.
+// `para: null` fecha a vida da sessao -- e o que FECHA o ultimo intervalo, sem
+// o qual a soma viraria "trabalhou tres dias".
+function anotar(s, para) {
+  if (!s) return;
+  historico.transicao({
+    id: s.id,
+    feature: s.feature,
+    projeto: projetos.donoDe(s.cwdSessao || s.cwd)?.nome || '',
+    de: s.status,
+    para,
+  });
+}
+
 function remover(id) {
+  anotar(sessoes.get(id), null);
   sessoes.delete(id);
+}
+
+// Chamado na saida do app: fecha os intervalos de todas as sessoes vivas.
+function encerrarTodas() {
+  for (const s of sessoes.values()) anotar(s, null);
 }
 
 function normalizar(p) {
@@ -124,6 +147,8 @@ function aplicar({ evento, tipo, cwd, orqId, sessionId, mensagem = '' }) {
   const mudouPergunta = s.pergunta !== pergunta || s.tipo !== tipoEspera;
   if (!mudouStatus && !mudouMotivo && !mudouPergunta) return { id, mudou: false };
 
+  if (mudouStatus) anotar(s, alvo.status);
+
   s.status = alvo.status;
   s.motivo = alvo.motivo;
   s.pergunta = pergunta;
@@ -140,6 +165,7 @@ function aplicar({ evento, tipo, cwd, orqId, sessionId, mensagem = '' }) {
 function definirStatus(id, status, motivo = '') {
   const s = sessoes.get(id);
   if (!s || (s.status === status && s.motivo === motivo)) return;
+  if (s.status !== status) anotar(s, status);
   s.status = status;
   s.motivo = motivo;
   s.desde = Date.now();
@@ -155,6 +181,7 @@ module.exports = {
   definirJanela,
   registrar,
   remover,
+  encerrarTodas,
   resolver,
   statusDe,
   aplicar,

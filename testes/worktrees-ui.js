@@ -84,8 +84,10 @@ function montarRepo() {
     aberto && aberto.marca === 'aberto agora', JSON.stringify(aberto));
   checar('e o arquivar dele fica desabilitado',
     aberto && aberto.arquivarDesabilitado === true, String(aberto && aberto.arquivarDesabilitado));
-  checar('worktree limpo nao tem etiqueta de impedimento',
-    limpo && limpo.marca === '', JSON.stringify(limpo));
+  // A etiqueta deixou de ser so o motivo do impedimento: ela agora e SEMPRE o
+  // caminho para o diff. Sem impedimento, e isso que ela oferece.
+  checar('worktree limpo nao anuncia impedimento nenhum, e oferece o diff',
+    limpo && limpo.marca === 'ver diff', JSON.stringify(limpo));
   checar('e o arquivar dele fica liberado',
     limpo && limpo.arquivarDesabilitado === false, String(limpo && limpo.arquivarDesabilitado));
 

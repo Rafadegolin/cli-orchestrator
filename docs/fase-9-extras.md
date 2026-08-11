@@ -93,6 +93,14 @@ ela está fazendo. Regra: só injetar quando o alvo estiver em `terminou` ou `es
 
 ## 2. Ver o diff da sessão sem sair do app
 
+> **FEITO.** `worktrees.diff()` + `src/janela/diff.js`. Clicar na etiqueta do worktree na lateral
+> abre o diff: lista de arquivos à esquerda, hunks de um arquivo por vez à direita.
+>
+> Duas coisas que só apareceram na implementação: `base...branch` precisa de **três** pontos (com
+> dois, commits que outra pessoa pôs na base apareceriam como seus, invertidos), e **arquivo novo
+> não rastreado não aparece no `git diff`** — enquanto a etiqueta da lateral já o conta como
+> alterado. Resolvido com `--no-index` contra o vazio, sem mexer no índice do usuário.
+
 A spec chama de "o que fecha o ciclo de revisão": a bolinha fica azul, você abre o diff ao lado e
 decide mesclar ou arquivar sem trocar de janela.
 
@@ -124,6 +132,13 @@ controla a partida do painel, não o que você digita depois. Precisa de um avis
 
 ## 4. Histórico de tempo por feature
 
+> **FEITO.** `src/main/historico.js`, JSONL append-only, aberto pelo placar da lateral.
+>
+> O cuidado que decidiu o desenho: **intervalo só conta quando tem evento de fechamento**. Sem isso,
+> uma sessão aberta na sexta com o app fechado no fim de semana viraria "trabalhou 3 dias". O
+> `before-quit` fecha os intervalos abertos; numa queda perde-se o último, e subcontar é melhor que
+> mentir para cima.
+
 Quanto tempo cada feature levou e quantas vezes te interrompeu.
 
 **Os dados já passam pelo app:** `src/main/estado.js` guarda status e `desde` de cada transição,
@@ -148,27 +163,39 @@ Esforço baixo, valor de conforto.
 
 ## 6. Aprovar permissão pelo próprio card
 
-**Mais arriscado do que parece.** A spec descreve "um botão que digita sim no PTY certo", mas o
+> **FEITO** na fatia 3 do redesenho (`src/janela/aprovacao.js`), e **o aviso abaixo estava certo**.
+> Medido contra o CLI real antes de escrever qualquer código:
+>
+> - `\r` sozinho **não aprova** — deixa o prompt idêntico na tela. Quem aceita a opção 1 é o dígito
+>   `1`, sem Enter depois. (Diferente da confirmação do `/add-dir`, que responde ao Enter: são dois
+>   widgets diferentes do mesmo CLI.)
+> - Por sorte do desenho, isso torna a falha benigna: um `1` fora de hora vira caractere visível na
+>   caixa de entrada, **não enviado**. Um Enter às cegas mandaria mensagem vazia.
+> - A trava reconfere o buffer **no clique**, não quando a faixa apareceu; sem as marcas do prompt na
+>   tela, não escreve nada.
+
+**Era mais arriscado do que parecia.** A spec descreve "um botão que digita sim no PTY certo", mas o
 prompt de permissão do Claude Code não é sim/não em texto — é uma lista interativa navegada por
 setas. Um Enter cego pode selecionar "não, e explique o que fazer diferente", ou aprovar algo que
 você não leu.
 
-**Metade já existe, e é a metade segura:** `Ctrl+Enter` já pula para quem espera há mais tempo e põe
-o cursor lá. O que falta é a aprovação cega — que só vale depois de inspecionar o formato real do
-prompt.
+**Metade já existia, e era a metade segura:** `Ctrl+Enter` já pulava para quem espera há mais tempo e
+punha o cursor lá.
 
 ---
 
 ## Ordem sugerida
 
-1. **Camada 1 do mapa** (`--add-dir` / `/add-dir` entre sessões ligadas). Resolve o problema
-   multi-repo e não depende do canvas estar pronto — dá para entregar como um "ligar a" no menu do
-   painel, e o canvas vem depois como forma de visualizar.
-2. **Diff no app** — fecha o ciclo de revisão.
+1. ~~**Camada 1 do mapa**~~ — **feita**.
+2. ~~**Diff no app**~~ — **feito**.
 3. **Colar prompt em várias** — barato, e melhor ainda com as ligações prontas.
-4. **Histórico** — começar cedo por causa do acúmulo.
+4. ~~**Histórico**~~ — **feito**.
 5. **Canvas propriamente dito** (posicionamento, ligações desenhadas, nível de detalhe).
-6. **Layouts salvos**, e **aprovação por card** só depois de inspecionar o prompt.
+6. **Layouts salvos** — mais barato ainda agora: tema, densidade e ordenação já persistem em
+   `ui.json`, então um layout é esse conjunto mais a lista de painéis.
+   ~~aprovação por card~~ — **feita**.
+
+**Restam três**: colar prompt em várias, o canvas, e layouts salvos.
 
 > Pré-requisito de vários: os hooks precisam estar registrados no `~/.claude/settings.json` (botão na
 > barra lateral). Sem eles não há bolinha amarela para aprovar, nem transições para o histórico, nem

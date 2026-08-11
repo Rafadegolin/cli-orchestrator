@@ -141,6 +141,29 @@
     </div>
   </div>
 
+  <div id="historico" class="overlay" hidden>
+    <div class="historico-caixa">
+      <div class="ajuda-topo">
+        <h2>Tempo por feature</h2>
+        <button id="historico-fechar" title="Fechar (Esc)">&times;</button>
+      </div>
+      <div id="historico-corpo"></div>
+    </div>
+  </div>
+
+  <div id="diff" class="overlay" hidden>
+    <div class="diff-caixa">
+      <div class="ajuda-topo">
+        <h2 id="diff-titulo">Alterações</h2>
+        <button id="diff-fechar" title="Fechar (Esc)">&times;</button>
+      </div>
+      <div class="diff-conteudo">
+        <ol id="diff-arquivos"></ol>
+        <div id="diff-corpo"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="modal-projeto" class="overlay" hidden>
     <div class="modal-caixa">
       <h2>Cadastrar projeto</h2>
@@ -209,4 +232,6 @@
 <script src="seletor-ligacoes.js"></script>
 <script src="ajuda.js"></script>
 <script src="modal-projeto.js"></script>
+<script src="historico.js"></script>
+<script src="diff.js"></script>
 <script src="paleta.js"></script>

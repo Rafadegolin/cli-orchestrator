@@ -204,6 +204,83 @@ function arquivar(projeto, caminho) {
 // Sem esse arquivo o worktree e um checkout limpo: o .env nao vai junto e a
 // aplicacao nao sobe la dentro. O sintoma e a feature nova parecer "quebrada"
 // sem motivo aparente.
+// Diff gigante nao pode travar a janela, e travar em silencio e pior que dizer
+// "cortei aqui".
+const MAX_DIFF = 400 * 1024;
+
+function cortar(texto) {
+  if (texto.length <= MAX_DIFF) return { texto, truncado: false };
+  return { texto: texto.slice(0, MAX_DIFF), truncado: true };
+}
+
+// Arquivo novo que nem foi adicionado ao indice NAO aparece no `git diff`.
+//
+// Isso e um buraco no fluxo de revisao: a etiqueta da lateral conta o arquivo
+// como alterado (ela vem do `git status`), e o diff mostraria menos coisa do
+// que a etiqueta prometeu. Pior, um arquivo inteiro novo e justamente o que
+// mais importa numa revisao.
+//
+// `--no-index` contra o vazio produz o diff do arquivo inteiro. Ele sai com
+// codigo 1 quando ha diferenca -- que aqui e sempre --, entao o stdout tem de
+// ser lido do erro. `git add -N` resolveria tambem, mas MEXERIA no indice do
+// usuario, o que este app nao faz.
+function naoRastreados(cwd, comum) {
+  const st = gitSilencioso(cwd, ['status', '--porcelain', '--untracked-files=all']);
+  if (!st.ok) return '';
+
+  const novos = st.saida.split('\n')
+    .filter((l) => l.startsWith('??'))
+    .map((l) => l.slice(3).trim())
+    .filter(Boolean);
+
+  let texto = '';
+  for (const arq of novos) {
+    try {
+      texto += git(cwd, ['diff', ...comum, '--no-index', '--', '/dev/null', arq]);
+    } catch (err) {
+      texto += (err.stdout || '').toString();
+    }
+  }
+  return texto;
+}
+
+// O que esta sessao mudou: o que ja foi commitado na branch e o que ainda nao.
+//
+// `base...branch` com TRES pontos e nao dois: tres pontos mostra o que a branch
+// fez desde que divergiu, e nao o que a base andou depois. Com dois pontos, a
+// base recebendo commits de outra pessoa apareceria como se fosse coisa sua,
+// invertida.
+function diff(projeto, caminho) {
+  if (!ehRepositorio(projeto)) return { ok: false, texto: 'nao e um repositorio git' };
+  if (!fs.existsSync(caminho)) return { ok: false, texto: 'a pasta do worktree nao existe mais' };
+
+  const wt = listar(projeto).find((w) => path.resolve(w.caminho) === path.resolve(caminho));
+  if (!wt) return { ok: false, texto: 'worktree nao encontrado neste projeto' };
+
+  const comum = ['--no-color', '--no-ext-diff'];
+
+  const commitado = wt.baseBranch
+    ? gitSilencioso(caminho, ['diff', ...comum, `${wt.baseBranch}...${wt.branch}`])
+    : { ok: false, saida: '' };
+
+  // Nao commitado = o que esta no indice mais o que ainda nem foi adicionado.
+  const staged = gitSilencioso(caminho, ['diff', ...comum, '--cached']);
+  const solto = gitSilencioso(caminho, ['diff', ...comum]);
+
+  const a = cortar(commitado.saida || '');
+  const b = cortar(`${staged.saida || ''}${solto.saida || ''}${naoRastreados(caminho, comum)}`);
+
+  return {
+    ok: true,
+    branch: wt.branch,
+    baseBranch: wt.baseBranch,
+    commitado: a.texto,
+    naoCommitado: b.texto,
+    truncado: a.truncado || b.truncado,
+    vazio: !a.texto.trim() && !b.texto.trim(),
+  };
+}
+
 function situacaoInclude(projeto) {
   if (!projeto || !fs.existsSync(projeto) || !ehRepositorio(projeto)) {
     return { aplicavel: false, existe: false, candidatos: [] };
@@ -245,6 +322,8 @@ module.exports = {
   listar,
   podeArquivar,
   arquivar,
+  diff,
+  MAX_DIFF,
   situacaoInclude,
   criarInclude,
   processoVivo,

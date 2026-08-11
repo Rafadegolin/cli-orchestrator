@@ -36,7 +36,8 @@ npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
 npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
 npm run teste:fase7       # sessao salva, painel dormindo, retomar
-npm run teste:ui          # tokens, tema, densidade, fontes e regras de compressao
+npm run teste:ui          # tokens, tema, densidade, fontes, paleta, overlays e contraste
+npm run teste:historico   # Node puro, sem app: agregacao de tempo por feature
 npm run teste:ajuda       # a ajuda no app, e se os numeros dela batem com o codigo
 npm run teste:ligacoes    # mecanica das ligacoes, sem invocar o Claude
 npm run teste:ligacoes-reais # com Claude de verdade: ~3min e consome tokens
@@ -320,6 +321,53 @@ Para o painel muito estreito (densidade 3 em 924px da painéis de **200px**) nen
 cabem nome e tres chips. Ali entra `container-type: inline-size` no `.painel` e `@container` que
 esconde, por prioridade, a pill e o chip de ligar, depois a porta. Nome e fechar nunca saem: um
 identifica o painel, o outro e a saida.
+
+## Historico de tempo por feature
+
+`src/main/historico.js`. Grava em `~/.orquestrador/historico.jsonl`: **uma linha JSON por transicao,
+append-only**.
+
+- **Foge de proposito da gravacao atomica do `arquivo.js`.** Reescrever o arquivo inteiro a cada
+  mudanca de status seria caro e cresceria sem limite. Append e O(1), e uma ultima linha truncada por
+  queda de energia e descartada na leitura em vez de corromper o resto. A poda, essa sim, usa
+  `.tmp` + rename: e reescrita inteira, uma vez por arranque.
+- **Intervalo so conta quando tem evento de fechamento.** O `before-quit` grava um `fim` para cada
+  sessao viva; sem isso, uma sessao aberta na sexta com o app fechado no fim de semana apareceria
+  como "trabalhou 3 dias". Numa queda perde-se o ultimo intervalo — **subcontar e melhor que mentir
+  para cima**, e o teste que garante isso e o mais importante do modulo.
+- **A chave e feature + projeto, nunca o id do painel.** Id e efemero; a feature sobrevive a fechar e
+  reabrir. Mesma decisao ja tomada nas ligacoes, onde a chave e a pasta.
+- Uma passagem so: `estado.js` ja e o ponto unico por onde toda transicao vai, entao o historico
+  pendura ali (`anotar`) e nao precisa observar mais nada.
+- Abre clicando no **placar da lateral** — que ja resume o *agora* e leva ao *ao longo do tempo*.
+
+## Diff dentro do app
+
+`worktrees.diff()` mais `src/janela/diff.js`.
+
+- **`base...branch` com TRES pontos**, nao dois: tres pontos mostra o que a branch fez desde que
+  divergiu. Com dois, commits que outra pessoa colocou na base apareceriam como se fossem seus,
+  invertidos.
+- **Arquivo novo nao rastreado NAO aparece no `git diff`** — e a etiqueta da lateral ja o conta como
+  alterado, entao o diff mostraria menos do que a etiqueta prometeu. Resolvido com
+  `diff --no-index -- /dev/null <arq>`, que sai com codigo 1 quando ha diferenca (sempre, aqui) e
+  por isso tem o stdout lido do erro. `git add -N` resolveria tambem, mas **mexeria no indice do
+  usuario** — este app nao faz isso.
+- **Um arquivo por vez no DOM.** Nao e estetica: um diff de 200 arquivos renderizado inteiro sao
+  dezenas de milhares de nos. Lista a esquerda, hunks de um arquivo a direita, e a arvore fica
+  pequena por construcao — sem virtualizacao e sem biblioteca.
+- Teto de 400 KB por lado, com aviso explicito de truncagem. Travar em silencio e pior que dizer
+  "cortei aqui".
+
+## Overlays: a pilha e por ordem de ABERTURA
+
+`OrqOverlays` em `casca.js` registra ajuda, seletor, paleta, modal, historico e diff. O Esc fecha **o
+topo da pilha**, e o `z-index` acompanha a mesma ordem.
+
+Com ordem do HTML — que foi a primeira tentativa — abrir o historico com a ajuda aberta mostrava a
+ajuda por cima (ela vem depois no documento) enquanto o Esc fechava o historico: **voce via um e
+fechava outro**. Quem detecta a abertura e um `MutationObserver` no atributo `hidden`, e nao um aviso
+que cada modulo precisa lembrar de dar.
 
 ## A ajuda dentro do app
 

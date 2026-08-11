@@ -16,6 +16,7 @@ const sessao = require('./sessao');
 const arquivo = require('./arquivo');
 const preferencias = require('./preferencias');
 const metricas = require('./metricas');
+const historico = require('./historico');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -127,6 +128,13 @@ function criarJanela() {
 }
 
 app.whenReady().then(async () => {
+  // Corte do historico UMA VEZ por arranque, antes de a janela pedir o resumo.
+  try {
+    historico.podar();
+  } catch (err) {
+    console.error('[historico] poda falhou:', err.message);
+  }
+
   criarJanela();
 
   try {
@@ -157,6 +165,10 @@ app.on('window-all-closed', () => {
 // partir deste ponto o fechamento ja foi decidido e nao cabe mais perguntar.
 app.on('before-quit', () => {
   fechamentoAutorizado = true;
+  // ANTES de fechar os terminais: fecha os intervalos abertos no historico.
+  // Sem isto, uma sessao aberta na sexta com o app fechado no fim de semana
+  // apareceria como "trabalhou tres dias".
+  estado.encerrarTodas();
   terminais.fecharTodos();
   eventos.parar();
   atualizacao.parar();
@@ -243,6 +255,8 @@ ipcMain.handle('projetos:adicionar', (_e, caminho, faixa) => {
 ipcMain.handle('worktrees:listar', (_e, projeto) => worktrees.listar(projeto));
 
 ipcMain.handle('worktrees:situacaoInclude', (_e, projeto) => worktrees.situacaoInclude(projeto));
+
+ipcMain.handle('worktrees:diff', (_e, { projeto, caminho }) => worktrees.diff(projeto, caminho));
 
 // Arquivar apaga trabalho de forma irreversivel. Tres portoes antes de mexer em
 // qualquer coisa, e cada recusa diz QUAL deles impediu.
@@ -364,6 +378,8 @@ ipcMain.handle('ui:salvar', (_e, parcial) => {
 });
 
 ipcMain.handle('app:metricas', () => metricas.agora());
+
+ipcMain.handle('historico:resumo', () => historico.resumo());
 
 ipcMain.handle('atualizacao:situacao', () => ({ ...atualizacao.situacao }));
 ipcMain.handle('atualizacao:verificar', () => { atualizacao.verificar(); return true; });

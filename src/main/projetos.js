@@ -89,28 +89,32 @@ function adicionar(caminho, faixa) {
   return { projeto, novo: true };
 }
 
-// A qual faixa de portas uma pasta pertence.
+// Qual projeto e dono de uma pasta.
 //
-// Casa pelo prefixo MAIS ESPECIFICO, como o `projetoDe` da janela: um worktree
-// vive em <projeto>/.claude/worktrees/<feat> e tem de herdar a faixa do
-// projeto, e com dois projetos aninhados o de dentro ganha.
+// Casa pelo prefixo MAIS ESPECIFICO: um worktree vive em
+// <projeto>/.claude/worktrees/<feat> e pertence ao projeto, e com dois projetos
+// aninhados o de dentro ganha.
 //
-// Mora aqui, e nao na janela, porque assim o painel pega a faixa certa venha
-// ele de um projeto, de um worktree ou de um painel avulso -- sem cada chamador
-// ter de lembrar de passar.
-function faixaDe(caminho) {
+// Mora aqui, e nao na janela, porque quem precisa disso e o processo principal:
+// a faixa de portas na hora de abrir o PTY e o historico na hora de gravar a
+// transicao. Uma regra so, usada pelos dois.
+function donoDe(caminho) {
   const alvo = chave(String(caminho || '.'));
   let melhor = null;
 
   for (const p of ler()) {
-    if (!faixaValida(p.faixa)) continue;
     const base = chave(p.caminho);
     const dentro = alvo === base || alvo.startsWith(base + path.sep);
-    if (dentro && (!melhor || base.length > melhor.base.length)) {
-      melhor = { base, faixa: p.faixa };
-    }
+    if (dentro && (!melhor || base.length > chave(melhor.caminho).length)) melhor = p;
   }
-  return melhor ? melhor.faixa : null;
+  return melhor;
+}
+
+// A qual faixa de portas uma pasta pertence. `null` quando o projeto nao existe
+// ou nao escolheu faixa -- quem chama cai na padrao.
+function faixaDe(caminho) {
+  const dono = donoDe(caminho);
+  return dono && faixaValida(dono.faixa) ? dono.faixa : null;
 }
 
 // Tira da lista. NAO toca na pasta em disco.
@@ -133,5 +137,5 @@ function renomear(id, nome) {
 
 module.exports = {
   ARQUIVO, PASTA, listar, adicionar, remover, renomear, nomeCurto, ehRepositorio,
-  faixaDe, faixaValida,
+  faixaDe, faixaValida, donoDe,
 };

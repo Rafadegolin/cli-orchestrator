@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('orq', {
   worktreesListar: (projeto) => ipcRenderer.invoke('worktrees:listar', projeto),
   worktreesArquivar: (projeto, caminho, confirmar = true) =>
     ipcRenderer.invoke('worktrees:arquivar', { projeto, caminho, confirmar }),
+  worktreesDiff: (projeto, caminho) => ipcRenderer.invoke('worktrees:diff', { projeto, caminho }),
   includeSituacao: (projeto) => ipcRenderer.invoke('worktrees:situacaoInclude', projeto),
   includeCriar: (projeto, linhas, confirmar = true) =>
     ipcRenderer.invoke('worktrees:criarInclude', { projeto, linhas, confirmar }),
@@ -51,6 +52,7 @@ contextBridge.exposeInMainWorld('orq', {
   uiSalvar: (parcial) => ipcRenderer.invoke('ui:salvar', parcial),
 
   metricas: () => ipcRenderer.invoke('app:metricas'),
+  historico: () => ipcRenderer.invoke('historico:resumo'),
   aoMedir: (fn) => ipcRenderer.on('app:metricas', (_e, m) => fn(m)),
 
   atualizacaoSituacao: () => ipcRenderer.invoke('atualizacao:situacao'),

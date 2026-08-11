@@ -103,6 +103,13 @@
 
     lista.push({
       tag: 'ajuda',
+      rotulo: 'Ver tempo por feature',
+      dica: '',
+      correr: () => window.OrqHistorico?.abrir(),
+    });
+
+    lista.push({
+      tag: 'ajuda',
       rotulo: 'Abrir Como usar',
       dica: 'F1',
       correr: () => window.OrqAjuda.abrir(),

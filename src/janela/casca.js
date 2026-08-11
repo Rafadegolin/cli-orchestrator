@@ -110,21 +110,41 @@
   // fechava os dois. Aqui o Esc fecha o TOPO DA PILHA e para por ali.
   const overlays = [];
 
+  // A pilha segue a ordem de ABERTURA, nunca a ordem do HTML.
+  //
+  // Com ordem do HTML, abrir o historico com a ajuda aberta mostrava a ajuda
+  // por cima (ela vem depois no documento) enquanto o Esc fechava o historico:
+  // voce via um e fechava outro. O z-index acompanha a mesma pilha.
+  const Z_BASE = 40;
+  let ordemAbertura = 0;
+
+  function aoTopo(reg) {
+    reg.ordem = ++ordemAbertura;
+    reg.el.style.zIndex = String(Z_BASE + reg.ordem);
+  }
+
   function registrarOverlay(el, fechar) {
     if (!el) return;
-    overlays.push({ el, fechar });
+    const reg = { el, fechar, ordem: 0 };
+    overlays.push(reg);
+
     // Clicar no fundo do overlay fecha; clicar no cartao dentro dele nao.
     el.addEventListener('click', (ev) => { if (ev.target === el) fechar(); });
+
+    // Observa o proprio atributo em vez de exigir que cada modulo avise quando
+    // abre: aviso que depende de lembrar e aviso que uma hora falta.
+    const obs = new MutationObserver(() => { if (!el.hidden) aoTopo(reg); });
+    obs.observe(el, { attributes: true, attributeFilter: ['hidden'] });
+    if (!el.hidden) aoTopo(reg);
   }
 
   function overlayNoTopo() {
-    // O ultimo registrado que estiver aberto: a ordem de registro segue a
-    // ordem dos <script>, e paleta e modal, que chegam por ultimo, sao os que
-    // aparecem por cima.
-    for (let i = overlays.length - 1; i >= 0; i--) {
-      if (!overlays[i].el.hidden) return overlays[i];
+    let topo = null;
+    for (const o of overlays) {
+      if (o.el.hidden) continue;
+      if (!topo || o.ordem > topo.ordem) topo = o;
     }
-    return null;
+    return topo;
   }
 
   window.addEventListener('keydown', (ev) => {

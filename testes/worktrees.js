@@ -140,6 +140,45 @@ function achar(nome) {
   checar('o arquivo lista o .env', inc.conteudo.includes('.env'),
     inc.conteudo.split('\n').filter((l) => l && !l.startsWith('#')).join('|'));
 
+  // --- diff ---------------------------------------------------------------
+  //
+  // Fecha o ciclo de revisao: a etiqueta na lateral deixa de so dizer o que
+  // impede arquivar e passa a mostrar o QUE mudou.
+  const paraDiff = wt.listar(RAIZ).find((w) => !w.sessaoViva && w.existe);
+  checar('ha um worktree para diferenciar', Boolean(paraDiff),
+    wt.listar(RAIZ).map((w) => w.nome).join(','));
+
+  // Um commit na branch e uma alteracao ainda nao commitada: o diff tem de
+  // separar as duas coisas.
+  fs.writeFileSync(path.join(paraDiff.caminho, 'commitado.txt'), 'ESTA_COMMITADO\n');
+  git(paraDiff.caminho, 'add', '.');
+  git(paraDiff.caminho, 'commit', '-m', 'commit do teste de diff');
+  fs.writeFileSync(path.join(paraDiff.caminho, 'solto.txt'), 'AINDA_NAO_COMMITADO\n');
+  git(paraDiff.caminho, 'add', 'solto.txt');
+  // Arquivo novo que nem foi adicionado: nao aparece no `git diff`, mas a
+  // etiqueta da lateral ja o conta como alterado.
+  fs.writeFileSync(path.join(paraDiff.caminho, 'nem-adicionado.txt'), 'ARQUIVO_NOVO_INTEIRO\n');
+
+  const d = wt.diff(RAIZ, paraDiff.caminho);
+  checar('o diff foi lido', d.ok === true, JSON.stringify({ ok: d.ok, texto: d.texto }));
+  checar('separa o que ja foi commitado na branch',
+    d.commitado.includes('commitado.txt'), d.commitado.split('\n')[0] || '(vazio)');
+  checar('e o que ainda nao foi',
+    d.naoCommitado.includes('solto.txt'), d.naoCommitado.split('\n')[0] || '(vazio)');
+  checar('nao mistura os dois lados',
+    !d.commitado.includes('solto.txt'), '');
+  checar('e mostra tambem o arquivo novo que nem foi adicionado',
+    d.naoCommitado.includes('nem-adicionado.txt')
+    && d.naoCommitado.includes('ARQUIVO_NOVO_INTEIRO'),
+    d.naoCommitado.includes('nem-adicionado.txt') ? 'sem conteudo' : 'nem citado');
+  checar('e diz de qual branch para qual base',
+    Boolean(d.branch) && Boolean(d.baseBranch), `${d.branch} vs ${d.baseBranch}`);
+
+  // Pasta que sumiu volta como recusa, e nao como excecao.
+  const sumiu = wt.diff(RAIZ, path.join(RAIZ, 'nao', 'existe'));
+  checar('worktree inexistente vira recusa com motivo, sem estourar',
+    sumiu.ok === false && Boolean(sumiu.texto), JSON.stringify(sumiu));
+
   // Limpeza: o repo e descartavel, mas worktree deixa metadado no git.
   fs.rmSync(RAIZ, { recursive: true, force: true });
 

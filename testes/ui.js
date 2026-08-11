@@ -615,6 +615,17 @@ async function soltar(cdp) {
   checar('da para abrir a paleta por cima da ajuda',
     doisAbertos.ajuda && doisAbertos.paleta, JSON.stringify(doisAbertos));
 
+  // Quem abriu depois tem de APARECER por cima, e nao so ser o alvo do Esc.
+  // A ordem do HTML poe a ajuda depois do historico, entao sem empilhamento por
+  // ordem de abertura voce veria um overlay e o Esc fecharia outro.
+  const empilhado = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    ajuda: Number(getComputedStyle(document.getElementById('ajuda')).zIndex),
+    paleta: Number(getComputedStyle(document.getElementById('paleta')).zIndex),
+    topo: window.OrqOverlays.noTopo()?.el.id,
+  })`));
+  checar('e o que abriu depois fica por cima, tambem visualmente',
+    empilhado.paleta > empilhado.ajuda && empilhado.topo === 'paleta', JSON.stringify(empilhado));
+
   await cdp.avaliar(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
   await esperar(400);
   const umEsc = JSON.parse(await cdp.avaliar(`JSON.stringify({
@@ -737,6 +748,97 @@ async function soltar(cdp) {
     checar(`contraste AA no tema ${tema}`, ruins.length === 0,
       ruins.map((r) => `${r.nome}=${r.razao}`).join(' ') || medido.map((r) => `${r.nome}=${r.razao}`).join(' '));
   }
+
+  // --- 15. historico e diff (Fase 9) --------------------------------------
+  await cdp.avaliar(`(async () => { await window.OrqHistorico.abrir(); return 'ok'; })()`);
+  await esperar(800);
+  const hist = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    visivel: document.getElementById('historico').hidden === false,
+    tabela: Boolean(document.querySelector('.historico-tabela')),
+    vazio: Boolean(document.querySelector('.historico-vazio')),
+    colunas: [...document.querySelectorAll('.historico-tabela th')].map(t => t.textContent),
+  })`));
+  checar('o historico abre e mostra tabela ou o aviso de vazio',
+    hist.visivel && (hist.tabela || hist.vazio), JSON.stringify(hist));
+
+  // Botao de fechar fora do seletor de estilo aparece como botao branco do
+  // sistema no meio da tela. Aconteceu com o historico; agora e conferido.
+  const fechares = JSON.parse(await cdp.avaliar(`JSON.stringify(
+    ['ajuda-fechar', 'seletor-fechar', 'historico-fechar', 'diff-fechar'].map(id => {
+      const e = document.getElementById(id);
+      const s = getComputedStyle(e);
+      return { id, borda: s.borderRadius, fundo: s.backgroundColor };
+    }))`));
+  checar('todo overlay fecha com o mesmo botao, nenhum sem estilo',
+    fechares.every((f) => f.borda === '8px'), JSON.stringify(fechares.filter((f) => f.borda !== '8px')));
+  if (hist.tabela) {
+    checar('com as colunas que respondem "valeu a pena?"',
+      hist.colunas.includes('Trabalhando') && hist.colunas.includes('Esperando você')
+      && hist.colunas.includes('Interrupções'), hist.colunas.join(' | '));
+  }
+  await cdp.avaliar(`window.OrqHistorico.fechar()`);
+
+  // O placar leva ao historico: e o mesmo assunto, do agora para o ao longo do tempo.
+  await cdp.avaliar(`document.getElementById('placar').click()`);
+  await esperar(700);
+  checar('clicar no placar abre o historico',
+    await cdp.avaliar(`document.getElementById('historico').hidden`) === false, '');
+  await cdp.avaliar(`window.OrqHistorico.fechar()`);
+
+  // O parser do diff, sem precisar de repositorio: e ele que decide o que a
+  // tela mostra, e erra em silencio se o formato do git mudar.
+  const DIFF = [
+    'diff --git a/src/um.js b/src/um.js',
+    'index 111..222 100644',
+    '--- a/src/um.js',
+    '+++ b/src/um.js',
+    '@@ -1,3 +1,4 @@',
+    ' contexto',
+    '-linha velha',
+    '+linha nova',
+    '+outra nova',
+    'diff --git a/dois.txt b/dois.txt',
+    'new file mode 100644',
+    '--- /dev/null',
+    '+++ b/dois.txt',
+    '@@ -0,0 +1 @@',
+    '+arquivo novo',
+  ].join('\n');
+
+  const parse = JSON.parse(await cdp.avaliar(`(() => {
+    const arqs = window.OrqDiff.separar(${JSON.stringify(DIFF)}, 'teste');
+    return JSON.stringify({
+      quantos: arqs.length,
+      nomes: arqs.map(a => a.nome),
+      contas: arqs.map(a => a.mais + '/' + a.menos),
+      classes: [
+        window.OrqDiff.classeDa('+novo'),
+        window.OrqDiff.classeDa('-velho'),
+        window.OrqDiff.classeDa('@@ -1 +1 @@'),
+        window.OrqDiff.classeDa('+++ b/x'),
+        window.OrqDiff.classeDa(' igual'),
+      ],
+    });
+  })()`));
+  checar('o parser separa um arquivo por bloco',
+    parse.quantos === 2 && parse.nomes.join() === 'src/um.js,dois.txt', JSON.stringify(parse.nomes));
+  checar('conta adicoes e remocoes sem confundir com os cabecalhos +++/---',
+    parse.contas.join() === '2/1,1/0', parse.contas.join());
+  checar('e classifica cada linha pelo papel',
+    parse.classes.join() === 'diff-mais,diff-menos,diff-hunk,diff-meta,diff-contexto',
+    parse.classes.join());
+
+  // A tela do diff: um arquivo por vez, para a arvore do DOM ficar pequena.
+  await cdp.avaliar(`(() => {
+    const d = document.getElementById('diff');
+    d.hidden = false;
+    window.OrqDiff.separar(${JSON.stringify(DIFF)}, 'teste');
+    return 'ok';
+  })()`);
+  await cdp.avaliar(`window.OrqDiff.fechar()`);
+  checar('o diff fecha limpando o estado',
+    await cdp.avaliar(`document.getElementById('diff').hidden`) === true
+    && await cdp.avaliar(`window.OrqDiff.arquivos().length`) === 0, '');
 
   await zerarGrade(cdp);
   await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 2, ordem: 'urgencia' })`);

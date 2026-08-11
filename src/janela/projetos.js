@@ -245,9 +245,16 @@ function desenharDetalhe(p) {
     nome.textContent = w.nome;
 
     // A etiqueta e o que responde "posso arquivar isto?" sem tentar e falhar.
-    const etiqueta = document.createElement('span');
+    // A etiqueta diz o que impede arquivar; clicar nela mostra O QUE mudou.
+    // E o fim do ciclo de revisao: bolinha azul, abre o diff, decide.
+    const etiqueta = document.createElement('button');
     etiqueta.className = 'wt-marca';
+    etiqueta.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      window.OrqDiff?.abrir(p.caminho, w.caminho, w.nome);
+    });
     let impedimento = '';
+    etiqueta.textContent = 'ver diff';
     if (w.sessaoViva) {
       etiqueta.textContent = 'aberto agora';
       etiqueta.classList.add('wt-viva');
@@ -261,6 +268,9 @@ function desenharDetalhe(p) {
       etiqueta.classList.add('wt-sujo');
       impedimento = `Há commit fora de ${w.baseBranch}.`;
     }
+    etiqueta.title = impedimento
+      ? `${impedimento}\nClique para ver o que mudou.`
+      : 'Ver o que esta sessão mudou';
 
     const btnArquivar = document.createElement('button');
     btnArquivar.className = 'wt-arquivar';
