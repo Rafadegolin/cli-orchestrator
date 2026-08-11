@@ -33,15 +33,15 @@ const SECOES = [
     id: 'oque',
     titulo: 'O que este app faz',
     blocos: [
-      p('Ele mostra varias sessoes do Claude Code ao mesmo tempo, numa grade, cada uma identificada '
+      p('Ele mostra várias sessões do Claude Code ao mesmo tempo, numa grade, cada uma identificada '
         + 'pela feature, misturando projetos diferentes.'),
       lista([
-        '<b>Ver todos os terminais de uma vez</b>, em vez de uma sessao por vez com lista lateral.',
-        '<b>Saber na hora quem parou te esperando</b>, e ha quanto tempo, pela bolinha de status.',
-        '<b>Ordenar por urgencia</b>, e nao por repositorio: quem espera ha mais tempo aparece em cima.',
+        '<b>Ver todos os terminais de uma vez</b>, em vez de uma sessão por vez com lista lateral.',
+        '<b>Saber na hora quem parou te esperando</b>, e há quanto tempo, pela bolinha de status.',
+        '<b>Ordenar por urgência</b>, e não por repositório: quem espera há mais tempo aparece em cima.',
       ]),
-      p('Cada sessao roda no proprio worktree, com a propria faixa de portas. Duas features do mesmo '
-        + 'projeto nao brigam pelos arquivos nem pela porta 3000.'),
+      p('Cada sessão roda no próprio worktree, com a própria faixa de portas. Duas features do mesmo '
+        + 'projeto não brigam pelos arquivos nem pela porta 3000.'),
     ],
   },
   {
@@ -49,31 +49,31 @@ const SECOES = [
     titulo: 'Primeiros passos',
     blocos: [
       passos([
-        '<b>Instale os hooks</b> no botao "Hooks: instalar", no rodape desta barra lateral. '
-          + 'E o que faz as bolinhas mudarem sozinhas.',
-        '<b>Cadastre um projeto</b> no <b>+</b> da secao PROJETOS: escolha a pasta do repositorio.',
+        '<b>Instale os hooks</b> no botão "Hooks: instalar", no rodapé desta barra lateral. '
+          + 'É o que faz as bolinhas mudarem sozinhas.',
+        '<b>Cadastre um projeto</b> no <b>+</b> da seção PROJETOS: escolha a pasta do repositório.',
         '<b>Digite o nome da feature</b> no campo de cima e <b>clique no projeto</b>. '
           + 'O painel abre e o Claude sobe sozinho.',
       ]),
-      aviso('Sem os hooks o app funciona, mas os status ficam parados — e e o status que faz a grade '
+      aviso('Sem os hooks o app funciona, mas os status ficam parados — e é o status que faz a grade '
         + 'valer a pena. O app pergunta antes de editar o <code>{arquivoHooks}</code>, faz backup e '
-        + 'preserva o que ja estiver la.'),
+        + 'preserva o que já estiver lá.'),
     ],
   },
   {
     id: 'sessoes',
-    titulo: 'Abrir sessoes',
+    titulo: 'Abrir sessões',
     blocos: [
       p('Clicar num projeto abre um painel na pasta dele e roda o Claude. O que roda depende do campo '
         + 'de feature:'),
       tabela(['Campo de feature', 'O que acontece'], [
         ['com nome', 'Roda <code>claude -w nome</code>: cria um worktree isolado para a feature. '
-          + 'O nome e limpo automaticamente (acento e simbolo viram tracinho), porque ele vira nome de branch.'],
+          + 'O nome é limpo automaticamente (acento e símbolo viram tracinho), porque ele vira nome de branch.'],
         ['vazio', 'Roda <code>claude</code> na pasta do projeto, sem worktree.'],
       ]),
-      p('O botao <b>Novo painel</b> abre um seletor de pasta, para abrir um painel avulso em qualquer '
+      p('O botão <b>Novo painel</b> abre um seletor de pasta, para abrir um painel avulso em qualquer '
         + 'lugar sem cadastrar projeto.'),
-      p('Projeto que nao e repositorio git aparece com a etiqueta <b>sem git</b> e nunca recebe '
+      p('Projeto que não é repositório git aparece com a etiqueta <b>sem git</b> e nunca recebe '
         + '<code>-w</code> — worktree exige git.'),
     ],
   },
@@ -81,13 +81,13 @@ const SECOES = [
     id: 'status',
     titulo: 'As bolinhas de status',
     blocos: [
-      p('Vem dos hooks do Claude Code, nao de ler o texto do terminal. Por isso sao confiaveis e '
-        + 'mudam em menos de um decimo de segundo, mesmo com o painel fora da tela.'),
+      p('Vêm dos hooks do Claude Code, não de ler o texto do terminal. Por isso são confiáveis e '
+        + 'mudam em menos de um décimo de segundo, mesmo com o painel fora da tela.'),
       tabela(['Cor', 'Significa'], [
-        ['<span class="ajuda-bolinha bolinha-esperando"></span> amarela', 'Parou te esperando: pedindo permissao, ou ociosa. O cronometro conta desde quando.'],
+        ['<span class="ajuda-bolinha bolinha-esperando"></span> amarela', 'Parou te esperando: pedindo permissão, ou ociosa. O cronômetro conta desde quando.'],
         ['<span class="ajuda-bolinha bolinha-rodando"></span> verde', 'Trabalhando.'],
-        ['<span class="ajuda-bolinha bolinha-terminou"></span> azul', 'Terminou; pronto para voce revisar.'],
-        ['<span class="ajuda-bolinha bolinha-encerrada"></span> cinza', 'Sessao encerrada, ou painel adormecido esperando voce retomar.'],
+        ['<span class="ajuda-bolinha bolinha-terminou"></span> azul', 'Terminou; pronto para você revisar.'],
+        ['<span class="ajuda-bolinha bolinha-encerrada"></span> cinza', 'Sessão encerrada, ou painel adormecido esperando você retomar.'],
       ]),
     ],
   },
@@ -95,12 +95,12 @@ const SECOES = [
     id: 'lateral',
     titulo: 'A barra lateral e a fila',
     blocos: [
-      p('A lista de SESSOES e ordenada por <b>urgencia</b>, nao por projeto: primeiro quem espera ha '
-        + 'mais tempo, depois quem terminou, depois quem esta rodando, por ultimo quem parou.'),
+      p('A lista de SESSÕES é ordenada por <b>urgência</b>, não por projeto: primeiro quem espera há '
+        + 'mais tempo, depois quem terminou, depois quem está rodando, por último quem parou.'),
       lista([
         'Clicar num card <b>foca o painel</b> correspondente.',
-        '<b>Ctrl+Enter</b> pula direto para quem espera ha mais tempo e ja poe o cursor la.',
-        'Quando o app nao esta em primeiro plano, uma <b>notificacao do sistema</b> avisa que alguem ficou amarelo.',
+        '<b>Ctrl+Enter</b> pula direto para quem espera há mais tempo e já põe o cursor lá.',
+        'Quando o app não está em primeiro plano, uma <b>notificação do sistema</b> avisa que alguém ficou amarelo.',
       ]),
     ],
   },
@@ -110,27 +110,27 @@ const SECOES = [
     blocos: [
       p('A seta ao lado de cada projeto abre a lista dos worktrees existentes — o trabalho de ontem.'),
       lista([
-        '<b>Clicar</b> abre um painel dentro do worktree continuando a ultima conversa dali.',
+        '<b>Clicar</b> abre um painel dentro do worktree continuando a última conversa dali.',
         'O <b>×</b> arquiva: remove a pasta do worktree e o branch.',
       ]),
-      p('A etiqueta de cada worktree diz o que impede arquiva-lo:'),
-      tabela(['Etiqueta', 'Por que nao da para arquivar'], [
-        ['aberto agora', 'Ha uma sessao do Claude viva nele.'],
-        ['N alterados', 'Ha arquivo modificado sem commit.'],
-        ['N commits', 'Ha commit que ainda nao foi para o branch base.'],
-        ['(sem etiqueta)', 'Esta limpo: pode arquivar.'],
+      p('A etiqueta de cada worktree diz o que impede arquivá-lo:'),
+      tabela(['Etiqueta', 'Por que não dá para arquivar'], [
+        ['aberto agora', 'Há uma sessão do Claude viva nele.'],
+        ['N alterados', 'Há arquivo modificado sem commit.'],
+        ['N commits', 'Há commit que ainda não foi para o branch base.'],
+        ['(sem etiqueta)', 'Está limpo: pode arquivar.'],
       ]),
-      aviso('Arquivar nao tem desfazer, entao o app confere tudo de novo na hora de arquivar — e '
-        + 'tambem se recusa se houver um painel deste app aberto naquela pasta.'),
+      aviso('Arquivar não tem desfazer, então o app confere tudo de novo na hora de arquivar — e '
+        + 'também se recusa se houver um painel deste app aberto naquela pasta.'),
     ],
   },
   {
     id: 'env',
-    titulo: 'Arquivos que o worktree nao leva',
+    titulo: 'Arquivos que o worktree não leva',
     blocos: [
-      p('Um worktree e um checkout limpo: arquivos ignorados pelo git, como o <code>.env</code>, nao '
-        + 'vao junto. Sem eles a aplicacao nao sobe la dentro, e a feature nova parece quebrada sem motivo.'),
-      p('Quando o app detecta essa situacao, aparece um aviso na lista de worktrees com o botao de criar '
+      p('Um worktree é um checkout limpo: arquivos ignorados pelo git, como o <code>.env</code>, não '
+        + 'vão junto. Sem eles a aplicação não sobe lá dentro, e a feature nova parece quebrada sem motivo.'),
+      p('Quando o app detecta essa situação, aparece um aviso na lista de worktrees com o botão de criar '
         + 'um <code>.worktreeinclude</code> listando o que copiar para cada worktree novo.'),
     ],
   },
@@ -139,49 +139,49 @@ const SECOES = [
     titulo: 'Portas: rodar dois servidores ao mesmo tempo',
     blocos: [
       p('Cada painel reserva <b>{portasPorPainel} portas livres</b> a partir da <b>{portaBase}</b>, e '
-        + 'a primeira aparece no cabecalho do painel. Isso e o que permite subir o dev de duas features '
+        + 'a primeira aparece no cabeçalho do painel. Isso é o que permite subir o dev de duas features '
         + 'do mesmo projeto sem uma derrubar a outra.'),
-      p('As portas chegam ao terminal como variaveis de ambiente:'),
-      tabela(['Variavel', 'Para que serve'], [
-        ['<code>PORT</code>', 'A convencao que Next, Nest e Express ja leem sozinhos.'],
-        ['<code>ORQ_PORTA</code>', 'A mesma porta, com nome explicito.'],
-        ['<code>ORQ_PORTAS</code>', 'As {portasPorPainel} separadas por virgula, para monorepo que sobe varios apps.'],
+      p('As portas chegam ao terminal como variáveis de ambiente:'),
+      tabela(['Variável', 'Para que serve'], [
+        ['<code>PORT</code>', 'A convenção que Next, Nest e Express já leem sozinhos.'],
+        ['<code>ORQ_PORTA</code>', 'A mesma porta, com nome explícito.'],
+        ['<code>ORQ_PORTAS</code>', 'As {portasPorPainel} separadas por vírgula, para monorepo que sobe vários apps.'],
       ]),
-      aviso('Metade do trabalho fica no seu projeto: ele precisa LER a variavel. Veja a tabela abaixo.'),
+      aviso('Metade do trabalho fica no seu projeto: ele precisa LER a variável. Veja a tabela abaixo.'),
       tabela(['Stack', 'O que fazer no projeto'], [
-        ['Next', 'O <code>next dev</code> ja respeita <code>PORT</code>. Um <code>-p 3001</code> fixo no script <b>vence</b> a variavel e precisa sair.'],
+        ['Next', 'O <code>next dev</code> já respeita <code>PORT</code>. Um <code>-p 3001</code> fixo no script <b>vence</b> a variável e precisa sair.'],
         ['Vite', 'Ignora <code>PORT</code>. Use <code>vite --port %PORT%</code>, ou leia <code>process.env.PORT</code> no vite.config.'],
         ['Nest / Express', 'Garanta <code>app.listen(process.env.PORT ?? 3000)</code>.'],
-        ['Turborepo', 'Cada app pega uma posicao de <code>ORQ_PORTAS</code>.'],
+        ['Turborepo', 'Cada app pega uma posição de <code>ORQ_PORTAS</code>.'],
       ]),
     ],
   },
   {
     id: 'ligacoes',
-    titulo: 'Ligar sessoes de repositorios diferentes',
+    titulo: 'Ligar sessões de repositórios diferentes',
     blocos: [
-      p('Para uma feature que mexe no backend e no frontend ao mesmo tempo, em repositorios separados: '
-        + 'o botao <b>ligar</b> no cabecalho do painel da a esta sessao acesso ao codigo da outra. '
+      p('Para uma feature que mexe no backend e no frontend ao mesmo tempo, em repositórios separados: '
+        + 'o botão <b>ligar</b> no cabeçalho do painel dá a esta sessão acesso ao código da outra. '
         + 'Elas param de reexplicar o contrato da API uma para a outra.'),
       lista([
-        'Ligar a <b>outro painel aberto</b> e <b>mutuo</b>: cada lado enxerga o repositorio do outro.',
-        'Ligar a um <b>projeto cadastrado sem painel</b> e <b>so de ida</b>, porque nao ha sessao do outro lado.',
-        'Numa sessao ja rodando o app usa <code>/add-dir</code>, e voce ve o comando e a confirmacao acontecerem no terminal.',
+        'Ligar a <b>outro painel aberto</b> é <b>mútuo</b>: cada lado enxerga o repositório do outro.',
+        'Ligar a um <b>projeto cadastrado sem painel</b> é <b>só de ida</b>, porque não há sessão do outro lado.',
+        'Numa sessão já rodando o app usa <code>/add-dir</code>, e você vê o comando e a confirmação acontecerem no terminal.',
       ]),
-      aviso('Desligar tira o registro dos dois lados, mas a sessao que ja esta rodando so perde o acesso '
-        + 'ao ser reiniciada — nao existe comando para remover um diretorio de uma sessao viva.'),
+      aviso('Desligar tira o registro dos dois lados, mas a sessão que já está rodando só perde o acesso '
+        + 'ao ser reiniciada — não existe comando para remover um diretório de uma sessão viva.'),
     ],
   },
   {
     id: 'grade',
-    titulo: 'A grade de paineis',
+    titulo: 'A grade de painéis',
     blocos: [
       lista([
-        'Ate 4 paineis a grade usa 2 colunas; acima disso, 3.',
-        'Cada painel tem altura minima; com muitos paineis a grade <b>rola</b> em vez de espremer todo mundo.',
-        'Painel fora da area visivel <b>para de desenhar</b> e guarda a saida, escrevendo tudo de uma vez quando volta. Nada se perde.',
-        'A etiqueta <code>webgl</code> ou <code>canvas</code> mostra o renderizador. As vagas de WebGL vao para os paineis visiveis.',
-        'Clicar num painel da foco; so o painel focado recebe o teclado. O <b>×</b> fecha e mata o processo de verdade.',
+        'Até 4 painéis a grade usa 2 colunas; acima disso, 3.',
+        'Cada painel tem altura mínima; com muitos painéis a grade <b>rola</b> em vez de espremer todo mundo.',
+        'Painel fora da área visível <b>para de desenhar</b> e guarda a saída, escrevendo tudo de uma vez quando volta. Nada se perde.',
+        'A etiqueta <code>webgl</code> ou <code>canvas</code> mostra o renderizador. As vagas de WebGL vão para os painéis visíveis.',
+        'Clicar num painel dá foco; só o painel focado recebe o teclado. O <b>×</b> fecha e mata o processo de verdade.',
       ]),
     ],
   },
@@ -189,24 +189,24 @@ const SECOES = [
     id: 'fila',
     titulo: 'A fila de partida',
     blocos: [
-      p('Varias sessoes do Claude partindo ao mesmo tempo saturam a maquina. Quando ja ha <b>{tetoFila} '
-        + 'sessoes rodando</b>, a proxima fica retida e o painel mostra <b>na fila</b>; ela parte sozinha '
+      p('Várias sessões do Claude partindo ao mesmo tempo saturam a máquina. Quando já há <b>{tetoFila} '
+        + 'sessões rodando</b>, a próxima fica retida e o painel mostra <b>na fila</b>; ela parte sozinha '
         + 'quando abrir vaga.'),
-      p('Voce nunca fica preso atras disso: <b>clicar na etiqueta</b> comeca na hora, e uma espera longa '
-        + 'demais parte por conta propria.'),
+      p('Você nunca fica preso atrás disso: <b>clicar na etiqueta</b> começa na hora, e uma espera longa '
+        + 'demais parte por conta própria.'),
     ],
   },
   {
     id: 'fechar',
     titulo: 'Fechar, reabrir e atualizar',
     blocos: [
-      p('O arranjo de paineis e salvo. Ao reabrir, eles voltam <b>adormecidos</b>, com um botao de '
-        + 'retomar em cada um e um <b>Retomar todas</b> na lateral — nada sobe sozinho sem voce pedir.'),
-      p('Fechar o app com sessao rodando pede confirmacao, dizendo quantas serao interrompidas.'),
-      p('Quando sai versao nova, o aviso aparece no rodape da lateral. Na versao portatil o botao abre a '
-        + 'pagina da release para voce baixar o zip novo; na instalada, ele aplica e reinicia.'),
+      p('O arranjo de painéis é salvo. Ao reabrir, eles voltam <b>adormecidos</b>, com um botão de '
+        + 'retomar em cada um e um <b>Retomar todas</b> na lateral — nada sobe sozinho sem você pedir.'),
+      p('Fechar o app com sessão rodando pede confirmação, dizendo quantas serão interrompidas.'),
+      p('Quando sai versão nova, o aviso aparece no rodapé da lateral. Na versão portátil o botão abre a '
+        + 'página da release para você baixar o zip novo; na instalada, ele aplica e reinicia.'),
       p('Seus dados ficam em <code>{pastaDados}</code>, fora da pasta do app: projetos, arranjo de '
-        + 'paineis e a porta do servidor de eventos. Trocar a pasta do app nao perde nada.'),
+        + 'painéis e a porta do servidor de eventos. Trocar a pasta do app não perde nada.'),
     ],
   },
   {
@@ -214,26 +214,26 @@ const SECOES = [
     titulo: 'Atalhos',
     blocos: [
       tabela(['Tecla', 'O que faz'], [
-        ['<kbd>Ctrl</kbd>+<kbd>Enter</kbd>', 'Pula para a sessao que espera ha mais tempo'],
+        ['<kbd>Ctrl</kbd>+<kbd>Enter</kbd>', 'Pula para a sessão que espera há mais tempo'],
         ['<kbd>F1</kbd>', 'Abre esta ajuda'],
-        ['<kbd>Esc</kbd>', 'Fecha esta ajuda ou o seletor de ligacoes'],
-        ['<kbd>Enter</kbd> no campo de feature', 'Mesmo que clicar em "Novo painel"'],
+        ['<kbd>Esc</kbd>', 'Fecha esta ajuda ou o seletor de ligações'],
+        ['<kbd>Enter</kbd> no campo de feature', 'Mesmo que clicar em “Novo painel”'],
       ]),
     ],
   },
   {
     id: 'problemas',
-    titulo: 'Quando algo nao funciona',
+    titulo: 'Quando algo não funciona',
     blocos: [
-      tabela(['Sintoma', 'Causa provavel'], [
-        ['As bolinhas nao mudam de cor', 'Os hooks nao estao instalados. Use o botao no rodape da lateral.'],
-        ['O dev server subiu na porta errada', 'O projeto nao le a variavel <code>PORT</code>. Veja a secao de portas.'],
-        ['A aplicacao nao sobe dentro do worktree', 'Falta o <code>.worktreeinclude</code> com o <code>.env</code>.'],
-        ['Nao consigo arquivar um worktree', 'A etiqueta dele diz o motivo: sessao viva, alteracao sem commit ou commit fora da base.'],
-        ['O painel abriu mas o comando nao rodou', 'Pode estar na fila de partida. A etiqueta <b>na fila</b> aparece no cabecalho; clique nela para comecar agora.'],
+      tabela(['Sintoma', 'Causa provável'], [
+        ['As bolinhas não mudam de cor', 'Os hooks não estão instalados. Use o botão no rodapé da lateral.'],
+        ['O dev server subiu na porta errada', 'O projeto não lê a variável <code>PORT</code>. Veja a seção de portas.'],
+        ['A aplicação não sobe dentro do worktree', 'Falta o <code>.worktreeinclude</code> com o <code>.env</code>.'],
+        ['Não consigo arquivar um worktree', 'A etiqueta dele diz o motivo: sessão viva, alteração sem commit ou commit fora da base.'],
+        ['O painel abriu mas o comando não rodou', 'Pode estar na fila de partida. A etiqueta <b>na fila</b> aparece no cabeçalho; clique nela para começar agora.'],
       ]),
       p('O servidor que recebe os avisos do Claude Code escuta em <code>127.0.0.1:{portaEventos}</code>, '
-        + 'so nesta maquina. Com o app fechado, os hooks falham em silencio e nao atrapalham suas sessoes.'),
+        + 'só nesta máquina. Com o app fechado, os hooks falham em silêncio e não atrapalham suas sessões.'),
     ],
   },
 ];

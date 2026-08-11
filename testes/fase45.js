@@ -88,7 +88,20 @@ function dispararHook(evento, tipo, { orqId = '', cwd = '' } = {}) {
 
   await esperar(2200);
   const texto = await cdp.avaliar(`document.querySelector('.card-atencao .card-sub')?.textContent`);
-  checar('card amarelo mostra ha quanto tempo espera', /ha \d+s/.test(texto || ''), texto);
+  checar('card amarelo mostra ha quanto tempo espera', /h[aá] \d+s/.test(texto || ''), texto);
+
+  // De ponta a ponta: o hook do Canal 2 faz o bloco ESPERANDO VOCE aparecer.
+  // A suite ui.js cobre a fila pela API interna; esta checagem e a que prova
+  // que ela esta ligada no que vem do Claude de verdade.
+  const bloco = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    visivel: document.getElementById('bloco-fila').hidden === false,
+    itens: document.querySelectorAll('#fila-lista li').length,
+    contagem: document.getElementById('fila-contagem').textContent,
+    primeiro: document.querySelector('#fila-lista .fila-nome')?.textContent || '',
+  })`));
+  checar('o hook faz a fila de atencao aparecer',
+    bloco.visivel && bloco.itens === 2 && bloco.contagem === '2', JSON.stringify(bloco));
+  checar('com o mais antigo no topo da fila', bloco.primeiro === 'beta', bloco.primeiro);
 
   checar('Ctrl+Enter foca quem espera ha mais tempo',
     await cdp.avaliar(`window.OrqLateral.pularParaMaisAntigo()`) === ids[1]);

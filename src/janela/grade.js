@@ -212,6 +212,22 @@ async function retomarTodas() {
   window.OrqLateral?.atualizarRetomarTodas?.();
 }
 
+// Reordena a grade por `style.order`, NUNCA movendo nos no DOM.
+//
+// Mover o elemento de um xterm funciona, mas cada mudanca de status dispararia
+// reflow e fit() em cascata em todos os painéis -- e status muda o tempo todo.
+// Com `order` o navegador so reposiciona caixas ja montadas.
+//
+// A ordem salva pela Fase 7 continua sendo a do DOM (ordem de criacao), que e o
+// que `retratoSessao()` le: a ordenacao da tela e uma VISTA, nao o arranjo.
+function ordenarGrade(lista) {
+  const ordenada = lista || window.OrqLateral?.ordenadas?.() || [];
+  ordenada.forEach((c, i) => {
+    const p = porId.get(c.id);
+    if (p) p.el.style.order = String(i);
+  });
+}
+
 function marcarFocado() {
   for (const [id, p] of porId) {
     p.el.classList.toggle('painel-focado', id === focado);
@@ -263,8 +279,14 @@ window.addEventListener('resize', () => {
 window.OrqGrade = {
   criarPainel, focarPainel, painelPorId: porId,
   despertar, restaurarSessao, retomarTodas, dormindos, retratoSessao, salvarSessao,
+  ordenarGrade,
   focado: () => focado,
 };
+
+// Trocar entre Urgencia e Projeto reordena na hora.
+window.OrqCasca?.aoMudar(() => {
+  window.OrqLateral?.redesenhar?.();
+});
 
 // No evento `load`, e NAO no carregamento deste script: grade.js e avaliado
 // antes de lateral.js, entao restaurar aqui direto deixava window.OrqLateral

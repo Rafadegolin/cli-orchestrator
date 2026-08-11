@@ -82,6 +82,7 @@ class Painel {
     ordemDeUso.unshift(id);
 
     this.el = this._montarDom();
+    this.mostrarProjeto();
     this._montarTerminal();
 
     // Entrar na frente empurra todo mundo uma posicao: quem estava na ultima
@@ -108,8 +109,6 @@ class Painel {
 
     this.elLocal = document.createElement('span');
     this.elLocal.className = 'painel-local';
-    this.elLocal.textContent = nomeCurto(this.cwd);
-    this.elLocal.title = this.cwd;
 
     // Cor sozinha nao carrega significado: toda bolinha vem com texto ao lado.
     // Some na densidade 3 (regra do CSS), onde o espaco vale mais que a
@@ -121,7 +120,7 @@ class Painel {
     this.elLigacoes = document.createElement('button');
     this.elLigacoes.className = 'painel-ligacoes';
     this.elLigacoes.textContent = 'ligar';
-    this.elLigacoes.title = 'Dar a esta sessao acesso ao codigo de outro repositorio';
+    this.elLigacoes.title = 'Dar a esta sessão acesso ao código de outro repositório';
     this.elLigacoes.addEventListener('click', (ev) => {
       ev.stopPropagation();
       window.OrqSeletorLigacoes?.abrir(this.id);
@@ -368,7 +367,7 @@ class Painel {
 
     const titulo = document.createElement('p');
     titulo.className = 'dormindo-titulo';
-    titulo.textContent = indisponivel ? 'Pasta nao encontrada' : 'Sessao anterior';
+    titulo.textContent = indisponivel ? 'Pasta não encontrada' : 'Sessão anterior';
 
     const onde = document.createElement('p');
     onde.className = 'dormindo-onde';
@@ -388,7 +387,8 @@ class Painel {
 
     this.elDormindo.append(titulo, onde, botao);
     this.definirStatus(indisponivel ? 'encerrada' : 'iniciando',
-      indisponivel ? 'pasta nao encontrada' : 'aguardando voce retomar');
+      indisponivel ? 'pasta não encontrada' : 'sessão salva',
+      indisponivel ? 'A pasta desta sessão não existe mais' : 'Esperando você retomar');
 
     // Nao desenha nada: nao pode segurar vaga de WebGL.
     rebalancearRenderizadores();
@@ -412,8 +412,8 @@ class Painel {
     this.elFila.hidden = false;
     this.elFila.textContent = `na fila (${posicao})`;
     this.elFila.title =
-      `Ja ha ${window.OrqFila?.TETO_RODANDO ?? 4} sessoes rodando. Este comando parte quando abrir vaga.\n` +
-      'Clique para comecar agora mesmo assim.';
+      `Já há ${window.OrqFila?.TETO_RODANDO ?? 4} sessões rodando. Este comando parte quando abrir vaga.\n` +
+      'Clique para começar agora mesmo assim.';
     this.elFila.onclick = (ev) => {
       ev.stopPropagation();
       if (aoForcar) aoForcar();
@@ -426,8 +426,8 @@ class Painel {
     this.elLigacoes.textContent = n ? `${n} ligado${n === 1 ? '' : 's'}` : 'ligar';
     this.elLigacoes.className = n ? 'painel-ligacoes tem-ligacao' : 'painel-ligacoes';
     this.elLigacoes.title = n
-      ? `Esta sessao enxerga o codigo de:\n${(this.ligacoes || []).join('\n')}\n\nClique para gerenciar.`
-      : 'Dar a esta sessao acesso ao codigo de outro repositorio';
+      ? `Esta sessão enxerga o código de:\n${(this.ligacoes || []).join('\n')}\n\nClique para gerenciar.`
+      : 'Dar a esta sessão acesso ao código de outro repositório';
   }
 
   definirPortas(portas) {
@@ -439,22 +439,41 @@ class Painel {
     }
     this.elPorta.textContent = `:${this.portas[0]}`;
     this.elPorta.title =
-      `Portas reservadas so para este painel: ${this.portas.join(', ')}\n\n` +
+      `Portas reservadas só para este painel: ${this.portas.join(', ')}\n\n` +
       `PORT=${this.portas[0]}\nORQ_PORTA=${this.portas[0]}\nORQ_PORTAS=${this.portas.join(',')}\n\n` +
-      'O projeto precisa ler a variavel: Next e Express leem PORT sozinhos, ' +
+      'O projeto precisa ler a variável: Next e Express leem PORT sozinhos, ' +
       'o Vite exige --port %PORT%.';
   }
 
-  definirStatus(status, rotulo) {
+  definirStatus(status, rotulo, motivo = '') {
     this.status = status;
     // Painel dormindo tem bolinha vazada, independente do status por baixo: ele
     // nao tem processo nenhum, e isso e o que a bolinha precisa comunicar.
     this.elBolinha.className = this.dormindo ? 'bolinha bolinha-dormindo' : `bolinha bolinha-${status}`;
-    this.elBolinha.title = rotulo || status;
+    this.elBolinha.title = motivo || rotulo || status;
 
-    this.elStatus.textContent = this.dormindo ? 'sessao salva' : (rotulo || status);
     this.elStatus.className = `painel-status status-${this.dormindo ? 'dormindo' : status}`;
+    this.elStatus.title = motivo || '';
+    this.atualizarRotulo(rotulo || status);
     this.el.classList.toggle('painel-esperando', status === 'esperando' && !this.dormindo);
+  }
+
+  // Separado de definirStatus porque o cronometro chama isto UMA VEZ POR
+  // SEGUNDO enquanto alguem espera: reatribuir className e title a cada tique,
+  // sem nada ter mudado, e trabalho de estilo a toa.
+  atualizarRotulo(rotulo) {
+    const texto = this.dormindo ? 'sessão salva' : rotulo;
+    if (this.elStatus.textContent !== texto) this.elStatus.textContent = texto;
+  }
+
+  // A pill do cabecalho diz o PROJETO, nao a pasta. Para painel de worktree o
+  // cwd e <projeto>/.claude/worktrees/<feat>, entao o nome curto da pasta seria
+  // o nome da feature -- repetido logo ao lado, sem informar nada.
+  mostrarProjeto() {
+    const p = window.OrqProjetos?.projetoDe?.(this.cwd);
+    this.elLocal.textContent = p ? p.nome : nomeCurto(this.cwd);
+    this.elLocal.title = this.cwd;
+    if (p) this.elLocal.style.boxShadow = `inset 2px 0 0 ${p.tinta}`;
   }
 
   // Redimensionar reflui o buffer inteiro do terminal. Fazer isso a cada pixel
@@ -476,7 +495,7 @@ class Painel {
   }
 
   marcarFim(exitCode) {
-    this.definirStatus('encerrada', `processo saiu (codigo ${exitCode})`);
+    this.definirStatus('encerrada', `processo saiu (código ${exitCode})`);
     this.term.write(`\r\n\x1b[90m[processo encerrado: ${exitCode}]\x1b[0m\r\n`);
   }
 

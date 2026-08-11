@@ -5,6 +5,10 @@
 
 const elLista = document.getElementById('lateral-lista');
 const elContagem = document.getElementById('lateral-contagem');
+const elFilaBloco = document.getElementById('bloco-fila');
+const elFilaLista = document.getElementById('fila-lista');
+const elFilaContagem = document.getElementById('fila-contagem');
+const btnFilaDica = document.getElementById('fila-dica');
 const btnHooks = document.getElementById('btn-hooks');
 const elHooksRotulo = document.getElementById('hooks-rotulo');
 const btnAtualizar = document.getElementById('btn-atualizar');
@@ -16,13 +20,23 @@ const elVersao = document.getElementById('lateral-versao');
 // quem parou.
 const PESO = { esperando: 0, terminou: 1, rodando: 2, iniciando: 3, encerrada: 4 };
 
+// Painel dormindo vai para o fim, e por isso o peso NAO pode sair so do status:
+// ele carrega 'iniciando' (peso 3) e cairia no meio da lista, na frente de
+// sessoes vivas. Nao ha processo nenhum ali para exigir sua atencao.
+const PESO_DORMINDO = 5;
+
+// O rotulo diz o ESTADO. O motivo que veio do hook ("pedindo permissao",
+// "parado ha 60s") vai para o title -- juntar os dois produzia coisas como
+// "parado ha 60s ha 4min", com o "ha" duas vezes na mesma linha.
 const ROTULO = {
-  esperando: 'esperando voce',
+  esperando: 'esperando',
   terminou: 'pronto para revisar',
-  rodando: 'rodando',
+  rodando: 'trabalhando',
   iniciando: 'iniciando',
   encerrada: 'encerrada',
 };
+
+const ROTULO_DORMINDO = 'sessão salva';
 
 const cards = new Map();
 let jaAvisado = new Set();
@@ -45,7 +59,7 @@ function definirStatus(id, status, motivo = '', desde = Date.now()) {
   c.motivo = motivo;
   c.desde = desde;
 
-  window.OrqPainel.painelPorId.get(id)?.definirStatus(status, motivo || ROTULO[status]);
+  window.OrqPainel.painelPorId.get(id)?.definirStatus(status, rotuloDe(c), motivo);
 
   if (status === 'esperando') avisar(c);
   else jaAvisado.delete(id);
@@ -61,24 +75,65 @@ async function avisar(c) {
   jaAvisado.add(c.id);
   // So incomoda se o app nao estiver na frente.
   if (await window.orq.estaFocado()) return;
-  window.orq.notificar(`${c.feature} esta esperando`, c.motivo || 'pedindo permissao');
+  window.orq.notificar(`${c.feature} está esperando`, c.motivo || 'pedindo permissão');
 }
 
+function estaDormindo(id) {
+  return Boolean(window.OrqPainel.painelPorId.get(id)?.dormindo);
+}
+
+function pesoDe(c) {
+  return estaDormindo(c.id) ? PESO_DORMINDO : (PESO[c.status] ?? 9);
+}
+
+// A UNICA fonte do rotulo. A lateral, a fila e o cabecalho do painel consomem
+// esta funcao -- antes cada um montava o seu, e os tres ja tinham divergido.
+function rotuloDe(c) {
+  if (estaDormindo(c.id)) return ROTULO_DORMINDO;
+  if (c.status === 'esperando') return `esperando ${textoEspera(Date.now() - c.desde)}`;
+  return ROTULO[c.status] || c.status;
+}
+
+// NAO se chama `projetoDe`: projetos.js ja declara uma funcao com esse nome no
+// mesmo escopo global compartilhado, e a ultima avaliada vence em silencio.
+// Foi assim que a ordenacao por projeto quebrou -- este arquivo acabava
+// chamando a de projetos.js, que espera um caminho e nao um card.
+function nomeProjetoDe(c) {
+  return window.OrqProjetos?.projetoDe?.(c.cwd)?.nome || '';
+}
+
+// Ordem da GRADE e da lista de sessoes: as duas seguem a mesma escolha, porque
+// procurar uma sessao em duas ordenacoes diferentes ao mesmo tempo e pior que
+// nao ordenar.
 function ordenadas() {
+  const porProjeto = window.OrqCasca?.ordem() === 'projeto';
   return [...cards.values()].sort((a, b) => {
-    const d = PESO[a.status] - PESO[b.status];
+    if (porProjeto) {
+      return nomeProjetoDe(a).localeCompare(nomeProjetoDe(b))
+        || a.feature.localeCompare(b.feature);
+    }
+    const d = pesoDe(a) - pesoDe(b);
     if (d !== 0) return d;
-    // Dentro do mesmo status, quem esta parado ha mais tempo vem primeiro.
+    // Dentro do mesmo peso, quem esta parado ha mais tempo vem primeiro.
     return a.desde - b.desde;
   });
 }
 
+// A fila de atencao NAO segue a ordenacao escolhida: ela e a fila, e fila e
+// sempre por quem espera ha mais tempo. Ordenar por projeto aqui faria o
+// Ctrl+Enter pular para a sessao errada.
+function filaAtencao() {
+  return [...cards.values()]
+    .filter((c) => c.status === 'esperando' && !estaDormindo(c.id))
+    .sort((a, b) => a.desde - b.desde);
+}
+
 function textoEspera(ms) {
   const s = Math.floor(ms / 1000);
-  if (s < 60) return `ha ${s}s`;
+  if (s < 60) return `há ${s}s`;
   const m = Math.floor(s / 60);
-  if (m < 60) return `ha ${m}min`;
-  return `ha ${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
+  if (m < 60) return `há ${m}min`;
+  return `há ${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
 }
 
 function redesenhar() {
@@ -113,9 +168,8 @@ function redesenhar() {
 
     const sub = document.createElement('span');
     sub.className = 'card-sub';
-    sub.dataset.desde = String(c.desde);
     sub.dataset.status = c.status;
-    sub.textContent = legenda(c);
+    sub.textContent = rotuloDe(c);
 
     const texto = document.createElement('span');
     texto.className = 'card-texto';
@@ -125,37 +179,88 @@ function redesenhar() {
     porta.className = 'card-porta';
     porta.textContent = painel?.portas?.length ? `:${painel.portas[0]}` : '';
 
+    li.title = [c.cwd, c.motivo].filter(Boolean).join('\n');
     li.append(bolinha, texto, porta);
+    li.addEventListener('click', () => window.OrqGrade.focarPainel(c.id));
+    return li;
+  }));
+
+  redesenharFila();
+  // A grade acompanha a mesma ordem, sem mover nenhum no do DOM.
+  window.OrqGrade?.ordenarGrade?.(lista);
+}
+
+// O bloco ESPERANDO VOCE. So existe quando ha fila: um cabecalho vazio ocupando
+// espaco na lateral e ruido permanente para avisar de algo que nao esta
+// acontecendo.
+function redesenharFila() {
+  const espera = filaAtencao();
+  elFilaBloco.hidden = espera.length === 0;
+  if (!espera.length) {
+    elFilaLista.replaceChildren();
+    return;
+  }
+
+  elFilaContagem.textContent = String(espera.length);
+  elFilaLista.replaceChildren(...espera.map((c) => {
+    const li = document.createElement('li');
+    li.dataset.id = c.id;
+    li.title = c.motivo || 'esperando você';
+
+    const bolinha = document.createElement('span');
+    bolinha.className = 'bolinha bolinha-esperando';
+
+    const nome = document.createElement('span');
+    nome.className = 'fila-nome';
+    nome.textContent = c.feature;
+
+    const tempo = document.createElement('span');
+    tempo.className = 'fila-espera';
+    tempo.textContent = textoEspera(Date.now() - c.desde);
+
+    li.append(bolinha, nome, tempo);
     li.addEventListener('click', () => window.OrqGrade.focarPainel(c.id));
     return li;
   }));
 }
 
-function legenda(c) {
-  const base = c.motivo || ROTULO[c.status] || c.status;
-  return c.status === 'esperando' ? `${base} ${textoEspera(Date.now() - c.desde)}` : base;
-}
-
-// UM unico intervalo atualiza todos os cronometros. Um setInterval por card
+// UM unico intervalo para todos os cronometros. Um setInterval por card
 // acordaria a CPU N vezes por segundo a toa e derrubaria a meta de consumo
 // parado.
+//
+// Sai na primeira linha quando ninguem espera -- que e o estado normal da tela.
+// Antes ele varria o DOM a cada segundo mesmo sem nada para atualizar.
 setInterval(() => {
-  for (const sub of elLista.querySelectorAll('.card-sub[data-status="esperando"]')) {
-    const c = cards.get(sub.closest('.card').dataset.id);
-    if (c) sub.textContent = legenda(c);
+  const espera = filaAtencao();
+  if (!espera.length) return;
+
+  for (const c of espera) {
+    const rotulo = rotuloDe(c);
+    const decorrido = textoEspera(Date.now() - c.desde);
+
+    const sub = elLista.querySelector(`.card[data-id="${CSS.escape(c.id)}"] .card-sub`);
+    if (sub) sub.textContent = rotulo;
+
+    const naFila = elFilaLista.querySelector(`li[data-id="${CSS.escape(c.id)}"] .fila-espera`);
+    if (naFila) naFila.textContent = decorrido;
+
+    window.OrqPainel.painelPorId.get(c.id)?.atualizarRotulo(rotulo);
   }
 }, 1000);
 
 // O toque que faz o app valer a pena: pular direto para quem espera ha mais
 // tempo, em vez de cacar painel.
 function pularParaMaisAntigo() {
-  const esperando = ordenadas().filter((c) => c.status === 'esperando');
-  const alvo = esperando[0] || ordenadas().find((c) => c.status === 'terminou');
+  // Da fila, e nao de ordenadas(): com a grade ordenada por projeto, o primeiro
+  // da lista nao e quem espera ha mais tempo.
+  const alvo = filaAtencao()[0] || ordenadas().find((c) => c.status === 'terminou');
   if (!alvo) return null;
   window.orq.focarJanela();
   window.OrqGrade.focarPainel(alvo.id);
   return alvo.id;
 }
+
+btnFilaDica?.addEventListener('click', pularParaMaisAntigo);
 
 window.addEventListener('keydown', (ev) => {
   if (ev.ctrlKey && ev.key === 'Enter') {
@@ -202,8 +307,8 @@ function atualizarRetomarTodas() {
   const n = window.OrqGrade?.dormindos?.().length || 0;
   btnRetomarTodas.hidden = n === 0;
   btnRetomarTodas.textContent = `Retomar todas (${n})`;
-  btnRetomarTodas.title = 'Religa as sessoes da ultima vez que voce fechou o app. '
-    + 'As partidas sao espacadas pela fila.';
+  btnRetomarTodas.title = 'Religa as sessões da última vez que você fechou o app. '
+    + 'As partidas são espaçadas pela fila.';
 }
 
 btnRetomarTodas?.addEventListener('click', async () => {
@@ -229,7 +334,7 @@ function mostrarAtualizacao(s) {
     btnAtualizar.hidden = false;
     btnAtualizar.disabled = false;
     btnAtualizar.textContent = `Baixar a versao ${s.disponivel}`;
-    btnAtualizar.title = 'Abre a pagina da release. Baixe o zip, desbloqueie antes de extrair, '
+    btnAtualizar.title = 'Abre a página da release. Baixe o zip, desbloqueie antes de extrair, '
       + 'e substitua a pasta atual.';
     btnAtualizar.className = 'atualizar-pronta';
     return;
@@ -239,13 +344,13 @@ function mostrarAtualizacao(s) {
     btnAtualizar.hidden = false;
     btnAtualizar.disabled = false;
     btnAtualizar.textContent = `Atualizar para ${s.disponivel} e reiniciar`;
-    btnAtualizar.title = 'Fecha os painéis abertos e reinicia o app na versao nova';
+    btnAtualizar.title = 'Fecha os painéis abertos e reinicia o app na versão nova';
     btnAtualizar.className = 'atualizar-pronta';
   } else if (s.disponivel) {
     btnAtualizar.hidden = false;
     btnAtualizar.disabled = true;
     btnAtualizar.textContent = `Baixando ${s.disponivel}... ${s.percentual || 0}%`;
-    btnAtualizar.title = 'A atualizacao esta sendo baixada em segundo plano';
+    btnAtualizar.title = 'A atualização está sendo baixada em segundo plano';
     btnAtualizar.className = '';
   } else {
     btnAtualizar.hidden = true;
@@ -269,5 +374,5 @@ window.orq.aoMudarAtualizacao(mostrarAtualizacao);
 
 window.OrqLateral = {
   registrar, remover, definirStatus, pularParaMaisAntigo, cards, ordenadas, mostrarAtualizacao,
-  atualizarRetomarTodas,
+  atualizarRetomarTodas, filaAtencao, rotuloDe, pesoDe, textoEspera, redesenhar,
 };

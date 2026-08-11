@@ -90,7 +90,7 @@
   function definirCpu({ cpu }) {
     elCpu.textContent = `cpu ${cpu}%`;
     elCpu.title = `Uso de CPU do app inteiro (todos os processos), sobre ${
-      window.OrqCasca.nucleos || '?'} nucleos`;
+      window.OrqCasca.nucleos || '?'} núcleos`;
     desenharCarga(cpu);
   }
 

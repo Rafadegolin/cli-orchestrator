@@ -23,7 +23,7 @@ async function abrirSeletor(id) {
   if (!p) return;
   alvoAtual = id;
 
-  elSeletorTitulo.textContent = `Ligar "${p.feature}" a…`;
+  elSeletorTitulo.textContent = `Ligar “${p.feature}” a…`;
   elSeletor.hidden = false;
   await desenharSeletor();
 }
@@ -54,6 +54,7 @@ async function desenharSeletor() {
     const vazio = document.createElement('p');
     vazio.className = 'seletor-vazio';
     vazio.textContent = 'Nada para ligar: abra outro painel ou cadastre um projeto.';
+
     elSeletorLista.replaceChildren(vazio);
     return;
   }
@@ -71,10 +72,10 @@ async function desenharSeletor() {
     const tipo = document.createElement('span');
     tipo.className = 'seletor-tipo';
     // So ha contrapartida quando existe sessao do outro lado.
-    tipo.textContent = a.tipo === 'painel' ? 'painel · mutua' : 'projeto · so de ida';
+    tipo.textContent = a.tipo === 'painel' ? 'painel · mútua' : 'projeto · só de ida';
     tipo.title = a.tipo === 'painel'
-      ? 'As duas sessoes passam a enxergar o repositorio uma da outra.'
-      : 'Nao ha painel aberto nesta pasta, entao so esta sessao ganha acesso.';
+      ? 'As duas sessões passam a enxergar o repositório uma da outra.'
+      : 'Não há painel aberto nesta pasta, então só esta sessão ganha acesso.';
 
     const caminho = document.createElement('span');
     caminho.className = 'seletor-caminho';
@@ -87,13 +88,13 @@ async function desenharSeletor() {
     botao.addEventListener('click', async (ev) => {
       ev.stopPropagation();
       botao.disabled = true;
-      botao.textContent = ligado ? 'desligando...' : 'ligando...';
+      botao.textContent = ligado ? 'desligando…' : 'ligando…';
       if (ligado) {
         const r = window.OrqLigacoes.desligar(id, a.caminho);
         if (r.precisaReiniciar) {
           // Nao existe "/remove-dir": o acesso so some de verdade na proxima
           // partida da sessao. Melhor dizer do que fingir que sumiu.
-          botao.title = 'A sessao em andamento continua com acesso ate ser reiniciada.';
+          botao.title = 'A sessão em andamento continua com acesso até ser reiniciada.';
         }
       } else {
         await window.OrqLigacoes.ligar(id, a.caminho);

@@ -69,9 +69,31 @@ function montarComando(feature, ehGit) {
   return `cls && claude -w ${slug}`;
 }
 
+// A qual projeto uma pasta pertence. Casa pelo prefixo MAIS ESPECIFICO: um
+// worktree vive em <projeto>/.claude/worktrees/<feat>, e com dois projetos
+// aninhados o de dentro tem de ganhar.
+function projetoDe(caminho) {
+  const alvo = String(caminho || '').replace(/[\\/]+$/, '').toLowerCase();
+  if (!alvo) return null;
+
+  let melhor = null;
+  for (const p of projetosCache) {
+    const base = String(p.caminho).replace(/[\\/]+$/, '').toLowerCase();
+    const dentro = alvo === base || alvo.startsWith(`${base}\\`) || alvo.startsWith(`${base}/`);
+    if (dentro && (!melhor || base.length > melhor.base.length)) {
+      melhor = { base, nome: p.nome, caminho: p.caminho, tinta: tintaDe(p.caminho) };
+    }
+  }
+  return melhor;
+}
+
 async function carregarProjetos() {
   projetosCache = await window.orq.projetosListar();
   desenharProjetos();
+  // A lista chega depois dos painéis restaurados: sem isto o cabecalho deles
+  // ficaria com o nome da pasta ate alguem reabrir o app.
+  for (const p of window.OrqPainel?.painelPorId?.values() || []) p.mostrarProjeto?.();
+  window.OrqLateral?.redesenhar?.();
   return projetosCache;
 }
 
@@ -81,7 +103,7 @@ function desenharProjetos() {
   if (!projetosCache.length) {
     const vazio = document.createElement('li');
     vazio.className = 'projeto-vazio';
-    vazio.textContent = 'Nenhum repositorio ainda. Cadastre um para abrir sessoes com um clique.';
+    vazio.textContent = 'Nenhum repositório ainda. Cadastre um para abrir sessões com um clique.';
     elProjetosLista.replaceChildren(vazio);
     return;
   }
@@ -99,16 +121,16 @@ function desenharProjetos() {
     marca.className = 'projeto-marca';
     if (!p.existe) {
       marca.textContent = 'sumiu';
-      marca.title = `Pasta nao encontrada: ${p.caminho}`;
+      marca.title = `Pasta não encontrada: ${p.caminho}`;
     } else if (!p.git) {
       marca.textContent = 'sem git';
-      marca.title = 'Nao e um repositorio git: abre sem worktree';
+      marca.title = 'Não é um repositório git: abre sem worktree';
     }
 
     const btnRemover = document.createElement('button');
     btnRemover.className = 'projeto-remover';
     btnRemover.textContent = '×';
-    btnRemover.title = 'Remover da lista (a pasta nao e apagada)';
+    btnRemover.title = 'Remover da lista (a pasta não é apagada)';
     btnRemover.addEventListener('click', async (ev) => {
       ev.stopPropagation();
       const r = await window.orq.projetosRemover(p.id);
@@ -163,7 +185,7 @@ function desenharDetalhe(p) {
   if (!d || d.carregando) {
     const carregando = document.createElement('p');
     carregando.className = 'wt-vazio';
-    carregando.textContent = 'lendo os worktrees...';
+    carregando.textContent = 'lendo os worktrees…';
     frag.append(carregando);
     return frag;
   }
@@ -176,8 +198,8 @@ function desenharDetalhe(p) {
 
     const txt = document.createElement('span');
     txt.textContent = `${d.include.candidatos.join(', ')} fica de fora dos worktrees novos`;
-    txt.title = 'Um worktree e um checkout limpo: arquivos ignorados pelo git nao vao junto, '
-      + 'e sem eles a aplicacao nao sobe.';
+    txt.title = 'Um worktree é um checkout limpo: arquivos ignorados pelo git não vão junto, '
+      + 'e sem eles a aplicação não sobe.';
 
     const btn = document.createElement('button');
     btn.textContent = 'criar .worktreeinclude';
@@ -218,15 +240,15 @@ function desenharDetalhe(p) {
     if (w.sessaoViva) {
       etiqueta.textContent = 'aberto agora';
       etiqueta.classList.add('wt-viva');
-      impedimento = `Sessao do Claude rodando (pid ${w.pid}).`;
+      impedimento = `Sessão do Claude rodando (pid ${w.pid}).`;
     } else if (!w.limpo) {
       etiqueta.textContent = `${w.sujos} alterado${w.sujos === 1 ? '' : 's'}`;
       etiqueta.classList.add('wt-sujo');
-      impedimento = 'Ha alteracao sem commit.';
+      impedimento = 'Há alteração sem commit.';
     } else if (w.naoMesclados > 0) {
       etiqueta.textContent = `${w.naoMesclados} commit${w.naoMesclados === 1 ? '' : 's'}`;
       etiqueta.classList.add('wt-sujo');
-      impedimento = `Ha commit fora de ${w.baseBranch}.`;
+      impedimento = `Há commit fora de ${w.baseBranch}.`;
     }
 
     const btnArquivar = document.createElement('button');
@@ -234,7 +256,7 @@ function desenharDetalhe(p) {
     btnArquivar.textContent = '×';
     btnArquivar.disabled = Boolean(impedimento);
     btnArquivar.title = impedimento
-      ? `Nao da para arquivar: ${impedimento}`
+      ? `Não dá para arquivar: ${impedimento}`
       : `Arquivar: remove a pasta e o branch ${w.branch}`;
     btnArquivar.addEventListener('click', async (ev) => {
       ev.stopPropagation();
@@ -349,6 +371,7 @@ window.OrqProjetos = {
   carregarDetalhes,
   retomar,
   tintaDe,
+  projetoDe,
   COMANDO_RETOMAR,
   expandidos,
   detalhes,

@@ -4,10 +4,41 @@
 // Depende de LAYOUT, entao usa aoFrente() -- o Chromium pausa os passos de
 // renderizacao com a janela em segundo plano e nada aqui mediria certo.
 
+const fs = require('fs');
 const path = require('path');
 const { conectar, checar, encerrar, esperar, zerarGrade, aoFrente } = require('./cdp');
 
 const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
+const JANELA = path.join(__dirname, '..', 'src', 'janela');
+
+// Os scripts da janela sao CLASSICOS e dividem UM escopo lexico global. Declarar
+// o mesmo nome de topo em dois deles nao estoura: a ultima avaliacao vence em
+// silencio, e o outro arquivo passa a chamar a funcao errada.
+//
+// Ja aconteceu duas vezes -- `remover` (fila/lateral) e `projetoDe`
+// (lateral/projetos, que quebrou a ordenacao por projeto sem nenhuma mensagem).
+// Este teste le a FONTE e fecha a classe inteira, em vez de consertar o caso.
+function declaracoesDuplicadas() {
+  const porNome = new Map();
+  const arquivos = fs.readdirSync(JANELA)
+    .filter((f) => f.endsWith('.js'))
+    // casca.js vive inteiro dentro de uma IIFE: nao publica nome nenhum.
+    .filter((f) => !/^\s*\(\(\) => \{/m.test(fs.readFileSync(path.join(JANELA, f), 'utf8')));
+
+  for (const arquivo of arquivos) {
+    const fonte = fs.readFileSync(path.join(JANELA, arquivo), 'utf8');
+    for (const linha of fonte.split('\n')) {
+      const m = /^(?:async\s+)?(?:function|const|let|class)\s+([A-Za-z_$][\w$]*)/.exec(linha);
+      if (!m) continue;
+      if (!porNome.has(m[1])) porNome.set(m[1], []);
+      if (!porNome.get(m[1]).includes(arquivo)) porNome.get(m[1]).push(arquivo);
+    }
+  }
+
+  return [...porNome.entries()]
+    .filter(([, onde]) => onde.length > 1)
+    .map(([nome, onde]) => `${nome} (${onde.join(', ')})`);
+}
 
 // Larguras de referencia do doc 03: desenho, confortavel, minimo validado.
 const LARGURAS = [1440, 1100, 924];
@@ -32,6 +63,11 @@ async function soltar(cdp) {
   await zerarGrade(cdp);
 
   checar('a casca carregou', await cdp.avaliar('typeof window.OrqCasca?.mudar') === 'function');
+
+  // --- 0. escopo global compartilhado, sem nome repetido -----------------
+  const duplicadas = declaracoesDuplicadas();
+  checar('nenhum nome de topo declarado em dois scripts da janela',
+    duplicadas.length === 0, duplicadas.join(' · '));
 
   // --- 1. fontes vem do disco, nao de fallback --------------------------
   //
@@ -223,6 +259,150 @@ async function soltar(cdp) {
   checar('e ainda sobra nome legivel', absurdo.sobrouNome > 60, `${absurdo.sobrouNome}px`);
   checar('com o botao de fechar alcancavel', absurdo.fecharClicavel, '');
   await soltar(cdp);
+
+  // --- 9. fila de atencao, rotulos e ordenacao ---------------------------
+  //
+  // Os status entram por OrqLateral.definirStatus (a mesma porta por onde os
+  // diffs dos hooks chegam), com `desde` sintetico: esperar 12 minutos de
+  // verdade nao e teste, e o caminho do hook ja e coberto pela fase45.
+  await zerarGrade(cdp);
+  await cdp.avaliar(`window.OrqCasca.mudar({ densidade: 2, ordem: 'urgencia' })`);
+
+  const ids = {};
+  for (const f of ['ui-a-espera-velha', 'ui-b-trabalha', 'ui-c-revisar', 'ui-d-espera-nova']) {
+    ids[f] = await cdp.avaliar(`(async () => { const p = await window.OrqGrade.criarPainel(
+      { cwd: ${JSON.stringify(RAIZ)}, feature: ${JSON.stringify(f)} }); return p.id; })()`);
+    await esperar(400);
+  }
+  await esperar(2000);
+
+  const marcar = (id, status, motivo, minutos = 0) =>
+    cdp.avaliar(`window.OrqLateral.definirStatus(${JSON.stringify(id)}, ${JSON.stringify(status)},
+      ${JSON.stringify(motivo)}, Date.now() - ${minutos} * 60000)`);
+
+  await marcar(ids['ui-a-espera-velha'], 'esperando', 'pedindo permissão', 12);
+  await marcar(ids['ui-b-trabalha'], 'rodando', '');
+  await marcar(ids['ui-c-revisar'], 'terminou', 'pronto para revisar');
+  await marcar(ids['ui-d-espera-nova'], 'esperando', 'parado há 60s', 4);
+  await esperar(600);
+
+  const fila = JSON.parse(await cdp.avaliar(`(() => {
+    const bloco = document.getElementById('bloco-fila');
+    const itens = [...document.querySelectorAll('#fila-lista li')];
+    return JSON.stringify({
+      visivel: bloco.hidden === false,
+      contagem: document.getElementById('fila-contagem').textContent,
+      nomes: itens.map(l => l.querySelector('.fila-nome').textContent),
+      tempos: itens.map(l => l.querySelector('.fila-espera').textContent),
+    });
+  })()`));
+  checar('a fila de atencao aparece quando alguem espera', fila.visivel, JSON.stringify(fila));
+  checar('com a contagem certa', fila.contagem === '2', fila.contagem);
+  checar('e quem espera ha mais tempo vem primeiro',
+    fila.nomes.join() === 'ui-a-espera-velha,ui-d-espera-nova', fila.nomes.join());
+  checar('mostrando o tempo de cada uma',
+    fila.tempos[0] === 'há 12min' && fila.tempos[1] === 'há 4min', fila.tempos.join(' / '));
+
+  // O rotulo diz o ESTADO; o motivo do hook vai para o title. Era daqui que
+  // saia o "parado ha 60s ha 4min", com o "ha" duas vezes.
+  const rotulos = JSON.parse(await cdp.avaliar(`(() => {
+    const de = (id) => {
+      const p = window.OrqPainel.painelPorId.get(id);
+      const card = document.querySelector('#lateral-lista .card[data-id="' + CSS.escape(id) + '"]');
+      return {
+        painel: p.elStatus.textContent,
+        painelTitle: p.elStatus.title,
+        card: card?.querySelector('.card-sub')?.textContent,
+      };
+    };
+    return JSON.stringify({
+      a: de(${JSON.stringify(ids['ui-a-espera-velha'])}),
+      b: de(${JSON.stringify(ids['ui-b-trabalha'])}),
+      c: de(${JSON.stringify(ids['ui-c-revisar'])}),
+    });
+  })()`));
+  checar('rotulo de quem espera diz o estado e o tempo',
+    rotulos.a.painel === 'esperando há 12min' && rotulos.a.card === 'esperando há 12min',
+    JSON.stringify(rotulos.a));
+  checar('e o motivo do hook fica no title, fora do rotulo',
+    rotulos.a.painelTitle === 'pedindo permissão' && !rotulos.a.painel.includes('permissão'),
+    rotulos.a.painelTitle);
+  checar('rodando vira "trabalhando"', rotulos.b.painel === 'trabalhando', rotulos.b.painel);
+  checar('terminou vira "pronto para revisar"',
+    rotulos.c.painel === 'pronto para revisar', rotulos.c.painel);
+
+  // Ordem: pelo style.order E pela posicao real na tela. Conferir so o `order`
+  // deixaria passar um valor certo sem efeito visual nenhum.
+  const naTela = () => cdp.avaliar(`(() => {
+    const ps = [...document.querySelectorAll('.painel')]
+      .map(el => ({
+        nome: el.querySelector('.painel-feature').textContent,
+        order: Number(getComputedStyle(el).order),
+        y: Math.round(el.getBoundingClientRect().top),
+        x: Math.round(el.getBoundingClientRect().left),
+      }))
+      .sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    return JSON.stringify({
+      porOrder: [...ps].sort((a, b) => a.order - b.order).map(p => p.nome),
+      porPosicao: ps.map(p => p.nome),
+    });
+  })()`);
+
+  const urgencia = JSON.parse(await naTela());
+  const esperadoUrgencia = 'ui-a-espera-velha,ui-d-espera-nova,ui-c-revisar,ui-b-trabalha';
+  checar('a grade ordena por urgencia', urgencia.porOrder.join() === esperadoUrgencia,
+    urgencia.porOrder.join());
+  checar('e a ordem do style.order e a que aparece na tela',
+    urgencia.porPosicao.join() === esperadoUrgencia, urgencia.porPosicao.join());
+
+  await cdp.avaliar(`window.OrqCasca.mudar({ ordem: 'projeto' })`);
+  await esperar(600);
+  const porProjeto = JSON.parse(await naTela());
+  checar('alternar para Projeto reordena, ignorando a urgencia',
+    porProjeto.porPosicao.join() === 'ui-a-espera-velha,ui-b-trabalha,ui-c-revisar,ui-d-espera-nova',
+    porProjeto.porPosicao.join());
+  await cdp.avaliar(`window.OrqCasca.mudar({ ordem: 'urgencia' })`);
+  await esperar(500);
+
+  // Clicar na fila foca o painel daquela sessao.
+  await cdp.avaliar(`document.querySelector('#fila-lista li').click()`);
+  await esperar(400);
+  checar('clicar na fila foca a sessao certa',
+    await cdp.avaliar(`window.OrqGrade.focado()`) === ids['ui-a-espera-velha'], '');
+
+  // Painel dormindo: rotulo proprio, bolinha vazada e ultimo na ordem.
+  await cdp.avaliar(`(() => { const p = window.OrqPainel.painelPorId.get(
+    ${JSON.stringify(ids['ui-c-revisar'])}); p.mostrarDormindo({ aoRetomar: () => {} }); return 'ok'; })()`);
+  await cdp.avaliar(`window.OrqLateral.redesenhar()`);
+  await esperar(500);
+  const dorme = JSON.parse(await cdp.avaliar(`(() => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(ids['ui-c-revisar'])});
+    const ps = [...document.querySelectorAll('.painel')]
+      .map(el => ({ nome: el.querySelector('.painel-feature').textContent, order: Number(getComputedStyle(el).order) }))
+      .sort((a, b) => a.order - b.order);
+    return JSON.stringify({
+      rotulo: p.elStatus.textContent,
+      bolinha: p.elBolinha.className,
+      ultimo: ps[ps.length - 1].nome,
+    });
+  })()`));
+  checar('painel dormindo diz "sessão salva"', dorme.rotulo === 'sessão salva', dorme.rotulo);
+  checar('com bolinha vazada', dorme.bolinha.includes('bolinha-dormindo'), dorme.bolinha);
+  checar('e vai para o fim da ordem', dorme.ultimo === 'ui-c-revisar', dorme.ultimo);
+
+  // Sem ninguem esperando, a fila some e o cronometro nao tem o que fazer.
+  await marcar(ids['ui-a-espera-velha'], 'rodando', '');
+  await marcar(ids['ui-d-espera-nova'], 'rodando', '');
+  await esperar(500);
+  const antesDoTique = await cdp.avaliar(
+    `window.OrqPainel.painelPorId.get(${JSON.stringify(ids['ui-a-espera-velha'])}).elStatus.textContent`);
+  await esperar(2200);
+  const depoisDoTique = await cdp.avaliar(
+    `window.OrqPainel.painelPorId.get(${JSON.stringify(ids['ui-a-espera-velha'])}).elStatus.textContent`);
+  checar('sem fila, o bloco de atencao some',
+    await cdp.avaliar(`document.getElementById('bloco-fila').hidden`) === true, '');
+  checar('e o rotulo para de mudar de segundo em segundo',
+    antesDoTique === depoisDoTique && antesDoTique === 'trabalhando', `${antesDoTique} -> ${depoisDoTique}`);
 
   await zerarGrade(cdp);
   await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 2, ordem: 'urgencia' })`);

@@ -44,16 +44,19 @@ const textoDaAjuda = `(() => document.getElementById('ajuda-corpo').textContent)
 
   // --- o conteudo cobre o app de ponta a ponta ---------------------------
   const texto = await cdp.avaliar(textoDaAjuda);
+  // Os padroes toleram as DUAS grafias de proposito: o texto da tela e
+  // acentuado, mas prender o teste a um acento faria uma revisao de redacao
+  // derrubar a suite sem nada estar errado.
   const assuntos = {
     'hooks': /hook/i,
     'bolinhas de status': /amarela|bolinha/i,
     'worktree': /worktree/i,
     'portas': /PORT\b|porta/i,
-    'ligacoes entre repos': /ligar|add-dir|repositorio/i,
+    'ligacoes entre repos': /ligar|add-dir|reposit[oó]rio/i,
     'fila de partida': /fila/i,
     'retomar apos fechar': /retomar|adormecid/i,
     'atalhos': /Ctrl|F1/i,
-    'problemas': /nao funciona|sintoma|causa/i,
+    'problemas': /n[aã]o funciona|sintoma|causa/i,
   };
   for (const [nome, re] of Object.entries(assuntos)) {
     checar(`a ajuda cobre: ${nome}`, re.test(texto), '');

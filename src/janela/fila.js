@@ -113,7 +113,13 @@ function reavaliar() {
 }
 
 // Painel fechado antes de partir sai da fila sem executar nada.
-function remover(id) {
+//
+// O nome NAO pode ser `remover`: lateral.js declara uma funcao de topo com esse
+// nome e os dois arquivos dividem o mesmo escopo global. Declaracao de funcao
+// nao estoura como `const` -- a ultima avaliada vence em silencio, e isto so
+// funcionava porque `window.OrqFila` captura a referencia antes de lateral.js
+// ser carregado. Bastava trocar a ordem dos <script> para quebrar.
+function removerDaFila(id) {
   const item = fila.find((x) => x.id === id);
   if (!item) return;
   fila.splice(fila.indexOf(item), 1);
@@ -127,7 +133,7 @@ window.OrqFila = {
   MS_GRACA_PARTIDA,
   pedirVaga,
   reavaliar,
-  remover,
+  remover: removerDaFila,
   contarRodando,
   ocupadas,
   haVaga,

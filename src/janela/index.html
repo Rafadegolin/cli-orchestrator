@@ -18,8 +18,8 @@
       <span class="mono" id="lateral-versao"></span>
     </div>
 
-    <button id="btn-busca" title="Buscar sessao, projeto ou comando (Ctrl+K)">
-      <span>Buscar sessao, projeto, comando...</span>
+    <button id="btn-busca" title="Buscar sessão, projeto ou comando (Ctrl+K)">
+      <span>Buscar sessão, projeto, comando…</span>
       <span class="tecla mono">Ctrl+K</span>
     </button>
 
@@ -32,7 +32,7 @@
       <div id="placar">
         <div class="placar-linha">
           <span id="placar-num">0</span>
-          <span class="placar-rotulo">sessoes vivas</span>
+          <span class="placar-rotulo">sessões vivas</span>
           <span id="placar-cpu" class="mono"></span>
         </div>
         <div id="placar-carga"></div>
@@ -43,7 +43,7 @@
         <!-- So existe quando ha quem esperando: fila vazia nao ocupa espaco. -->
         <section id="bloco-fila" hidden>
           <div class="secao-topo">
-            <h1 class="secao-titulo atencao">Esperando voce</h1>
+            <h1 class="secao-titulo atencao">Esperando você</h1>
             <span id="fila-contagem" class="mono badge-atencao">0</span>
           </div>
           <ol id="fila-lista"></ol>
@@ -61,7 +61,7 @@
 
         <section id="bloco-sessoes">
           <div class="secao-topo">
-            <h1 class="secao-titulo">Sessoes</h1>
+            <h1 class="secao-titulo">Sessões</h1>
             <span id="lateral-contagem" class="mono"></span>
           </div>
           <ol id="lateral-lista"></ol>
@@ -90,13 +90,13 @@
           <span class="mono prefixo">feat/</span>
           <input id="nome-feature" type="text" placeholder="nome-da-feature" spellcheck="false" />
         </div>
-        <button id="btn-nova-sessao" class="primario"><span class="mais">+</span>Nova sessao</button>
+        <button id="btn-nova-sessao" class="primario"><span class="mais">+</span>Nova sessão</button>
         <button id="btn-novo">Painel avulso</button>
         <span id="barra-dica"></span>
 
         <div class="barra-direita">
           <div id="ordenacao" class="pilulas">
-            <button data-ordem="urgencia" class="ativa">Urgencia</button>
+            <button data-ordem="urgencia" class="ativa">Urgência</button>
             <button data-ordem="projeto">Projeto</button>
           </div>
           <div id="densidade" class="pilulas">
@@ -113,8 +113,8 @@
         <div id="vazio">
           <div class="vazio-marca"><span></span></div>
           <div class="vazio-texto">
-            <h2>Nenhuma sessao aberta</h2>
-            <p>Cadastre um repositorio, digite o nome da feature e o Orquestrador cria o worktree,
+            <h2>Nenhuma sessão aberta</h2>
+            <p>Cadastre um repositório, digite o nome da feature e o Orquestrador cria o worktree,
               reserva a faixa de portas e sobe o Claude sozinho.</p>
           </div>
           <div class="vazio-acoes">
@@ -123,7 +123,7 @@
           </div>
           <div class="vazio-fatos">
             <div><span class="mono">worktree</span><span>isolamento por feature</span></div>
-            <div><span class="mono">portas</span><span>faixa propria por projeto</span></div>
+            <div><span class="mono">portas</span><span>faixa própria por projeto</span></div>
             <div><span class="mono">hooks</span><span>status em tempo real</span></div>
           </div>
         </div>
@@ -139,8 +139,8 @@
       </div>
       <ol id="seletor-lista"></ol>
       <p class="seletor-dica">
-        Ligar da a esta sessao acesso de leitura ao codigo do outro repositorio,
-        usando o <code>--add-dir</code> do proprio Claude Code.
+        Ligar dá a esta sessão acesso de leitura ao código do outro repositório,
+        usando o <code>--add-dir</code> do próprio Claude Code.
       </p>
     </div>
   </div>

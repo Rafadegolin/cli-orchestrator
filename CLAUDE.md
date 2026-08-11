@@ -180,6 +180,49 @@ subconjunto dos 5 que os hooks entregam — `terminou` (evento `Stop`) fica, com
    economia inteira da Fase 6.1 (buffer em vez de desenho, sem vaga de WebGL) some em silencio —
    sem nenhum erro, so a conta de CPU subindo.
 
+### Fatia 2: urgencia e status legivel
+
+A tela responde "para onde eu olho agora?" sem voce procurar.
+
+- **`rotuloDe(card)` em `lateral.js` e a UNICA fonte do rotulo**, consumida pela lateral, pela fila e
+  pelo cabecalho do painel. Antes cada um montava o seu e os tres ja tinham divergido.
+- **O rotulo diz o ESTADO; o motivo do hook vai para o `title`.** Concatenar os dois produzia
+  `parado ha 60s ha 4min`, com o "ha" duas vezes na mesma linha. `esperando ha 12min` e o rotulo;
+  `pedindo permissao` e o tooltip — e vira o texto da barra de aprovacao na fatia 3.
+- **A fila de atencao nao segue a ordenacao escolhida.** Ela e a fila: sempre por quem espera ha mais
+  tempo. Com a grade ordenada por projeto, `filaAtencao()[0]` continua sendo o alvo certo do
+  Ctrl+Enter — `ordenadas()[0]` nao seria.
+- **O peso da ordenacao nao sai so do status.** Painel dormindo carrega `iniciando` (peso 3) e
+  cairia no meio da lista, na frente de sessoes vivas; `PESO_DORMINDO` o manda para o fim.
+- **Ordenar e por `style.order`, nunca movendo nos.** Mover o elemento de um xterm dispara reflow e
+  `fit()` em cascata a cada mudanca de status — e status muda o tempo todo. A ordem salva pela Fase 7
+  continua sendo a do DOM (ordem de criacao): a ordenacao da tela e uma VISTA, nao o arranjo.
+- **O cronometro de 1s sai na primeira linha quando ninguem espera**, que e o estado normal da tela.
+  Antes ele varria o DOM a cada segundo sem nada para atualizar.
+- **A pill do cabecalho diz o PROJETO** (`OrqProjetos.projetoDe`, casando pelo prefixo mais
+  especifico). Para painel de worktree o cwd e `<projeto>/.claude/worktrees/<feat>`, entao o nome
+  curto da pasta era o nome da feature — repetido logo ao lado, sem informar nada.
+
+### Texto: acento so no que o usuario le
+
+Textos de tela sao acentuados (`sessões`, `Esperando você`, `esperando há 12min`). Codigo, nomes de
+arquivo, identificadores, ids de secao da ajuda e comentarios continuam sem acento. As fontes
+vendorizadas trazem o subset latin-ext.
+
+Ao mexer em texto, cuidado com teste que casa string: os padroes de `testes/ajuda.js` toleram as duas
+grafias de proposito (`n[aã]o funciona`), senao uma revisao de redacao derruba a suite sem nada estar
+errado.
+
+### O escopo global compartilhado tem teste agora
+
+A armadilha dos scripts classicos deixou de ser so um aviso. `testes/ui.js` LE A FONTE de
+`src/janela/*.js` e falha se o mesmo nome de topo for declarado em dois arquivos.
+
+Ela ja tinha cobrado duas vezes: `remover` (fila/lateral, que so funcionava porque `window.OrqFila`
+captura a referencia antes de `lateral.js` ser avaliado) e `projetoDe` (lateral/projetos, que quebrou
+a ordenacao por projeto — a de `projetos.js` vencia e recebia um card onde esperava um caminho).
+Declaracao de funcao nao estoura como `const`: a ultima vence **em silencio**.
+
 ### A ordem da compressao esta nos `flex-shrink`
 
 O doc 03 manda a compressao ser absorvida por rotulo de status -> pill do projeto -> nome. Isso
@@ -443,9 +486,11 @@ que impede os testes de mexerem na lista real). Clicar num projeto abre painel n
 - `Painel.destruir()` avisa a lateral por dentro. Destruir por codigo (nao pelo botao) tem de
   limpar o card do mesmo jeito, senao sobra card orfao.
 - **`painel.js`, `grade.js` e `lateral.js` sao scripts classicos e dividem UM escopo lexico global.**
-  Redeclarar um nome de topo entre eles e `SyntaxError` e o arquivo inteiro nao carrega. Referencie
-  pelo namespace (`OrqP.Painel`) em vez de desestruturar. (`casca.js` foge disso por estar inteiro
-  dentro de uma IIFE — e o caminho preferido para arquivo novo.)
+  Redeclarar um `const`/`let` de topo entre eles e `SyntaxError` e o arquivo inteiro nao carrega;
+  redeclarar uma FUNCAO nao estoura — a ultima vence em silencio, que e pior. Referencie pelo
+  namespace (`OrqP.Painel`) em vez de desestruturar. `npm run teste:ui` falha se dois arquivos
+  declararem o mesmo nome. (`casca.js` foge disso por estar inteiro dentro de uma IIFE — e o caminho
+  preferido para arquivo novo.)
 - **O `root` do `IntersectionObserver` e o `#conteudo`**, que e quem rola. Ver a armadilha 3 acima.
 - **Nada de re-renderizar painel.** O xterm e dono do DOM dele; a UI muta o cabecalho, nunca o
   reconstroi. Ordenar a grade tambem e por `style.order`, sem mover nos.
