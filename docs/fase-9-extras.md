@@ -39,6 +39,15 @@ buffer de 200 KB, então o cartão não perde saída nenhuma.
 Cada camada entrega valor sozinha e pode ser feita separada. **A camada 1 é a que resolve o problema
 do multi-repo**; as outras duas são conveniência em cima dela.
 
+> **Camada 1 IMPLEMENTADA** (`src/janela/ligacoes.js`). O botão `ligar` no cabeçalho de cada painel
+> abre o seletor com os outros painéis e os projetos cadastrados. Provado de ponta a ponta em
+> `npm run teste:ligacoes-reais`: sem ligação o Claude diz que não alcança o outro repositório;
+> depois do `ligar()`, uma sessão **já viva** passa a ler o código de lá.
+>
+> Três descobertas do caminho, todas registradas no `CLAUDE.md`: escrever `"texto\r"` de uma vez não
+> envia nada para a TUI (o Enter tem de ir separado); `/add-dir` pede confirmação; e lançar com
+> `--add-dir` não pede nada.
+
 **Camada 1 — acesso cruzado ao repositório.** Verificado contra o CLI 2.1.220:
 
 - `--add-dir <dir>` existe como flag: dá acesso de leitura a outro diretório e **traz o `CLAUDE.md`

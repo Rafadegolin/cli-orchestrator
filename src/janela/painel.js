@@ -107,6 +107,16 @@ class Painel {
     this.elLocal.textContent = nomeCurto(this.cwd);
     this.elLocal.title = this.cwd;
 
+    // Ligacoes com outros repositorios. Clicar abre o seletor.
+    this.elLigacoes = document.createElement('button');
+    this.elLigacoes.className = 'painel-ligacoes';
+    this.elLigacoes.textContent = 'ligar';
+    this.elLigacoes.title = 'Dar a esta sessao acesso ao codigo de outro repositorio';
+    this.elLigacoes.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      window.OrqSeletorLigacoes?.abrir(this.id);
+    });
+
     // Etiqueta da fila de partida. Clicavel de proposito: o app nunca deve
     // deixar voce preso atras da propria heuristica dele.
     this.elFila = document.createElement('button');
@@ -129,7 +139,8 @@ class Painel {
       this.destruir();
     });
 
-    cab.append(this.elBolinha, elFeature, this.elLocal, this.elFila, this.elPorta, this.elRender, btnFechar);
+    cab.append(this.elBolinha, elFeature, this.elLocal,
+      this.elLigacoes, this.elFila, this.elPorta, this.elRender, btnFechar);
 
     this.elTerm = document.createElement('div');
     this.elTerm.className = 'painel-term';
@@ -381,6 +392,16 @@ class Painel {
       ev.stopPropagation();
       if (aoForcar) aoForcar();
     };
+  }
+
+  mostrarLigacoes() {
+    if (!this.elLigacoes) return;
+    const n = (this.ligacoes || []).length;
+    this.elLigacoes.textContent = n ? `${n} ligado${n === 1 ? '' : 's'}` : 'ligar';
+    this.elLigacoes.className = n ? 'painel-ligacoes tem-ligacao' : 'painel-ligacoes';
+    this.elLigacoes.title = n
+      ? `Esta sessao enxerga o codigo de:\n${(this.ligacoes || []).join('\n')}\n\nClique para gerenciar.`
+      : 'Dar a esta sessao acesso ao codigo de outro repositorio';
   }
 
   definirPortas(portas) {

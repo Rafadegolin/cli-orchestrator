@@ -572,6 +572,136 @@ html, body {
   padding: 0 4px;
 }
 
+.painel-ligacoes {
+  font-size: 10px;
+  color: var(--texto-fraco);
+  background: none;
+  border: 1px solid var(--borda);
+  border-radius: 3px;
+  padding: 0 4px;
+  font-family: inherit;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.painel-ligacoes:hover { border-color: var(--realce); color: var(--realce); }
+.painel-ligacoes.tem-ligacao { color: var(--magenta, #c678dd); border-color: rgba(198, 120, 221, .45); }
+
+/* ------------------------------------------------- seletor de ligacoes */
+
+#seletor-ligacoes {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 11, 14, .72);
+}
+
+#seletor-ligacoes[hidden] { display: none; }
+
+.seletor-caixa {
+  width: min(620px, 90%);
+  max-height: 76%;
+  display: flex;
+  flex-direction: column;
+  background: var(--fundo-2);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.seletor-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--borda);
+}
+
+.seletor-topo h2 { margin: 0; font-size: 13px; font-weight: 600; }
+
+#seletor-fechar {
+  background: none;
+  border: none;
+  color: var(--texto-fraco);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#seletor-fechar:hover { color: var(--esperando); }
+
+#seletor-lista {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.seletor-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  grid-template-areas: 'nome tipo botao' 'caminho caminho botao';
+  gap: 2px 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.seletor-item:hover { background: var(--fundo-3); }
+.seletor-ligado { border-color: rgba(198, 120, 221, .35); }
+
+.seletor-nome { grid-area: nome; font-weight: 600; font-size: 12px; }
+
+.seletor-tipo {
+  grid-area: tipo;
+  font-size: 10px;
+  color: var(--texto-fraco);
+  border: 1px solid var(--borda);
+  border-radius: 3px;
+  padding: 0 4px;
+  cursor: help;
+}
+
+.seletor-caminho {
+  grid-area: caminho;
+  font-size: 11px;
+  color: var(--encerrada);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seletor-item button {
+  grid-area: botao;
+  background: var(--fundo-3);
+  border: 1px solid var(--borda);
+  border-radius: 5px;
+  color: var(--texto);
+  font: inherit;
+  font-size: 11px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.seletor-ligar:hover { border-color: var(--rodando); color: var(--rodando); }
+.seletor-desligar:hover { border-color: var(--esperando); color: var(--esperando); }
+.seletor-item button:disabled { color: var(--texto-fraco); cursor: default; }
+
+.seletor-vazio, .seletor-dica {
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 11px;
+  color: var(--texto-fraco);
+}
+
+.seletor-dica { border-top: 1px solid var(--borda); }
+.seletor-dica code { background: var(--fundo-3); padding: 1px 4px; border-radius: 3px; }
+
 .painel-fila {
   font-size: 10px;
   color: var(--esperando);

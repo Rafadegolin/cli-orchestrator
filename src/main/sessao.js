@@ -28,6 +28,9 @@ function carregar() {
       feature: String(p.feature || ''),
       cwd: String(p.cwd),
       comandoInicial: p.comandoInicial ? String(p.comandoInicial) : '',
+      // Ligacoes sao caminhos de pasta: sobrevivem ao fechar e reabrir, ao
+      // contrario de id de painel.
+      ligacoes: Array.isArray(p.ligacoes) ? p.ligacoes.map(String) : [],
       ordem: Number.isFinite(p.ordem) ? p.ordem : i,
       // A pasta pode ter sumido enquanto o app estava fechado (worktree
       // arquivado, projeto movido). Abrir PTY ali so produz erro cru de spawn,
@@ -44,6 +47,7 @@ function salvar(paineis) {
       feature: String(p.feature || path.basename(String(p.cwd))),
       cwd: path.resolve(String(p.cwd)),
       comandoInicial: p.comandoInicial ? String(p.comandoInicial) : '',
+      ligacoes: Array.isArray(p.ligacoes) ? [...new Set(p.ligacoes.map(String))] : [],
       ordem: Number.isFinite(p.ordem) ? p.ordem : i,
     }));
 

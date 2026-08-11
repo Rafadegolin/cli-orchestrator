@@ -35,6 +35,8 @@ npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
 npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
 npm run teste:fase7       # sessao salva, painel dormindo, retomar
+npm run teste:ligacoes    # mecanica das ligacoes, sem invocar o Claude
+npm run teste:ligacoes-reais # com Claude de verdade: ~3min e consome tokens
 npm run perfil            # CPU/RAM POR PROCESSO (use -Json para consumir em script)
 npm run teste:metas       # latencia de tecla e CPU sob carga (leva ~90s)
 node testes/arvore.js     # fechar painel mata a arvore de processos
@@ -109,6 +111,40 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
 - Desinstalar roda `--remover-hooks` pelo `recursos/instalador.nsh`. Sem isso os hooks ficariam no
   `settings.json` para sempre e toda sessao pagaria ~310ms por evento falando com um app que nao
   existe mais.
+
+## Ligar sessoes entre repositorios
+
+`src/janela/ligacoes.js`. Uma feature que atravessa repos (backend num, frontend noutro) vira duas
+sessoes que enxergam o codigo uma da outra, via `--add-dir` / `/add-dir` do proprio Claude Code.
+
+**Tres regras medidas contra o CLI 2.1.220, nao presumidas:**
+
+1. **Escrever `"texto\r"` de uma vez NAO envia nada para a TUI do Claude.** O CR vira quebra de linha
+   e o texto fica parado na caixa de entrada — comportamento de colagem. Tem de digitar, esperar
+   ~700ms, e mandar o `\r` separado. E o que `enviarLinha()` faz, e vale para qualquer injecao futura
+   (o extra de "colar prompt em varias sessoes" vai precisar da mesma coisa).
+   Com o `cmd.exe` funciona de qualquer jeito, porque ele nao e TUI — por isso o `comandoInicial`
+   nunca sofreu com isso.
+2. **`/add-dir` abre um prompt de confirmacao** ("Add directory to workspace") com tres opcoes. Sem
+   responder, a ligacao nao acontece. O app responde a opcao 1 (*this session*), **nunca** a 2
+   (*remember*), que mudaria estado alem da sessao sem o usuario ter pedido.
+3. **Lancar com `--add-dir` NAO pede confirmacao.** Por isso sessao nova ja nasce ligada e so a
+   sessao viva precisa da danca acima.
+
+Detalhes que decidem correcao:
+
+- **Ligacao e entre PASTAS, nao entre ids de painel.** Id e efemero (`p1-msn...` muda a cada
+  abertura); pasta sobrevive ao fechar e reabrir, e e o que o `--add-dir` consome.
+- `comAddDir` insere a flag **depois de `claude` e antes dos argumentos** (`cls && claude --add-dir
+  "..." -w feat`), com o caminho **entre aspas** — `C:\Program Files\...` sem aspas viraria dois
+  argumentos.
+- **Mutua entre painéis, so de ida para projeto sem painel**: nao ha sessao do outro lado para
+  receber a contrapartida, e o seletor diz isso na etiqueta.
+- **Nao existe `/remove-dir`**: desligar limpa o registro dos dois lados, mas a sessao em andamento
+  so perde o acesso ao reiniciar. A interface avisa em vez de fingir que sumiu.
+- Ler o buffer do terminal para achar o prompt de confirmacao e a **unica** excecao a regra de nunca
+  interpretar bytes do Canal 1 — e nao e status, e uma interacao pontual que o proprio app acabou de
+  provocar. Se o texto mudar, o pior caso e um Enter sobrando numa caixa vazia.
 
 ## Sobreviver ao fechar e reabrir (Fase 7)
 

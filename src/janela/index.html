@@ -38,6 +38,20 @@
 
     <div id="grade" style="--colunas: 1"></div>
 
+    <div id="seletor-ligacoes" hidden>
+      <div class="seletor-caixa">
+        <div class="seletor-topo">
+          <h2 id="seletor-titulo"></h2>
+          <button id="seletor-fechar" title="Fechar (Esc)">×</button>
+        </div>
+        <ol id="seletor-lista"></ol>
+        <p class="seletor-dica">
+          Ligar da a esta sessao acesso de leitura ao codigo do outro repositorio,
+          usando o <code>--add-dir</code> do proprio Claude Code.
+        </p>
+      </div>
+    </div>
+
     <div id="vazio">
       <p>Nenhum painel aberto.</p>
       <p class="fraco">Escolha a pasta de um projeto para comecar.</p>
@@ -51,6 +65,8 @@
 <script src="../../node_modules/@xterm/addon-canvas/lib/addon-canvas.js"></script>
 <script src="painel.js"></script>
 <script src="fila.js"></script>
+<script src="ligacoes.js"></script>
 <script src="grade.js"></script>
 <script src="lateral.js"></script>
 <script src="projetos.js"></script>
+<script src="seletor-ligacoes.js"></script>

@@ -22,6 +22,8 @@
     "teste:portas": "node testes/portas.js",
     "teste:fase6": "node testes/fase6.js",
     "teste:fase7": "node testes/fase7.js",
+    "teste:ligacoes": "node testes/ligacoes.js",
+    "teste:ligacoes-reais": "node testes/ligacoes-reais.js",
     "perfil": "powershell -NoProfile -ExecutionPolicy Bypass -File testes/perfil.ps1",
     "teste:worktrees": "node testes/worktrees.js",
     "teste:worktrees-ui": "node testes/worktrees-ui.js",

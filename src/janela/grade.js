@@ -27,7 +27,7 @@ function ajustarColunas() {
   elVazio.hidden = n > 0;
 }
 
-async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponivel }) {
+async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponivel, ligacoes }) {
   const id = novoId();
 
   const painel = new OrqP.Painel({
@@ -46,6 +46,7 @@ async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponive
   });
 
   painel.comandoInicial = comandoInicial || '';
+  painel.ligacoes = Array.isArray(ligacoes) ? [...ligacoes] : [];
 
   elGrade.append(painel.el);
   ajustarColunas();
@@ -74,8 +75,13 @@ async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponive
   // pronto de qualquer jeito, e segurar antes disso so atrasaria a checagem de
   // vaga sem economizar nada.
   if (comandoInicial) {
+    // Sessao nova entra ja com as flags: lancar com --add-dir nao pede
+    // confirmacao nenhuma, ao contrario do /add-dir em sessao viva.
+    const comando = window.OrqLigacoes
+      ? window.OrqLigacoes.comAddDir(comandoInicial, painel.ligacoes)
+      : comandoInicial;
     painel.aoPrimeiroDado(() => {
-      const enviar = () => window.orq.escrever(id, `${comandoInicial}\r`);
+      const enviar = () => window.orq.escrever(id, `${comando}\r`);
       if (window.OrqFila) window.OrqFila.pedirVaga(id, enviar);
       else enviar();
     });
@@ -110,7 +116,15 @@ async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponive
 function retratoSessao() {
   return [...elGrade.children].map((el, ordem) => {
     const p = porId.get(el.dataset.id);
-    return p ? { feature: p.feature, cwd: p.cwd, comandoInicial: p.comandoInicial || '', ordem } : null;
+    return p ? {
+      feature: p.feature,
+      cwd: p.cwd,
+      comandoInicial: p.comandoInicial || '',
+      // Ligacao e entre PASTAS, nao entre ids: id de painel e efemero, pasta
+      // sobrevive ao fechar e reabrir.
+      ligacoes: p.ligacoes || [],
+      ordem,
+    } : null;
   }).filter(Boolean);
 }
 
@@ -136,7 +150,9 @@ async function despertar(id) {
   painel.acordou();
   painel.ajustar();
 
-  const comando = painel.comandoInicial;
+  const comando = window.OrqLigacoes
+    ? window.OrqLigacoes.comAddDir(painel.comandoInicial, painel.ligacoes)
+    : painel.comandoInicial;
   if (comando) {
     painel.aoPrimeiroDado(() => {
       const enviar = () => window.orq.escrever(id, `${comando}\r`);
@@ -172,6 +188,7 @@ async function restaurarSessao() {
       cwd: s.cwd,
       feature: s.feature,
       comandoInicial: s.comandoInicial,
+      ligacoes: s.ligacoes,
       dormindo: true,
       indisponivel: !s.existe,
     });
