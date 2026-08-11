@@ -13,10 +13,11 @@ ha quanto tempo), e ordenar por urgencia em vez de por repositorio.
 segue sendo a fonte do raciocinio por tras de cada regra. Este arquivo registra o que foi construido
 e o que foi **medido** — onde os dois divergem, vale o que esta aqui.
 
-**Estado:** **todas as fases da spec (0 a 8) implementadas**, mais o cadastro de projetos. O que
-resta sao os extras da Fase 9, detalhados em `docs/fase-9-extras.md` — incluindo um que nao esta na
-spec original: **visao de mapa com ligacoes entre sessoes**, para uma feature que atravessa
-repositorios (backend e frontend em repos separados).
+**Estado:** **todas as fases da spec (0 a 8) implementadas**, mais o cadastro de projetos e o
+**redesenho de `docs/nova-ui/` completo (fatias 1 a 5)**. O que resta sao os extras da Fase 9,
+detalhados em `docs/fase-9-extras.md` — incluindo um que nao esta na spec original: **visao de mapa
+com ligacoes entre sessoes**, para uma feature que atravessa repositorios (backend e frontend em
+repos separados).
 
 Ali ja esta levantado o que o CLI oferece para isso: `--add-dir` como flag **e** `/add-dir` como
 comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma delas.
@@ -251,6 +252,42 @@ antes de ler: painel fora da vista nao escreve no xterm (Fase 6.1), entao ler `t
 devolvia texto velho — defeito que ja existia calado na confirmacao do `/add-dir`. O `term.write` do
 xterm e **assincrono**, entao o que o flush entregou aparece no passo seguinte do parser; por isso
 todo mundo que espera algo no buffer usa laco com intervalo, nunca uma leitura unica.
+
+### Fatias 4 e 5: paleta, modais e o que o contraste revelou
+
+- **A paleta (`paleta.js`, Ctrl+K) nao tem logica propria**: todo item chama uma funcao que ja
+  existia e ja tinha teste. Se um comando precisar de codigo novo, ele nao pertence a paleta —
+  pertence ao modulo dono do assunto. A busca **ignora acento** (`normalize('NFD')`), porque desde a
+  fatia 2 a tela e acentuada e ninguem digita acento em caixa de busca.
+- **Um registro so de overlays** (`OrqOverlays` em `casca.js`): o Esc fecha **o topo da pilha** e
+  para ali. Antes cada overlay tinha o proprio `keydown`, e com a paleta aberta por cima da ajuda um
+  Esc fechava as duas.
+- **Faixa de portas por projeto**, resolvida no PROCESSO PRINCIPAL (`projetos.faixaDe`), nao na
+  janela: assim painel de projeto, de worktree e avulso pegam a faixa certa sem cada chamador ter de
+  lembrar de passar. `emUso()` continua global, entao faixas sobrepostas por engano ainda nao
+  entregam a mesma porta duas vezes.
+- **`projetos:adicionar` devolve `{ erro }` em vez de estourar.** Quem chama e o modal, onde o
+  caminho e digitado: pasta errada e erro de USO e tem de virar mensagem na tela.
+- **Menus na barra de titulo ficaram de fora**, por decisao. Tudo que ofereceriam ja esta a um
+  clique ou a uma tecla, e a paleta alcanca o resto; menu que duplica o que ja existe e so mais um
+  lugar para procurar.
+
+### Contraste AA e calculado, nao olhado
+
+`npm run teste:ui` le os tokens do app rodando e computa a razao WCAG dos pares que carregam texto,
+nos dois temas. **Os valores do doc 02 reprovavam, e nao por pouco** — medido, nao suposto:
+
+| par | doc 02 | corrigido |
+|---|---|---|
+| `--fg3` sobre `--bg1` (escuro) | 3,90 | **5,16** (`#7d8690`) |
+| `--fg3` sobre `--bg1` (claro) | 3,41 | **5,46** (`#636a74`) |
+| `--acc` como texto (claro) | 3,48 | **5,29** (`#0b7b52`) |
+| `--warn` como texto (claro) | 3,85 | **5,25** (`#995f16`) |
+| branco sobre `--acc` (claro) | 3,48 | **5,29** |
+
+O ultimo e o mais grave: era o texto do **botao primario** do app. `--fg3` carrega metadado de 10px,
+texto pequeno, onde AA nao da desconto. Ao mexer em qualquer token de cor, rode o teste — ele falha
+com a lista de pares e as razoes.
 
 ### Texto: acento so no que o usuario le
 

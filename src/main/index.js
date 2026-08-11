@@ -182,7 +182,11 @@ ipcMain.handle('terminal:abrir', async (_e, { id, cwd, cols, rows, comando, args
 
   // Reserva ANTES de criar o PTY: as variaveis precisam existir no ambiente do
   // processo desde o nascimento, senao o dev server ja subiu na porta errada.
-  const bloco = await portas.reservar(id);
+  //
+  // A faixa sai do projeto dono da pasta, resolvida AQUI e nao na janela: assim
+  // vale igual para painel de projeto, de worktree e avulso, sem cada chamador
+  // ter de lembrar de passar.
+  const bloco = await portas.reservar(id, projetos.faixaDe(pasta));
 
   const r = terminais.abrir({
     id,
@@ -223,9 +227,15 @@ ipcMain.handle('projetos:listar', () => projetos.listar());
 // Recebe o caminho ja escolhido, em vez de abrir o dialogo por dentro: separa
 // a escolha da gravacao e deixa o fluxo testavel (o CDP nao dirige dialogo
 // nativo do Windows).
-ipcMain.handle('projetos:adicionar', (_e, caminho) => {
-  const r = projetos.adicionar(caminho);
-  return { ...r, projetos: projetos.listar() };
+ipcMain.handle('projetos:adicionar', (_e, caminho, faixa) => {
+  try {
+    const r = projetos.adicionar(caminho, faixa);
+    return { ...r, projetos: projetos.listar() };
+  } catch (err) {
+    // O modal digita o caminho, entao pasta inexistente e erro de USO, nao de
+    // programa: volta como texto para a tela mostrar, em vez de estourar no IPC.
+    return { erro: err.message, projetos: projetos.listar() };
+  }
 });
 
 // ------------------------------------------------------------- worktrees

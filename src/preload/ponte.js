@@ -24,7 +24,7 @@ contextBridge.exposeInMainWorld('orq', {
   estadoAtual: () => ipcRenderer.invoke('estado:todas'),
 
   projetosListar: () => ipcRenderer.invoke('projetos:listar'),
-  projetosAdicionar: (caminho) => ipcRenderer.invoke('projetos:adicionar', caminho),
+  projetosAdicionar: (caminho, faixa) => ipcRenderer.invoke('projetos:adicionar', caminho, faixa),
   projetosRemover: (id, confirmar = true) => ipcRenderer.invoke('projetos:remover', { id, confirmar }),
 
   sessaoCarregar: () => ipcRenderer.invoke('sessao:carregar'),

@@ -254,8 +254,13 @@ btnNovo.addEventListener('click', async () => {
   await criarPainel({ cwd, feature });
 });
 
+// Enter aciona a acao PRIMARIA, que e a mesma que a dica ao lado descreve.
+// Antes abria o seletor de pasta do "Painel avulso", que nao tem relacao com o
+// nome de feature que voce acabou de digitar.
 elNome.addEventListener('keydown', (ev) => {
-  if (ev.key === 'Enter') btnNovo.click();
+  if (ev.key !== 'Enter') return;
+  ev.preventDefault();
+  document.getElementById('btn-nova-sessao')?.click();
 });
 
 // Um unico ouvinte para todos os painéis: o lote chega com todos juntos.

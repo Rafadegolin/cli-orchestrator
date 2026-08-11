@@ -76,11 +76,16 @@ function lerArquivo() {
   checar('caminho repetido nao duplica', r2.novo === false && r2.total === 1, JSON.stringify(r2));
 
   // --- pasta que nao existe ---------------------------------------------
-  const erro = await cdp.avaliar(`(async () => {
-    try { await window.orq.projetosAdicionar('C:/nao/existe/mesmo'); return 'ACEITOU'; }
-    catch (e) { return 'RECUSOU'; }
-  })()`);
-  checar('recusa pasta inexistente', erro === 'RECUSOU', erro);
+  //
+  // A recusa volta como TEXTO, e nao como excecao: quem chama e o modal, onde o
+  // caminho e digitado, e pasta errada e erro de uso -- tem de virar mensagem
+  // na tela, nao estouro no IPC.
+  const erro = JSON.parse(await cdp.avaliar(`(async () => {
+    const r = await window.orq.projetosAdicionar('C:/nao/existe/mesmo');
+    return JSON.stringify({ erro: r.erro || '', criou: Boolean(r.projeto), total: r.projetos.length });
+  })()`));
+  checar('recusa pasta inexistente, com motivo legivel',
+    Boolean(erro.erro) && !erro.criou && erro.total === 1, JSON.stringify(erro));
 
   // --- abertura a partir do projeto -------------------------------------
   const id = await cdp.avaliar(`window.OrqProjetos.lista()[0].id`);

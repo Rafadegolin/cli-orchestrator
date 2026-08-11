@@ -133,6 +133,38 @@
 
   <div id="toast" hidden></div>
 
+  <div id="paleta" class="overlay overlay-topo" hidden>
+    <div class="paleta-caixa">
+      <input id="paleta-busca" type="text" spellcheck="false"
+             placeholder="Digite um comando ou nome de sessão…" />
+      <ol id="paleta-lista"></ol>
+    </div>
+  </div>
+
+  <div id="modal-projeto" class="overlay" hidden>
+    <div class="modal-caixa">
+      <h2>Cadastrar projeto</h2>
+      <p class="modal-explica">Aponte para a pasta do repositório. O Orquestrador detecta o git e
+        reserva uma faixa de portas para as sessões deste projeto.</p>
+
+      <div class="modal-rotulo">Pasta</div>
+      <div class="modal-linha">
+        <input id="projeto-caminho" type="text" spellcheck="false" placeholder="C:\Users\voce\meu-repo" />
+        <button id="projeto-procurar">Procurar</button>
+      </div>
+
+      <div class="modal-rotulo">Faixa de portas</div>
+      <div class="modal-faixas" id="projeto-faixas"></div>
+
+      <p class="modal-erro" id="projeto-erro" hidden></p>
+
+      <div class="modal-acoes">
+        <button id="projeto-confirmar" class="primario">Cadastrar</button>
+        <button id="projeto-cancelar">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="seletor-ligacoes" class="overlay" hidden>
     <div class="seletor-caixa">
       <div class="seletor-topo">
@@ -176,3 +208,5 @@
 <script src="projetos.js"></script>
 <script src="seletor-ligacoes.js"></script>
 <script src="ajuda.js"></script>
+<script src="modal-projeto.js"></script>
+<script src="paleta.js"></script>

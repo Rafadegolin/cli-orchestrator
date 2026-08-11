@@ -10,7 +10,6 @@
 (() => {
   const elApp = document.getElementById('app');
   const btnTema = document.getElementById('btn-tema');
-  const btnBusca = document.getElementById('btn-busca');
   const elOrdenacao = document.getElementById('ordenacao');
   const elDensidade = document.getElementById('densidade');
   const elCampo = document.getElementById('nome-feature');
@@ -102,6 +101,41 @@
     elNum.textContent = String(n);
   }
 
+  // ------------------------------------------------------------ overlays
+
+  // Uma saida so para ajuda, seletor, paleta e modal.
+  //
+  // Antes cada um tinha o proprio `keydown` de Esc e o proprio clique-fora --
+  // quatro copias da mesma regra, e com dois abertos ao mesmo tempo um Esc
+  // fechava os dois. Aqui o Esc fecha o TOPO DA PILHA e para por ali.
+  const overlays = [];
+
+  function registrarOverlay(el, fechar) {
+    if (!el) return;
+    overlays.push({ el, fechar });
+    // Clicar no fundo do overlay fecha; clicar no cartao dentro dele nao.
+    el.addEventListener('click', (ev) => { if (ev.target === el) fechar(); });
+  }
+
+  function overlayNoTopo() {
+    // O ultimo registrado que estiver aberto: a ordem de registro segue a
+    // ordem dos <script>, e paleta e modal, que chegam por ultimo, sao os que
+    // aparecem por cima.
+    for (let i = overlays.length - 1; i >= 0; i--) {
+      if (!overlays[i].el.hidden) return overlays[i];
+    }
+    return null;
+  }
+
+  window.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    const topo = overlayNoTopo();
+    if (!topo) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    topo.fechar();
+  }, true);
+
   // --------------------------------------------------------------- toast
 
   // Confirma acao concluida cujo efeito nao esta todo a vista, e -- mais
@@ -178,6 +212,7 @@
   };
 
   window.OrqToast = { mostrar: mostrarToast, MS_TOAST };
+  window.OrqOverlays = { registrar: registrarOverlay, noTopo: overlayNoTopo, lista: overlays };
 
   // Estado inicial: aplica o padrao ja (a tela nao pode nascer sem densidade) e
   // corrige quando o disco responder.
@@ -186,7 +221,6 @@
   aplicarOrdem();
   atualizarDica();
   desenharCarga(0);
-  btnBusca.hidden = true; // a paleta de comandos entra na fatia 4
 
   (async () => {
     const salvo = await window.orq.uiCarregar();

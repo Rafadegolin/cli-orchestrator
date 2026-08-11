@@ -101,9 +101,20 @@ function desenharProjetos() {
   elProjetosContagem.textContent = String(projetosCache.length);
 
   if (!projetosCache.length) {
+    // Cartao, e nao uma linha de texto: sem projeto cadastrado o app nao faz
+    // nada, entao o proximo passo tem de estar a um clique e nao escondido no
+    // `+` do cabecalho da secao.
     const vazio = document.createElement('li');
     vazio.className = 'projeto-vazio';
-    vazio.textContent = 'Nenhum repositório ainda. Cadastre um para abrir sessões com um clique.';
+
+    const frase = document.createElement('p');
+    frase.textContent = 'Nenhum repositório ainda. Cadastre um para abrir sessões com um clique.';
+
+    const botao = document.createElement('button');
+    botao.textContent = 'Cadastrar projeto';
+    botao.addEventListener('click', cadastrarProjeto);
+
+    vazio.append(frase, botao);
     elProjetosLista.replaceChildren(vazio);
     return;
   }
@@ -347,12 +358,12 @@ async function abrirUltimo() {
   return abrirProjeto(alvo.id);
 }
 
-async function cadastrarProjeto() {
-  const caminho = await window.orq.escolherPasta();
-  if (!caminho) return null;
-  const r = await window.orq.projetosAdicionar(caminho);
-  if (r.projetos) { projetosCache = r.projetos; desenharProjetos(); }
-  return r;
+// Abre o modal, que e quem escolhe pasta E faixa de portas. O dialogo nativo
+// virou o botao "Procurar" de dentro dele: a escolha e a gravacao continuam
+// separadas, e agora o caminho tambem pode ser digitado.
+function cadastrarProjeto() {
+  if (window.OrqModalProjeto) return window.OrqModalProjeto.abrir();
+  return null;
 }
 
 btnProjetoAdd?.addEventListener('click', cadastrarProjeto);

@@ -115,6 +115,64 @@ async function abrir(cdp, feature) {
     c.portas.filter((p) => b.portas.includes(p)).length === 0,
     `c=${c.portas.join(',')} | b=${b.portas.join(',')}`);
 
+  // --- faixa por projeto -------------------------------------------------
+  //
+  // O que da sentido a escolha no cadastro: dois projetos com faixas diferentes
+  // abrem em blocos que nem chegam perto um do outro, e um worktree herda a
+  // faixa do projeto dono.
   await zerarGrade(cdp);
+
+  const os = require('os');
+  const fs = require('fs');
+  const baseA = path.join(os.tmpdir(), 'orq-faixa-a').replace(/\\/g, '/');
+  const baseB = path.join(os.tmpdir(), 'orq-faixa-b').replace(/\\/g, '/');
+  const dentroA = `${baseA}/.claude/worktrees/feat-x`;
+  for (const d of [baseA, baseB, dentroA]) fs.mkdirSync(d, { recursive: true });
+
+  await cdp.avaliar(`(async () => {
+    for (const p of await window.orq.projetosListar()) await window.orq.projetosRemover(p.id, false);
+    await window.orq.projetosAdicionar(${JSON.stringify(baseA)}, [4000, 4099]);
+    await window.orq.projetosAdicionar(${JSON.stringify(baseB)}, [5200, 5299]);
+    await window.OrqProjetos.carregarProjetos();
+    return 'ok';
+  })()`);
+  await esperar(500);
+
+  const abrirEm = async (cwd, feature) => {
+    const info = JSON.parse(await cdp.avaliar(`(async () => {
+      const p = await window.OrqGrade.criarPainel({ cwd: ${JSON.stringify(cwd)}, feature: '${feature}' });
+      return JSON.stringify({ id: p.id, portas: p.portas || [] });
+    })()`));
+    await esperar(900);
+    return info;
+  };
+
+  const fa = await abrirEm(baseA, 'faixa-a');
+  const fb = await abrirEm(baseB, 'faixa-b');
+  const fw = await abrirEm(dentroA, 'faixa-worktree');
+
+  checar('projeto com faixa 4000 abre dentro dela',
+    fa.portas[0] >= 4000 && fa.portas[4] <= 4099, fa.portas.join(','));
+  checar('projeto com faixa 5200 abre dentro da dele',
+    fb.portas[0] >= 5200 && fb.portas[4] <= 5299, fb.portas.join(','));
+  checar('e os dois blocos nem chegam perto um do outro',
+    Math.abs(fa.portas[0] - fb.portas[0]) > 100, `${fa.portas[0]} vs ${fb.portas[0]}`);
+  checar('worktree herda a faixa do projeto dono',
+    fw.portas[0] >= 4000 && fw.portas[0] <= 4099 && fw.portas[0] !== fa.portas[0],
+    fw.portas.join(','));
+
+  // Pasta sem projeto cadastrado continua na faixa padrao.
+  const avulso = await abrirEm(RAIZ, 'faixa-avulso');
+  checar('pasta sem projeto cadastrado usa a faixa padrao a partir da 3100',
+    avulso.portas[0] >= 3100 && avulso.portas[0] < 4000, avulso.portas.join(','));
+
+  await zerarGrade(cdp);
+  await cdp.avaliar(`(async () => {
+    for (const p of await window.orq.projetosListar()) await window.orq.projetosRemover(p.id, false);
+    await window.OrqProjetos.carregarProjetos();
+    return 'ok';
+  })()`);
+  for (const d of [baseA, baseB]) fs.rmSync(d, { recursive: true, force: true });
+
   encerrar('PORTAS');
 })().catch((e) => { console.error('ERRO', e.message); process.exit(3); });

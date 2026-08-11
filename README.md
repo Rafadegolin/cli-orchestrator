@@ -58,7 +58,11 @@ funciona, mas os status ficam parados — e é justamente o status que faz a gra
 
 ## Usando
 
-**Cadastre um projeto.** No `+` da seção PROJETOS, escolha a pasta do repositório. Ela fica salva.
+**Cadastre um projeto.** No `+` da seção PROJETOS, aponte a pasta do repositório e escolha a faixa de
+portas dele. Fica salvo, e vale também para os worktrees desse projeto.
+
+**Ache tudo com `Ctrl+K`.** A paleta de comandos pula para qualquer sessão, abre uma nova em qualquer
+projeto, troca o tema e abre a ajuda — sem procurar na tela. A busca ignora acento.
 
 **Abra uma sessão.** Digite o nome da feature no campo de cima e clique no projeto. O painel abre na
 pasta certa e sobe `claude -w nome-da-feature`, que cria o worktree isolado. Sem nome de feature, abre

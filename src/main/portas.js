@@ -40,8 +40,8 @@ function livre(porta) {
   });
 }
 
-async function blocoLivre(inicio, usadas) {
-  for (let base = inicio; base + POR_PAINEL - 1 <= TETO; base++) {
+async function blocoLivre(inicio, fim, usadas) {
+  for (let base = inicio; base + POR_PAINEL - 1 <= fim; base++) {
     if (usadas.has(base)) continue;
 
     const bloco = [];
@@ -57,14 +57,19 @@ async function blocoLivre(inicio, usadas) {
   return null;
 }
 
-async function reservar(id) {
+// `faixa` e o par [inicio, fim] do projeto dono da pasta; sem ela vale a faixa
+// padrao. `emUso()` continua GLOBAL, entao duas faixas que se sobreponham por
+// engano ainda nao entregam a mesma porta duas vezes.
+async function reservar(id, faixa) {
   if (reservadas.has(id)) return reservadas.get(id);
 
-  const bloco = await blocoLivre(BASE, emUso());
+  const [inicio, fim] = Array.isArray(faixa) && faixa.length === 2 ? faixa : [BASE, TETO];
+
+  const bloco = await blocoLivre(inicio, fim, emUso());
   if (!bloco) {
     // Sem bloco livre o painel ainda abre: perder o terminal por causa de porta
     // seria pior que ficar sem a variavel.
-    console.error(`[portas] nenhum bloco livre entre ${BASE} e ${TETO}`);
+    console.error(`[portas] nenhum bloco livre entre ${inicio} e ${fim}`);
     return [];
   }
 

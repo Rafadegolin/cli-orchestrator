@@ -56,7 +56,16 @@ function listar() {
   }));
 }
 
-function adicionar(caminho) {
+// Faixa valida e um par de inteiros crescente com espaco para pelo menos um
+// bloco. Valor torto no JSON (editado a mao, ou de uma versao futura) nao pode
+// derrubar a reserva de portas -- cai no padrao e segue.
+function faixaValida(f) {
+  return Array.isArray(f) && f.length === 2
+    && Number.isInteger(f[0]) && Number.isInteger(f[1])
+    && f[0] > 0 && f[1] > f[0];
+}
+
+function adicionar(caminho, faixa) {
   if (!caminho) throw new Error('caminho vazio');
 
   const resolvido = path.resolve(caminho);
@@ -73,10 +82,35 @@ function adicionar(caminho) {
     nome: nomeCurto(resolvido),
     adicionadoEm: new Date().toISOString(),
   };
+  if (faixaValida(faixa)) projeto.faixa = [faixa[0], faixa[1]];
 
   projetos.push(projeto);
   gravar(projetos);
   return { projeto, novo: true };
+}
+
+// A qual faixa de portas uma pasta pertence.
+//
+// Casa pelo prefixo MAIS ESPECIFICO, como o `projetoDe` da janela: um worktree
+// vive em <projeto>/.claude/worktrees/<feat> e tem de herdar a faixa do
+// projeto, e com dois projetos aninhados o de dentro ganha.
+//
+// Mora aqui, e nao na janela, porque assim o painel pega a faixa certa venha
+// ele de um projeto, de um worktree ou de um painel avulso -- sem cada chamador
+// ter de lembrar de passar.
+function faixaDe(caminho) {
+  const alvo = chave(String(caminho || '.'));
+  let melhor = null;
+
+  for (const p of ler()) {
+    if (!faixaValida(p.faixa)) continue;
+    const base = chave(p.caminho);
+    const dentro = alvo === base || alvo.startsWith(base + path.sep);
+    if (dentro && (!melhor || base.length > melhor.base.length)) {
+      melhor = { base, faixa: p.faixa };
+    }
+  }
+  return melhor ? melhor.faixa : null;
 }
 
 // Tira da lista. NAO toca na pasta em disco.
@@ -97,4 +131,7 @@ function renomear(id, nome) {
   return { renomeado: true, nome: p.nome };
 }
 
-module.exports = { ARQUIVO, PASTA, listar, adicionar, remover, renomear, nomeCurto, ehRepositorio };
+module.exports = {
+  ARQUIVO, PASTA, listar, adicionar, remover, renomear, nomeCurto, ehRepositorio,
+  faixaDe, faixaValida,
+};

@@ -547,6 +547,197 @@ async function soltar(cdp) {
   }
   checar('e textoDoBuffer os aplica antes de devolver o texto', achou, '');
 
+  // --- 11. paleta de comandos --------------------------------------------
+  await cdp.avaliar(`window.OrqPaleta.fechar()`);
+  await cdp.avaliar(`(() => { window.dispatchEvent(new KeyboardEvent('keydown',
+    { key: 'k', ctrlKey: true, bubbles: true })); return 'ok'; })()`);
+  await esperar(500);
+  const paletaAberta = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    visivel: document.getElementById('paleta').hidden === false,
+    itens: document.querySelectorAll('.paleta-item').length,
+    focoNaBusca: document.activeElement?.id === 'paleta-busca',
+    selecionado: document.querySelector('.paleta-item.selecionado')?.dataset.indice,
+  })`));
+  checar('Ctrl+K abre a paleta com o foco na busca',
+    paletaAberta.visivel && paletaAberta.focoNaBusca && paletaAberta.itens > 0,
+    JSON.stringify(paletaAberta));
+  checar('e o primeiro item ja vem selecionado', paletaAberta.selecionado === '0', '');
+
+  // A tela e acentuada; a busca nao pode exigir acento.
+  const filtrou = JSON.parse(await cdp.avaliar(`(() => {
+    const i = document.getElementById('paleta-busca');
+    i.value = 'sessao';
+    i.dispatchEvent(new Event('input'));
+    return JSON.stringify([...document.querySelectorAll('.paleta-rotulo')].map(e => e.textContent));
+  })()`));
+  checar('a busca ignora acento: "sessao" acha "sessão"',
+    filtrou.length > 0 && filtrou.every((t) => /sess[aã]o/i.test(t)), JSON.stringify(filtrou));
+
+  const nada = JSON.parse(await cdp.avaliar(`(() => {
+    const i = document.getElementById('paleta-busca');
+    i.value = 'zzzznaoexiste';
+    i.dispatchEvent(new Event('input'));
+    return JSON.stringify({ itens: document.querySelectorAll('.paleta-item').length,
+      vazio: Boolean(document.querySelector('.paleta-vazio')) });
+  })()`));
+  checar('busca sem resultado avisa em vez de ficar em branco',
+    nada.itens === 0 && nada.vazio, JSON.stringify(nada));
+
+  // Enter executa: o tema e o comando mais facil de observar sem efeito colateral.
+  const temaAntes = await cdp.avaliar(`window.OrqCasca.tema()`);
+  await cdp.avaliar(`(() => {
+    const i = document.getElementById('paleta-busca');
+    i.value = 'tema';
+    i.dispatchEvent(new Event('input'));
+    i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    return 'ok';
+  })()`);
+  await esperar(700);
+  checar('Enter executa o item selecionado',
+    await cdp.avaliar(`window.OrqCasca.tema()`) !== temaAntes, temaAntes);
+  checar('e a paleta fecha ao executar',
+    await cdp.avaliar(`document.getElementById('paleta').hidden`) === true, '');
+  await cdp.avaliar(`window.OrqCasca.mudar({ tema: ${JSON.stringify(temaAntes)} })`);
+
+  // --- 12. overlays empilhados -------------------------------------------
+  //
+  // Antes cada overlay tinha o proprio Esc, e com dois abertos um Esc fechava
+  // os dois. Agora o registro unico fecha so o do topo.
+  await cdp.avaliar(`(async () => { await window.OrqAjuda.abrir(); return 'ok'; })()`);
+  await esperar(500);
+  await cdp.avaliar(`window.OrqPaleta.abrir()`);
+  await esperar(400);
+
+  const doisAbertos = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    ajuda: document.getElementById('ajuda').hidden === false,
+    paleta: document.getElementById('paleta').hidden === false,
+  })`));
+  checar('da para abrir a paleta por cima da ajuda',
+    doisAbertos.ajuda && doisAbertos.paleta, JSON.stringify(doisAbertos));
+
+  await cdp.avaliar(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await esperar(400);
+  const umEsc = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    ajuda: document.getElementById('ajuda').hidden === false,
+    paleta: document.getElementById('paleta').hidden === false,
+  })`));
+  checar('um Esc fecha SO o overlay de cima', umEsc.ajuda && !umEsc.paleta, JSON.stringify(umEsc));
+
+  await cdp.avaliar(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  await esperar(400);
+  checar('o Esc seguinte fecha o de baixo',
+    await cdp.avaliar(`document.getElementById('ajuda').hidden`) === true, '');
+
+  // --- 13. modal de cadastrar projeto ------------------------------------
+  //
+  // Cadastra pelo caminho DIGITADO: o CDP nao dirige dialogo nativo, e e por
+  // isso que o modal separa escolher a pasta de gravar o projeto.
+  const alvo = RAIZ;
+  await cdp.avaliar(`(async () => {
+    for (const p of await window.orq.projetosListar()) await window.orq.projetosRemover(p.id, false);
+    await window.OrqProjetos.carregarProjetos();
+    return 'ok';
+  })()`);
+  await esperar(400);
+
+  checar('sem projeto, a lateral mostra o cartao com o botao',
+    await cdp.avaliar(`Boolean(document.querySelector('.projeto-vazio button'))`), '');
+
+  await cdp.avaliar(`window.OrqModalProjeto.abrir()`);
+  await esperar(400);
+  const modalAberto = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    visivel: document.getElementById('modal-projeto').hidden === false,
+    faixas: [...document.querySelectorAll('.modal-faixa')].map(b => b.textContent),
+    ativa: document.querySelector('.modal-faixa.ativa')?.textContent,
+  })`));
+  checar('o modal abre com as tres faixas', modalAberto.visivel && modalAberto.faixas.length === 3,
+    JSON.stringify(modalAberto));
+
+  // Pasta que nao existe: mensagem na tela, sem cadastrar nada.
+  await cdp.avaliar(`(async () => {
+    document.getElementById('projeto-caminho').value = 'C:/isto/nao/existe';
+    await window.OrqModalProjeto.confirmar();
+    return 'ok';
+  })()`);
+  await esperar(500);
+  const recusa = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    erro: document.getElementById('projeto-erro').hidden === false,
+    aberto: document.getElementById('modal-projeto').hidden === false,
+  })`));
+  checar('pasta inexistente vira mensagem no modal, sem fechar',
+    recusa.erro && recusa.aberto, JSON.stringify(recusa));
+
+  // Agora o caminho bom, com a segunda faixa.
+  await cdp.avaliar(`window.OrqModalProjeto.escolher(1)`);
+  await cdp.avaliar(`(async () => {
+    document.getElementById('projeto-caminho').value = ${JSON.stringify(alvo)};
+    await window.OrqModalProjeto.confirmar();
+    return 'ok';
+  })()`);
+  await esperar(800);
+
+  const cadastrado = JSON.parse(await cdp.avaliar(`(async () => {
+    const lista = await window.orq.projetosListar();
+    return JSON.stringify({
+      total: lista.length,
+      faixa: lista[0]?.faixa || null,
+      fechou: document.getElementById('modal-projeto').hidden === true,
+      toast: document.getElementById('toast').textContent,
+    });
+  })()`));
+  checar('cadastra pelo caminho digitado, sem dialogo nativo',
+    cadastrado.total === 1 && cadastrado.fechou, JSON.stringify(cadastrado));
+  checar('e grava a faixa de portas escolhida',
+    Array.isArray(cadastrado.faixa) && cadastrado.faixa[0] === 4000, JSON.stringify(cadastrado.faixa));
+  checar('confirmando por toast', /cadastrado/i.test(cadastrado.toast || ''), cadastrado.toast);
+
+  await cdp.avaliar(`(async () => {
+    for (const p of await window.orq.projetosListar()) await window.orq.projetosRemover(p.id, false);
+    await window.OrqProjetos.carregarProjetos();
+    return 'ok';
+  })()`);
+
+  // --- 14. contraste AA nos dois temas ------------------------------------
+  //
+  // O checklist do doc 08 pede AA. Isso nao se confere no olho: calcula-se.
+  // Cada par tem o tamanho do texto que ele carrega de verdade -- 4,5:1 para
+  // texto normal, 3:1 so onde o texto e grande (>=18,66px ou 14px negrito).
+  for (const tema of ['escuro', 'claro']) {
+    await cdp.avaliar(`window.OrqCasca.mudar({ tema: ${JSON.stringify(tema)} })`);
+    await esperar(400);
+    const medido = JSON.parse(await cdp.avaliar(`(() => {
+      const raiz = getComputedStyle(document.documentElement);
+      const tok = (n) => raiz.getPropertyValue(n).trim();
+      const rgb = (cor) => {
+        const d = document.createElement('div');
+        d.style.color = cor;
+        document.body.append(d);
+        const m = getComputedStyle(d).color.match(/[\\d.]+/g).map(Number);
+        d.remove();
+        return m;
+      };
+      const canal = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      const lum = (cor) => { const [r, g, b] = rgb(cor); return 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b); };
+      const razao = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+      const PARES = [
+        ['fg/bg0', tok('--fg'), tok('--bg0')],
+        ['fg/bg1', tok('--fg'), tok('--bg1')],
+        ['fg2/bg1', tok('--fg2'), tok('--bg1')],
+        ['fg3/bg1', tok('--fg3'), tok('--bg1')],
+        ['fg3/bg3', tok('--fg3'), tok('--bg3')],
+        ['acc/bg1', tok('--acc'), tok('--bg1')],
+        ['warn/bg1', tok('--warn'), tok('--bg1')],
+        ['info/bg1', tok('--info'), tok('--bg1')],
+        ['acc-texto/acc', tok('--acc-texto'), tok('--acc')],
+        ['termfg/term', tok('--termfg'), tok('--term')],
+      ];
+      return JSON.stringify(PARES.map(([nome, f, b]) => ({ nome, razao: Math.round(razao(f, b) * 100) / 100 })));
+    })()`));
+    const ruins = medido.filter((m) => m.razao < 4.5);
+    checar(`contraste AA no tema ${tema}`, ruins.length === 0,
+      ruins.map((r) => `${r.nome}=${r.razao}`).join(' ') || medido.map((r) => `${r.nome}=${r.razao}`).join(' '));
+  }
+
   await zerarGrade(cdp);
   await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 2, ordem: 'urgencia' })`);
 

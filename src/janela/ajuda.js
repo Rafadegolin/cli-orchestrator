@@ -27,6 +27,10 @@ const aviso = (texto) => ({ tipo: 'aviso', texto });
 const passos = (itens) => ({ tipo: 'passos', itens });
 const lista = (itens) => ({ tipo: 'lista', itens });
 const tabela = (cabecalho, linhas) => ({ tipo: 'tabela', cabecalho, linhas });
+// O bloco `key` do doc 04: tecla em caixa mono e a descricao ao lado. So para
+// atalhos -- os outros assuntos continuam em tabela, que carrega duas colunas
+// de significado e viraria lista sem sentido.
+const teclas = (pares) => ({ tipo: 'teclas', pares });
 
 const SECOES = [
   {
@@ -71,8 +75,9 @@ const SECOES = [
           + 'O nome é limpo automaticamente (acento e símbolo viram tracinho), porque ele vira nome de branch.'],
         ['vazio', 'Roda <code>claude</code> na pasta do projeto, sem worktree.'],
       ]),
-      p('O botão <b>Novo painel</b> abre um seletor de pasta, para abrir um painel avulso em qualquer '
-        + 'lugar sem cadastrar projeto.'),
+      p('<b>Nova sessão</b> (ou <b>Enter</b> no campo de feature) abre no último projeto que você '
+        + 'usou. <b>Painel avulso</b> abre um seletor de pasta, para trabalhar em qualquer lugar '
+        + 'sem cadastrar projeto.'),
       p('Projeto que não é repositório git aparece com a etiqueta <b>sem git</b> e nunca recebe '
         + '<code>-w</code> — worktree exige git.'),
     ],
@@ -87,21 +92,48 @@ const SECOES = [
         ['<span class="ajuda-bolinha bolinha-esperando"></span> amarela', 'Parou te esperando: pedindo permissão, ou ociosa. O cronômetro conta desde quando.'],
         ['<span class="ajuda-bolinha bolinha-rodando"></span> verde', 'Trabalhando.'],
         ['<span class="ajuda-bolinha bolinha-terminou"></span> azul', 'Terminou; pronto para você revisar.'],
-        ['<span class="ajuda-bolinha bolinha-encerrada"></span> cinza', 'Sessão encerrada, ou painel adormecido esperando você retomar.'],
+        ['<span class="ajuda-bolinha bolinha-encerrada"></span> cinza', 'Sessão encerrada.'],
+        ['<span class="ajuda-bolinha bolinha-dormindo"></span> vazada', 'Sessão salva da última vez que você fechou o app, esperando você retomar.'],
       ]),
+      p('Ao lado da bolinha vem sempre o texto — <b>trabalhando</b>, <b>esperando há 12min</b>, '
+        + '<b>pronto para revisar</b>, <b>sessão salva</b>. A cor acelera quem já conhece; o texto '
+        + 'ensina quem está chegando. O motivo exato do Claude fica no balão ao passar o mouse.'),
     ],
   },
   {
     id: 'lateral',
-    titulo: 'A barra lateral e a fila',
+    titulo: 'A barra lateral e a fila de atenção',
     blocos: [
-      p('A lista de SESSÕES é ordenada por <b>urgência</b>, não por projeto: primeiro quem espera há '
-        + 'mais tempo, depois quem terminou, depois quem está rodando, por último quem parou.'),
+      p('O bloco <b>ESPERANDO VOCÊ</b> aparece no topo da lateral assim que alguma sessão para te '
+        + 'esperando, com o tempo de cada uma. Ele some sozinho quando a última é atendida — fila '
+        + 'vazia não ocupa espaço.'),
       lista([
-        'Clicar num card <b>foca o painel</b> correspondente.',
-        '<b>Ctrl+Enter</b> pula direto para quem espera há mais tempo e já põe o cursor lá.',
-        'Quando o app não está em primeiro plano, uma <b>notificação do sistema</b> avisa que alguém ficou amarelo.',
+        'A fila é sempre por <b>quem espera há mais tempo</b>, mesmo com a grade ordenada por projeto.',
+        '<b>Ctrl+Enter</b> pula direto para a mais antiga e já põe o cursor lá.',
+        'Clicar num item da fila (ou num card de SESSÕES) foca o painel correspondente.',
+        'Quando o app não está em primeiro plano, uma <b>notificação do sistema</b> avisa.',
       ]),
+      p('A lista de SESSÕES segue a mesma ordem da grade, e o placar no alto mostra quantas sessões '
+        + 'estão vivas e quanto do processador o app está usando.'),
+    ],
+  },
+  {
+    id: 'aprovar',
+    titulo: 'Aprovar sem entrar no terminal',
+    blocos: [
+      p('Quando o Claude pede permissão para alguma coisa, a pergunta aparece no <b>rodapé do '
+        + 'painel</b>, com os botões <b>Aprovar</b> e <b>Ver</b>. O caso mais comum de interação '
+        + 'deixa de exigir que você entre no terminal e digite.'),
+      lista([
+        '<b>Aprovar</b> responde <code>1. Yes</code> ao pedido que está na tela — nunca a opção de '
+          + '"não perguntar mais", que mudaria o comportamento da sessão inteira.',
+        '<b>Ver</b> só leva o cursor até o terminal, sem responder nada.',
+        'Sessão que parou apenas <b>ociosa</b> aparece sem o botão: ali não há o que aprovar, ela '
+          + 'está esperando você digitar.',
+      ]),
+      aviso('O app confere o pedido na tela do terminal antes de responder. Se ele não achar — '
+        + 'porque você já respondeu por lá, por exemplo — <b>não escreve nada</b>: leva você ao '
+        + 'painel e avisa. Aprovar nunca acontece às cegas.'),
     ],
   },
   {
@@ -138,9 +170,12 @@ const SECOES = [
     id: 'portas',
     titulo: 'Portas: rodar dois servidores ao mesmo tempo',
     blocos: [
-      p('Cada painel reserva <b>{portasPorPainel} portas livres</b> a partir da <b>{portaBase}</b>, e '
-        + 'a primeira aparece no cabeçalho do painel. Isso é o que permite subir o dev de duas features '
-        + 'do mesmo projeto sem uma derrubar a outra.'),
+      p('Cada painel reserva <b>{portasPorPainel} portas livres</b>, e a primeira aparece no '
+        + 'cabeçalho do painel. Isso é o que permite subir o dev de duas features do mesmo projeto '
+        + 'sem uma derrubar a outra.'),
+      p('A faixa é <b>escolhida por projeto</b> na hora de cadastrar, e vale também para os '
+        + 'worktrees dele. Assim dois projetos rodando ao mesmo tempo nem chegam perto um do outro. '
+        + 'Projeto cadastrado sem escolher faixa usa a padrão, a partir da <b>{portaBase}</b>.'),
       p('As portas chegam ao terminal como variáveis de ambiente:'),
       tabela(['Variável', 'Para que serve'], [
         ['<code>PORT</code>', 'A convenção que Next, Nest e Express já leem sozinhos.'],
@@ -174,14 +209,35 @@ const SECOES = [
   },
   {
     id: 'grade',
-    titulo: 'A grade de painéis',
+    titulo: 'A grade: densidade, ordem e tema',
     blocos: [
+      p('À direita da barra de cima ficam as duas escolhas que mudam a cara da grade, e as duas '
+        + 'são lembradas entre execuções:'),
+      tabela(['Controle', 'O que faz'], [
+        ['Urgência / Projeto', 'Ordena a grade e a lista de sessões. Em <b>Urgência</b>, quem espera '
+          + 'vem primeiro; em <b>Projeto</b>, agrupa por repositório.'],
+        ['1 · 2 · 3', 'Quantas colunas. Cada densidade tem uma altura fixa de painel, para a grade '
+          + 'ficar previsível. Na 3 o rótulo de status some e a bolinha assume.'],
+      ]),
+      p('O botão de tema fica na barra de título, ao lado da busca. O <b>terminal continua escuro '
+        + 'nos dois temas</b>: código monoespaçado sobre fundo claro atrapalha a leitura.'),
       lista([
-        'Até 4 painéis a grade usa 2 colunas; acima disso, 3.',
-        'Cada painel tem altura mínima; com muitos painéis a grade <b>rola</b> em vez de espremer todo mundo.',
+        'Com muitos painéis a grade <b>rola</b> em vez de espremer todo mundo.',
         'Painel fora da área visível <b>para de desenhar</b> e guarda a saída, escrevendo tudo de uma vez quando volta. Nada se perde.',
-        'A etiqueta <code>webgl</code> ou <code>canvas</code> mostra o renderizador. As vagas de WebGL vão para os painéis visíveis.',
         'Clicar num painel dá foco; só o painel focado recebe o teclado. O <b>×</b> fecha e mata o processo de verdade.',
+      ]),
+    ],
+  },
+  {
+    id: 'paleta',
+    titulo: 'A paleta de comandos',
+    blocos: [
+      p('<b>Ctrl+K</b> (ou o campo de busca na barra de título) abre a paleta: um lugar só para '
+        + 'chegar a qualquer sessão, projeto ou ação, sem procurar na tela.'),
+      lista([
+        'Digite parte do nome de uma sessão para pular direto para ela.',
+        'A busca <b>ignora acento</b>: procurar por <code>sessao</code> acha "sessão".',
+        'Setas para navegar, <b>Enter</b> para executar o primeiro, <b>Esc</b> para fechar.',
       ]),
     ],
   },
@@ -213,12 +269,16 @@ const SECOES = [
     id: 'atalhos',
     titulo: 'Atalhos',
     blocos: [
-      tabela(['Tecla', 'O que faz'], [
-        ['<kbd>Ctrl</kbd>+<kbd>Enter</kbd>', 'Pula para a sessão que espera há mais tempo'],
-        ['<kbd>F1</kbd>', 'Abre esta ajuda'],
-        ['<kbd>Esc</kbd>', 'Fecha esta ajuda ou o seletor de ligações'],
-        ['<kbd>Enter</kbd> no campo de feature', 'Mesmo que clicar em “Novo painel”'],
+      teclas([
+        ['Ctrl+Enter', 'Pula para a sessão que espera há mais tempo'],
+        ['Ctrl+K', 'Abre a paleta de comandos'],
+        ['F1', 'Abre esta ajuda'],
+        ['Esc', 'Fecha o que estiver aberto por cima'],
+        ['1 2 3', 'Densidade da grade: 1, 2 ou 3 colunas'],
+        ['Enter', 'No campo de feature, o mesmo que <b>Nova sessão</b>'],
       ]),
+      p('As teclas <b>1</b>, <b>2</b> e <b>3</b> são ignoradas enquanto você digita num campo de '
+        + 'texto ou dentro de um terminal — só valem quando o teclado não está em uso.'),
     ],
   },
   {
@@ -231,6 +291,7 @@ const SECOES = [
         ['A aplicação não sobe dentro do worktree', 'Falta o <code>.worktreeinclude</code> com o <code>.env</code>.'],
         ['Não consigo arquivar um worktree', 'A etiqueta dele diz o motivo: sessão viva, alteração sem commit ou commit fora da base.'],
         ['O painel abriu mas o comando não rodou', 'Pode estar na fila de partida. A etiqueta <b>na fila</b> aparece no cabeçalho; clique nela para começar agora.'],
+        ['Cliquei em Aprovar e nada aconteceu', 'O pedido não estava mais na tela do terminal — provavelmente já foi respondido. O app avisa e leva você até lá em vez de responder às cegas.'],
       ]),
       p('O servidor que recebe os avisos do Claude Code escuta em <code>127.0.0.1:{portaEventos}</code>, '
         + 'só nesta máquina. Com o app fechado, os hooks falham em silêncio e não atrapalham suas sessões.'),
@@ -264,6 +325,22 @@ function montarBloco(b) {
       const li = document.createElement('li');
       li.innerHTML = preencher(item);
       el.append(li);
+    }
+    return el;
+  }
+  if (b.tipo === 'teclas') {
+    const el = document.createElement('div');
+    el.className = 'ajuda-teclas';
+    for (const [k, texto] of b.pares) {
+      const linha = document.createElement('div');
+      linha.className = 'ajuda-tecla';
+      const caixa = document.createElement('span');
+      caixa.className = 'ajuda-tecla-caixa mono';
+      caixa.textContent = k;
+      const desc = document.createElement('span');
+      desc.innerHTML = preencher(texto);
+      linha.append(caixa, desc);
+      el.append(linha);
     }
     return el;
   }
@@ -346,11 +423,14 @@ function fecharAjuda() {
 
 btnAjuda?.addEventListener('click', () => abrirAjuda());
 btnAjudaFechar?.addEventListener('click', fecharAjuda);
-elAjuda?.addEventListener('click', (ev) => { if (ev.target === elAjuda) fecharAjuda(); });
+
+// Esc e clique-fora vem do registro unico (casca.js), que fecha so o overlay
+// do topo -- com a paleta aberta por cima da ajuda, um Esc nao pode fechar as
+// duas de uma vez.
+window.OrqOverlays?.registrar(elAjuda, fecharAjuda);
 
 window.addEventListener('keydown', (ev) => {
   if (ev.key === 'F1') { ev.preventDefault(); elAjuda.hidden ? abrirAjuda() : fecharAjuda(); }
-  if (ev.key === 'Escape' && !elAjuda.hidden) fecharAjuda();
 });
 
 // Quem chega numa grade vazia precisa saber por onde comecar.

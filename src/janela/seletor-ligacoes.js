@@ -108,7 +108,6 @@ async function desenharSeletor() {
 }
 
 btnSeletorFechar?.addEventListener('click', fecharSeletor);
-elSeletor?.addEventListener('click', (ev) => { if (ev.target === elSeletor) fecharSeletor(); });
-window.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && !elSeletor.hidden) fecharSeletor(); });
+window.OrqOverlays?.registrar(elSeletor, fecharSeletor);
 
 window.OrqSeletorLigacoes = { abrir: abrirSeletor, fechar: fecharSeletor, desenhar: desenharSeletor };
