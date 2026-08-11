@@ -70,11 +70,15 @@ const SECOES = [
     blocos: [
       p('Clicar num projeto abre um painel na pasta dele e roda o Claude. O que roda depende do campo '
         + 'de feature:'),
-      tabela(['Campo de feature', 'O que acontece'], [
-        ['com nome', 'Roda <code>claude -w nome</code>: cria um worktree isolado para a feature. '
-          + 'O nome é limpo automaticamente (acento e símbolo viram tracinho), porque ele vira nome de branch.'],
+      tabela(['Campo do nome', 'O que acontece'], [
+        ['com nome', 'Roda <code>claude -w nome</code>: cria um worktree isolado. O nome é limpo '
+          + 'automaticamente (acento e símbolo viram tracinho), porque ele vira nome de branch. '
+          + 'A dica ao lado do campo mostra o nome exato do worktree e do branch antes de você clicar.'],
         ['vazio', 'Roda <code>claude</code> na pasta do projeto, sem worktree.'],
       ]),
+      aviso('O <b>branch</b> criado se chama <code>worktree-&lt;nome&gt;</code>. Esse prefixo é do '
+        + 'próprio Claude Code — a flag <code>-w</code> aceita só o nome, e não o nome do branch. '
+        + 'O app mostra o resultado na dica em vez de esconder.'),
       p('<b>Nova sessão</b> (ou <b>Enter</b> no campo de feature) abre no último projeto que você '
         + 'usou. <b>Painel avulso</b> abre um seletor de pasta, para trabalhar em qualquer lugar '
         + 'sem cadastrar projeto.'),

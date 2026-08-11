@@ -118,6 +118,11 @@ abre o diff.
 
 ## 3. Colar prompt em várias sessões de uma vez
 
+> **FEITO.** `src/janela/enviar-varias.js`, aberto pela paleta. A ressalva abaixo virou interface: a
+> contagem aparece antes de enviar, e quem está `rodando` vem marcado. O envio é sequencial com
+> respiro entre sessões — cinco TUIs recebendo Enter no mesmo milissegundo é a rajada que a fila da
+> Fase 6 existe para evitar.
+
 O mais barato de todos. `escrever(id, texto)` já existe; falta uma caixa de texto e a seleção de
 quais painéis.
 

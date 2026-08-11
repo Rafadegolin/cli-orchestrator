@@ -762,15 +762,19 @@ async function soltar(cdp) {
     hist.visivel && (hist.tabela || hist.vazio), JSON.stringify(hist));
 
   // Botao de fechar fora do seletor de estilo aparece como botao branco do
-  // sistema no meio da tela. Aconteceu com o historico; agora e conferido.
+  // sistema no meio da tela. Aconteceu duas vezes (historico e envio em lote).
+  //
+  // A checagem VARRE o documento em vez de conferir uma lista: assim o proximo
+  // overlay entra sozinho, e nao ha lista para alguem esquecer de atualizar --
+  // que foi exatamente como as duas primeiras passaram.
   const fechares = JSON.parse(await cdp.avaliar(`JSON.stringify(
-    ['ajuda-fechar', 'seletor-fechar', 'historico-fechar', 'diff-fechar'].map(id => {
-      const e = document.getElementById(id);
+    [...document.querySelectorAll('[id$="-fechar"]')].map(e => {
       const s = getComputedStyle(e);
-      return { id, borda: s.borderRadius, fundo: s.backgroundColor };
+      return { id: e.id, borda: s.borderRadius };
     }))`));
-  checar('todo overlay fecha com o mesmo botao, nenhum sem estilo',
-    fechares.every((f) => f.borda === '8px'), JSON.stringify(fechares.filter((f) => f.borda !== '8px')));
+  checar('todo botao de fechar tem estilo, e ha mais de um',
+    fechares.length >= 4 && fechares.every((f) => f.borda === '8px'),
+    JSON.stringify(fechares.filter((f) => f.borda !== '8px')) + ` (${fechares.length} botoes)`);
   if (hist.tabela) {
     checar('com as colunas que respondem "valeu a pena?"',
       hist.colunas.includes('Trabalhando') && hist.colunas.includes('Esperando você')
@@ -839,6 +843,105 @@ async function soltar(cdp) {
   checar('o diff fecha limpando o estado',
     await cdp.avaliar(`document.getElementById('diff').hidden`) === true
     && await cdp.avaliar(`window.OrqDiff.arquivos().length`) === 0, '');
+
+  // --- 16. o campo diz a verdade sobre o branch --------------------------
+  //
+  // O `feat/` que ficava no campo era decoracao do prototipo e nunca chegou a
+  // branch nenhum: quem nomeia e o `claude -w`, sempre como `worktree-<nome>`.
+  const campo = JSON.parse(await cdp.avaliar(`(() => {
+    const i = document.getElementById('nome-feature');
+    i.value = 'auth refresh';
+    i.dispatchEvent(new Event('input'));
+    const dica = document.getElementById('barra-dica').textContent;
+    i.value = '';
+    i.dispatchEvent(new Event('input'));
+    return JSON.stringify({
+      dica,
+      vazia: document.getElementById('barra-dica').textContent,
+      prefixo: Boolean(document.querySelector('.campo-feature .prefixo')),
+    });
+  })()`));
+  checar('nao ha mais prefixo no campo', campo.prefixo === false, '');
+  checar('e a dica cita o nome real do branch',
+    campo.dica.includes('worktree-auth-refresh') && !campo.dica.includes('feat/'), campo.dica);
+  checar('sem nome, a dica diz que nao havera worktree',
+    /sem criar worktree/.test(campo.vazia), campo.vazia);
+
+  // --- 17. enviar para varias sessoes -------------------------------------
+  await zerarGrade(cdp);
+  const lote = {};
+  for (const f of ['lote-a', 'lote-b']) {
+    lote[f] = await cdp.avaliar(`(async () => { const p = await window.OrqGrade.criarPainel(
+      { cwd: ${JSON.stringify(RAIZ)}, feature: ${JSON.stringify(f)} }); return p.id; })()`);
+    await esperar(500);
+  }
+  await esperar(2500);
+
+  await cdp.avaliar(`window.OrqEnviarVarias.abrir()`);
+  await esperar(500);
+  const lista = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    itens: document.querySelectorAll('.enviar-item').length,
+    candidatas: window.OrqEnviarVarias.candidatas().length,
+    aviso: document.getElementById('enviar-aviso').textContent,
+    botaoTravado: document.getElementById('enviar-confirmar').disabled,
+  })`));
+  checar('lista as sessoes vivas', lista.itens === 2 && lista.candidatas === 2, JSON.stringify(lista));
+  checar('sem escolha nenhuma, o envio fica travado',
+    lista.botaoTravado === true && /ao menos uma/.test(lista.aviso), lista.aviso);
+
+  // Painel dormindo nao tem para onde escrever: nao entra na lista.
+  await cdp.avaliar(`(() => { const p = window.OrqPainel.painelPorId.get(${JSON.stringify(lote['lote-b'])});
+    p.mostrarDormindo({ aoRetomar: () => {} }); return 'ok'; })()`);
+  await cdp.avaliar(`window.OrqEnviarVarias.selecionar('todas')`);
+  await esperar(400);
+  checar('painel dormindo fica de fora',
+    await cdp.avaliar(`window.OrqEnviarVarias.candidatas().length`) === 1, '');
+  await cdp.avaliar(`(() => { const p = window.OrqPainel.painelPorId.get(${JSON.stringify(lote['lote-b'])});
+    p.acordou(); return 'ok'; })()`);
+
+  // A contagem antes de enviar: cinco sessoes e cinco vezes o custo.
+  await cdp.avaliar(`window.OrqEnviarVarias.selecionar('todas')`);
+  await esperar(400);
+  const aviso = await cdp.avaliar(`document.getElementById('enviar-aviso').textContent`);
+  checar('avisa quantas sessoes e quantas execucoes antes de enviar',
+    /2 sess[õo]es/.test(aviso) && /2 execu/.test(aviso), aviso);
+
+  // O TESTE QUE IMPORTA: chega no terminal certo, e nos dois escolhidos.
+  await cdp.avaliar(`document.getElementById('enviar-texto').value = 'echo ORQ_LOTE_9911'`);
+  await cdp.avaliar(`(async () => { await window.OrqEnviarVarias.enviar(); return 'ok'; })()`);
+
+  const chegou = async (id) => {
+    for (let i = 0; i < 40; i++) {
+      const tem = await cdp.avaliar(`window.OrqPainel.painelPorId.get(${JSON.stringify(id)})
+        .textoDoBuffer().includes('ORQ_LOTE_9911')`);
+      if (tem) return true;
+      await esperar(250);
+    }
+    return false;
+  };
+  checar('o texto chegou na primeira sessao', await chegou(lote['lote-a']), '');
+  checar('e tambem na segunda', await chegou(lote['lote-b']), '');
+
+  // E nao vazou para quem nao foi escolhido.
+  const idFora = await cdp.avaliar(`(async () => { const p = await window.OrqGrade.criarPainel(
+    { cwd: ${JSON.stringify(RAIZ)}, feature: 'lote-fora' }); return p.id; })()`);
+  await esperar(2500);
+  await cdp.avaliar(`window.OrqEnviarVarias.abrir()`);
+  await cdp.avaliar(`window.OrqEnviarVarias.selecionar('nenhuma')`);
+  await cdp.avaliar(`(() => { [...window.OrqEnviarVarias.candidatas()]
+    .filter(p => p.feature === 'lote-a')
+    .forEach(p => document.querySelector('.enviar-item[data-id="' + CSS.escape(p.id) + '"]').click());
+    return 'ok'; })()`);
+  await cdp.avaliar(`document.getElementById('enviar-texto').value = 'echo ORQ_SO_UM_7788'`);
+  await cdp.avaliar(`(async () => { await window.OrqEnviarVarias.enviar(); return 'ok'; })()`);
+  await esperar(3000);
+
+  const soUm = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    escolhido: window.OrqPainel.painelPorId.get(${JSON.stringify(lote['lote-a'])}).textoDoBuffer().includes('ORQ_SO_UM_7788'),
+    vizinho: window.OrqPainel.painelPorId.get(${JSON.stringify(idFora)}).textoDoBuffer().includes('ORQ_SO_UM_7788'),
+  })`));
+  checar('so o painel escolhido recebe, sem vazar para o vizinho',
+    soUm.escolhido && !soUm.vizinho, JSON.stringify(soUm));
 
   await zerarGrade(cdp);
   await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 2, ordem: 'urgencia' })`);

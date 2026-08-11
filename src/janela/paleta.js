@@ -77,6 +77,16 @@
       });
     }
 
+    const vivas = window.OrqEnviarVarias?.candidatas().length || 0;
+    if (vivas > 1) {
+      lista.push({
+        tag: 'todas',
+        rotulo: `Enviar um prompt para várias sessões (${vivas} vivas)`,
+        dica: '',
+        correr: () => window.OrqEnviarVarias.abrir(),
+      });
+    }
+
     const dormindo = window.OrqGrade?.dormindos?.().length || 0;
     if (dormindo) {
       lista.push({

@@ -179,12 +179,17 @@
 
   // ---------------------------------------------------------------- dica
 
+  // A dica diz o que VAI ACONTECER de verdade, incluindo o nome do branch.
+  //
+  // O `worktree-` nao e nosso: e o `claude -w` que o poe, e nao ha opcao para
+  // mudar isso (medido: a flag aceita `[name]` e mais nada). Mostrar aqui e o
+  // que evita a surpresa de procurar um branch que tem outro nome.
   function atualizarDica() {
     const bruto = (elCampo.value || '').trim();
     const slug = window.OrqProjetos ? window.OrqProjetos.slugFeature(bruto) : bruto;
     elDica.textContent = slug
-      ? `cria worktree feat/${slug}`
-      : 'sem nome de feature, roda na pasta do projeto';
+      ? `cria o worktree ${slug} · branch worktree-${slug}`
+      : 'sem nome, roda na pasta do projeto sem criar worktree';
   }
 
   // ------------------------------------------------------------- eventos

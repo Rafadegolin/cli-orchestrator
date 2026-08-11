@@ -322,6 +322,36 @@ cabem nome e tres chips. Ali entra `container-type: inline-size` no `.painel` e 
 esconde, por prioridade, a pill e o chip de ligar, depois a porta. Nome e fechar nunca saem: um
 identifica o painel, o outro e a saida.
 
+## O nome da sessao e o nome do branch
+
+O campo do topo nao tem prefixo, e a dica ao lado mostra **o nome real** do worktree e do branch
+antes de voce clicar.
+
+O `feat/` que ficava ali veio do prototipo e **nunca chegou a branch nenhum**: quem nomeia e o
+`claude -w`, que sempre monta `worktree-<nome>`. Medido: a flag aceita `[name]` e mais nada, sem
+opcao de dizer o branch. A tela prometia `feat/auth-refresh` e o git recebia `worktree-auth-refresh`.
+
+Dar o nome exato exigiria o app criar o worktree (`git worktree add -b`) em vez do CLI — e isso
+custaria as duas coisas que o `-w` faz junto: a **trava com o PID** no lock (de onde sai o "aberto
+agora" da lateral) e a copia do `.worktreeinclude`. Nao vale; mostrar a verdade vale.
+
+O `slugFeature` continua limpando o nome: ele ainda vai para uma linha de comando de shell e para um
+ref do git.
+
+## Enviar um prompt para varias sessoes
+
+`src/janela/enviar-varias.js`. Reusa `OrqLigacoes.enviarLinha`, que ja sabe que a TUI do Claude
+precisa do Enter separado do texto.
+
+- **Envio SEQUENCIAL, com respiro entre sessoes**, nunca `Promise.all`: cinco TUIs recebendo Enter no
+  mesmo milissegundo e a rajada que a fila da Fase 6 existe para evitar.
+- **A contagem aparece antes de enviar.** Cinco sessoes e cinco vezes o custo em tokens e cinco
+  execucoes paralelas, e **a fila da Fase 6 nao cobre isso** — ela controla a partida do painel, nao
+  o que voce digita depois.
+- **Sessao em `rodando` vem marcada.** O texto entra na fila do stdin e atrapalha o que ela esta
+  fazendo. Nao e proibido; so nao acontece sem voce ver.
+- Dormindo e encerrada ficam de fora: nao ha para onde escrever.
+
 ## Historico de tempo por feature
 
 `src/main/historico.js`. Grava em `~/.orquestrador/historico.jsonl`: **uma linha JSON por transicao,

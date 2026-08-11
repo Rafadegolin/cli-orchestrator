@@ -64,9 +64,9 @@ portas dele. Fica salvo, e vale também para os worktrees desse projeto.
 **Ache tudo com `Ctrl+K`.** A paleta de comandos pula para qualquer sessão, abre uma nova em qualquer
 projeto, troca o tema e abre a ajuda — sem procurar na tela. A busca ignora acento.
 
-**Abra uma sessão.** Digite o nome da feature no campo de cima e clique no projeto. O painel abre na
-pasta certa e sobe `claude -w nome-da-feature`, que cria o worktree isolado. Sem nome de feature, abre
-`claude` direto na pasta do projeto.
+**Abra uma sessão.** Digite o nome no campo de cima e clique no projeto. A dica ao lado mostra
+exatamente o que vai ser criado — o worktree e o branch — antes de você clicar. Sem nome, abre
+`claude` direto na pasta do projeto, sem worktree.
 
 **Retome o trabalho de ontem.** A seta ao lado do projeto lista os worktrees existentes. Um clique
 abre o painel dentro dele continuando a última conversa. A etiqueta diz o que impede arquivar cada

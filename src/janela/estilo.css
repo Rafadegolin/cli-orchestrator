@@ -778,21 +778,13 @@ button:focus-visible, input:focus-visible {
   min-width: 208px;
 }
 
-.campo-feature .prefixo {
-  position: absolute;
-  left: 12px;
-  font-size: 10px;
-  color: var(--fg3);
-  pointer-events: none;
-}
-
 #nome-feature {
   width: 100%;
   min-width: 0;
   background: var(--bg2);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 9px 12px 9px 44px;
+  padding: 9px 12px;
   font-family: var(--mono);
   font-size: 12.5px;
 }
@@ -1480,6 +1472,102 @@ button.primario:hover {
   color: var(--fg3);
 }
 
+/* -------------------------------------------------- enviar para varias */
+
+.enviar-caixa {
+  width: 620px;
+  max-width: 92vw;
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg1);
+  border: 1px solid var(--line2);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  animation: orqPop .24s ease;
+}
+
+.enviar-corpo {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+#enviar-texto {
+  width: 100%;
+  resize: vertical;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#enviar-texto:focus { border-color: var(--acc); outline: none; }
+#enviar-texto::placeholder { color: var(--fg3); }
+
+.enviar-atalhos {
+  display: flex;
+  gap: 6px;
+  margin: 12px 0 10px 0;
+  flex-wrap: wrap;
+}
+
+.enviar-atalhos button {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--fg2);
+  font-size: 11px;
+  padding: 5px 10px;
+}
+
+.enviar-atalhos button:hover { border-color: var(--line2); color: var(--fg); }
+
+#enviar-lista { margin: 0; padding: 0; list-style: none; }
+
+.enviar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 10px;
+  margin-bottom: 5px;
+  cursor: pointer;
+  background: var(--bg2);
+}
+
+.enviar-item:hover { border-color: var(--line2); }
+.enviar-item.escolhida { border-color: var(--acc); background: var(--accd); }
+
+.enviar-marca {
+  flex: 0 0 14px;
+  width: 14px;
+  color: var(--acc);
+  font-size: 11px;
+}
+
+.enviar-nome { flex: 1 1 0; min-width: 0; font-size: 12.5px; font-weight: 600; }
+.enviar-estado { flex: 0 0 auto; font-size: 10px; color: var(--fg3); }
+.enviar-ocupada { color: var(--warn); }
+
+.enviar-aviso {
+  margin: 12px 0 0 0;
+  font-size: 11.5px;
+  color: var(--fg3);
+  line-height: 1.5;
+}
+
+.enviar-cuidado { color: var(--warn); }
+
+.enviar-acoes { padding: 0 20px 18px 20px; }
+
 /* ------------------------------------------------------------ historico */
 
 #placar { cursor: pointer; }
@@ -1758,10 +1846,11 @@ button.primario:hover {
   letter-spacing: -.02em;
 }
 
-/* Todo overlay fecha do mesmo jeito. Quando o botao de um deles fica de fora
-   deste seletor, ele aparece como um botao branco do sistema no meio da tela
-   -- foi o que aconteceu com o historico. */
-#ajuda-fechar, #seletor-fechar, #historico-fechar, #diff-fechar {
+/* Todo overlay fecha do mesmo jeito.
+   Seletor por SUFIXO do id, e nao lista de ids: overlay novo entra sozinho.
+   Com a lista, o botao do que faltasse aparecia como um botao branco do
+   sistema no meio da tela -- aconteceu duas vezes antes desta regra. */
+[id$="-fechar"] {
   margin-left: auto;
   width: 26px;
   height: 26px;
@@ -1773,8 +1862,7 @@ button.primario:hover {
   line-height: 1;
 }
 
-#ajuda-fechar:hover, #seletor-fechar:hover,
-#historico-fechar:hover, #diff-fechar:hover { color: var(--danger); border-color: var(--danger); }
+[id$="-fechar"]:hover { color: var(--danger); border-color: var(--danger); }
 
 .ajuda-conteudo {
   flex: 1;

@@ -86,9 +86,11 @@
 
     <main id="principal">
       <div id="barra">
+        <!-- Sem prefixo: o nome que voce digita e o nome inteiro. O `feat/` que
+             ficava aqui era decoracao do prototipo e nunca chegou a branch
+             nenhum -- quem nomeia o branch e o `claude -w`. -->
         <div class="campo-feature">
-          <span class="mono prefixo">feat/</span>
-          <input id="nome-feature" type="text" placeholder="nome-da-feature" spellcheck="false" />
+          <input id="nome-feature" type="text" placeholder="nome da sessão" spellcheck="false" />
         </div>
         <button id="btn-nova-sessao" class="primario"><span class="mais">+</span>Nova sessão</button>
         <button id="btn-novo">Painel avulso</button>
@@ -114,7 +116,7 @@
           <div class="vazio-marca"><span></span></div>
           <div class="vazio-texto">
             <h2>Nenhuma sessão aberta</h2>
-            <p>Cadastre um repositório, digite o nome da feature e o Orquestrador cria o worktree,
+            <p>Cadastre um repositório, digite o nome da sessão e o Orquestrador cria o worktree,
               reserva a faixa de portas e sobe o Claude sozinho.</p>
           </div>
           <div class="vazio-acoes">
@@ -138,6 +140,33 @@
       <input id="paleta-busca" type="text" spellcheck="false"
              placeholder="Digite um comando ou nome de sessão…" />
       <ol id="paleta-lista"></ol>
+    </div>
+  </div>
+
+  <div id="enviar-varias" class="overlay" hidden>
+    <div class="enviar-caixa">
+      <div class="ajuda-topo">
+        <h2>Enviar para várias sessões</h2>
+        <button id="enviar-fechar" title="Fechar (Esc)">&times;</button>
+      </div>
+      <div class="enviar-corpo">
+        <textarea id="enviar-texto" rows="4" spellcheck="false"
+                  placeholder="O que mandar para as sessões escolhidas…"></textarea>
+
+        <div class="enviar-atalhos">
+          <button data-alvo="todas">Todas</button>
+          <button data-alvo="esperando">As que esperam</button>
+          <button data-alvo="ligadas">As ligadas à focada</button>
+          <button data-alvo="nenhuma">Nenhuma</button>
+        </div>
+
+        <ol id="enviar-lista"></ol>
+        <p class="enviar-aviso" id="enviar-aviso"></p>
+      </div>
+      <div class="modal-acoes enviar-acoes">
+        <button id="enviar-confirmar" class="primario">Enviar</button>
+        <button id="enviar-cancelar">Cancelar</button>
+      </div>
     </div>
   </div>
 
@@ -234,4 +263,5 @@
 <script src="modal-projeto.js"></script>
 <script src="historico.js"></script>
 <script src="diff.js"></script>
+<script src="enviar-varias.js"></script>
 <script src="paleta.js"></script>
