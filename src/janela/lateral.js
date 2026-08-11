@@ -193,6 +193,18 @@ btnRetomarTodas?.addEventListener('click', async () => {
 function mostrarAtualizacao(s) {
   if (!btnAtualizar) return;
 
+  // No portatil nao ha instalador para aplicar: o botao vira "baixar", e leva
+  // para a pagina da release onde esta o zip novo.
+  if (s.portatil && s.disponivel) {
+    btnAtualizar.hidden = false;
+    btnAtualizar.disabled = false;
+    btnAtualizar.textContent = `Baixar a versao ${s.disponivel}`;
+    btnAtualizar.title = 'Abre a pagina da release. Baixe o zip, desbloqueie antes de extrair, '
+      + 'e substitua a pasta atual.';
+    btnAtualizar.className = 'atualizar-pronta';
+    return;
+  }
+
   if (s.baixada) {
     btnAtualizar.hidden = false;
     btnAtualizar.disabled = false;

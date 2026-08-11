@@ -101,13 +101,20 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
   binario do `node-pty` e Node-API.
 - **`verifyUpdateCodeSignature: false`.** O padrao e `true` e, sem certificado, rejeitaria toda
   atualizacao baixada.
-- **O app NAO e assinado, e no Windows 11 com Smart App Control ligado isso BLOQUEIA a instalacao** —
+- **O app NAO e assinado, e no Windows 11 com Smart App Control ligado o INSTALADOR e bloqueado** —
   sem botao de contornar. Nao e o SmartScreen: o log do Code Integrity acusa
   `did not meet the Enterprise signing level requirements`. Certificado autoassinado **nao** resolve
   (o SAC so aceita CA do Microsoft Trusted Root Program, e so RSA), e o Azure Trusted Signing nao
-  atende o Brasil. Diagnostico com `npm run diagnostico`; opcoes em
-  `docs/instalacao-e-assinatura.md`. O build ja aceita `CSC_LINK`/`CSC_KEY_PASSWORD` quando houver
-  certificado.
+  atende o Brasil.
+- **Por isso a release traz tambem um zip portatil**, que e o caminho gratuito. Medido: o SAC barrou
+  o instalador NSIS, **nao** o executavel do Electron. E desbloquear o zip antes de extrair faz os
+  arquivos saírem sem Mark of the Web nenhum.
+- **No portatil o updater muda de comportamento**: aplicar exigiria rodar o instalador bloqueado,
+  entao ele nem baixa — o aviso vira "Baixar a versao X" e abre a pagina da release. A deteccao e a
+  ausencia do desinstalador ao lado do executavel (o NSIS deixa um; o zip nao).
+- `npm run diagnostico` responde assinatura, estado do SAC, MOTW e o evento do Code Integrity de uma
+  vez. Opcoes e passo a passo em `docs/instalacao-e-assinatura.md`. O build ja aceita
+  `CSC_LINK`/`CSC_KEY_PASSWORD` se um dia houver certificado.
 - **A janela carrega o xterm por `<script src="../../node_modules/...">`**, caminho que no app
   empacotado resolve **dentro do asar**. Funciona, mas e frageis a mudancas em `files:` — se a janela
   subir em branco no instalador, e aqui.

@@ -6,9 +6,32 @@
 // por conta propria mataria os painéis abertos no meio de uma tarefa. Entao o
 // download acontece sozinho, mas quem decide aplicar e sempre o usuario.
 
-const { app, dialog, Notification } = require('electron');
+const { app, dialog, Notification, shell } = require('electron');
+const fs = require('fs');
+const path = require('path');
 
 const terminais = require('./terminais');
+
+const PAGINA_RELEASES = 'https://github.com/Rafadegolin/cli-orchestrator/releases/latest';
+
+// Instalado pelo NSIS ou rodando a partir do zip portatil?
+//
+// Importa porque o updater aplica a atualizacao rodando o INSTALADOR, e e
+// exatamente o instalador que o Smart App Control bloqueia enquanto o app nao
+// for assinado. Para quem usa o portatil, oferecer "atualizar e reiniciar"
+// seria mandar a pessoa para um beco sem saida.
+//
+// O NSIS deixa o desinstalador ao lado do executavel; o zip nao tem nenhum.
+function ehPortatil() {
+  try {
+    const pasta = path.dirname(process.execPath);
+    const temDesinstalador = fs.readdirSync(pasta)
+      .some((n) => /^Uninstall .*\.exe$/i.test(n));
+    return !temDesinstalador;
+  } catch {
+    return false;
+  }
+}
 
 // 4h entre checagens, com UM intervalo so. E raro sair versao nova, e acordar a
 // CPU para consultar o GitHub o tempo todo contraria a meta de consumo parado.
@@ -28,6 +51,7 @@ const situacao = {
   disponivel: null,
   baixada: false,
   percentual: 0,
+  portatil: false,
 };
 
 function avisarJanela() {
@@ -38,6 +62,8 @@ function avisarJanela() {
 
 function iniciar(j) {
   janela = j;
+
+  situacao.portatil = ehPortatil();
 
   // Fora de um app empacotado nao ha o que consultar: o electron-updater
   // precisa do app.asar e do arquivo de metadados que o electron-builder gera.
@@ -60,11 +86,11 @@ function iniciar(j) {
     debug: () => {},
   };
 
-  // Baixa sozinho em segundo plano; instalar continua sendo decisao do usuario.
-  atualizador.autoDownload = true;
-  // Se o usuario fechar o app normalmente, aplica na saida -- ai nao ha sessao
-  // viva para atrapalhar.
-  atualizador.autoInstallOnAppQuit = true;
+  // No portatil, baixar o instalador nao serve para nada: aplicar exigiria
+  // roda-lo, e e ele que o Smart App Control bloqueia. Melhor so avisar e
+  // mandar para a pagina da release, onde esta o zip novo.
+  atualizador.autoDownload = !situacao.portatil;
+  atualizador.autoInstallOnAppQuit = !situacao.portatil;
 
   atualizador.on('update-available', (info) => {
     situacao.disponivel = info?.version || null;
@@ -131,6 +157,13 @@ function notificar() {
 // quantos painéis vao morrer -- reiniciar com seis sessoes do Claude no meio de
 // uma tarefa e exatamente o que nao pode acontecer sem aviso.
 async function aplicar() {
+  // Portatil: nao ha instalador para rodar. Abre a pagina da release para
+  // baixar o zip novo, que e o caminho que de fato funciona.
+  if (situacao.portatil) {
+    await shell.openExternal(PAGINA_RELEASES);
+    return { aplicado: false, portatil: true, abriu: PAGINA_RELEASES };
+  }
+
   if (!atualizador || !situacao.baixada) return { aplicado: false };
 
   const abertos = terminais.idsAbertos().length;

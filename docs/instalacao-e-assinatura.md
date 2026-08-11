@@ -36,7 +36,39 @@ SAC, Mark of the Web e o evento do log.
   [só atende organizações dos EUA, Canadá, UE e Reino Unido](https://learn.microsoft.com/en-us/azure/artifact-signing/faq).
   Brasil não está na lista e não há previsão.
 
-## O que resolve
+## A saída grátis: versão portátil em ZIP
+
+**É o caminho recomendado enquanto não houver certificado.** Cada release traz, além do instalador,
+um `Orquestrador-X.Y.Z-portatil.zip`.
+
+Medido nesta máquina, com o SAC ligado: o bloqueio atingiu o **instalador NSIS**, e não o executável
+do Electron — o mesmo binário do app, com Mark of the Web aplicado, abriu sem nenhum bloqueio no
+Code Integrity.
+
+E há um detalhe que torna isso robusto: **desbloquear o zip antes de extrair** faz os arquivos
+saírem sem Mark of the Web nenhum.
+
+### Como instalar
+
+1. Baixe o `...-portatil.zip` da [página de releases](https://github.com/Rafadegolin/cli-orchestrator/releases/latest).
+2. **Antes de extrair**, desbloqueie: botão direito no zip → Propriedades → marque **Desbloquear** → OK.
+   (Ou no PowerShell: `Unblock-File caminho\do\arquivo.zip`)
+3. Extraia para onde quiser, por exemplo `C:\Ferramentas\Orquestrador`.
+4. Rode `Orquestrador.exe`. Se quiser atalho, crie um manualmente.
+
+O passo 2 é o que importa. Extrair sem desbloquear propaga o Mark of the Web para os arquivos.
+
+### O que se perde
+
+**A auto-atualização não se aplica sozinha.** Aplicar exigiria rodar o instalador, que é justamente o
+que está bloqueado. O app detecta que está rodando em modo portátil (não há desinstalador ao lado do
+executável) e, em vez de baixar, o aviso vira **"Baixar a versão X"**, abrindo a página da release.
+Atualizar passa a ser: baixar o zip novo, desbloquear, extrair por cima.
+
+Os seus dados não moram na pasta do app — projetos, sessão e porta ficam em `~/.orquestrador` —,
+então substituir a pasta não perde nada.
+
+## O que resolve de forma definitiva
 
 ### 1. Desligar o Smart App Control — grátis, imediato, e sem volta
 
@@ -93,7 +125,8 @@ assinatura for ECC.
 
 ## Recomendação
 
-Para **você trabalhar hoje**: desligar o SAC nesta máquina, ciente de que não volta.
+**Use o zip portátil.** Custa zero, não exige mexer na segurança da máquina e não tem volta atrás
+como desligar o SAC teria. O preço é atualizar à mão, que são três passos a cada versão.
 
-Para **distribuir para a equipe**: certificado OV. O EV só se valer a pena pagar a mais para não
-enfrentar também o aviso do SmartScreen enquanto a reputação não se forma.
+Certificado OV só se um dia o app for distribuído para fora da equipe, ou se atualizar à mão passar
+a incomodar.

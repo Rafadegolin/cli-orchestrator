@@ -30,9 +30,22 @@ asarUnpack:
   - '**/node_modules/node-pty/**'
 
 win:
-  target: nsis
+  # Dois formatos de proposito:
+  #
+  #   nsis -- o instalador de verdade, com atalho e auto-atualizacao. E o que o
+  #           Smart App Control BLOQUEIA enquanto o app nao for assinado.
+  #   zip  -- a saida gratuita: baixar, DESBLOQUEAR o zip, extrair e rodar.
+  #           Desbloquear antes de extrair faz os arquivos saírem sem Mark of
+  #           the Web, e o executavel do app roda normalmente (medido: o SAC
+  #           barrou o instalador, nao o exe do Electron).
+  #
+  # Ver docs/instalacao-e-assinatura.md.
+  target:
+    - nsis
+    - zip
   icon: recursos/icone.ico
-  artifactName: ${productName}-${version}-instalador.${ext}
+  # Vale para o zip; o nsis tem o proprio nome mais abaixo.
+  artifactName: ${productName}-${version}-portatil.${ext}
 
   # ASSINATURA -- ver docs/instalacao-e-assinatura.md
   #
@@ -57,6 +70,7 @@ win:
   verifyUpdateCodeSignature: false
 
 nsis:
+  artifactName: ${productName}-${version}-instalador.${ext}
   # Um clique, por usuario: instala em %LOCALAPPDATA% sem pedir UAC, e por isso
   # as atualizacoes tambem se aplicam sem prompt de administrador.
   oneClick: true
