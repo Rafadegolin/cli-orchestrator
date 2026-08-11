@@ -1251,6 +1251,86 @@ button.primario:hover {
 
 .card .bolinha { width: 6px; height: 6px; flex: 0 0 6px; }
 
+/* ================================================================= mapa */
+
+/* No mapa a grade deixa de ser grade: vira uma tela onde cada painel tem
+   lugar proprio. Os painéis sao OS MESMOS elementos -- trocar de modo nao
+   recria nada, senao os terminais morreriam. */
+#app[data-modo="mapa"] #grade {
+  display: block;
+  position: relative;
+  min-width: 100%;
+  min-height: 100%;
+}
+
+#app[data-modo="mapa"] .painel {
+  position: absolute;
+  width: 420px;
+  height: 300px;
+}
+
+#app[data-modo="mapa"] .painel:hover { transform: none; }
+#app[data-modo="mapa"] .painel-cab { cursor: grab; }
+#app[data-modo="mapa"] .painel.arrastando { cursor: grabbing; z-index: 5; }
+
+#mapa-linhas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.mapa-linha {
+  stroke: var(--acc);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+  opacity: .55;
+}
+
+/* --- visao geral: o terminal e TROCADO por um cartao ---------------------
+
+   Nao ha `transform: scale()` em lugar nenhum aqui, de proposito: escalar
+   borra o texto do xterm e nao re-rasteriza a textura do WebGL. O corpo do
+   painel some e sobra o cabecalho, que ja tem tudo que um cartao precisa --
+   bolinha, nome, projeto e status. Nada se perde: painel sem area visivel ja
+   acumula a saida num buffer desde a Fase 6.1. */
+#app[data-modo="mapa"][data-visao="geral"] .painel {
+  width: 260px;
+  height: auto;
+}
+
+#app[data-modo="mapa"][data-visao="geral"] .painel-term,
+#app[data-modo="mapa"][data-visao="geral"] .painel-rodape {
+  display: none;
+}
+
+#app[data-modo="mapa"][data-visao="geral"] .painel-cab {
+  border-bottom: none;
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+#btn-visao {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--fg3);
+  font-size: 11px;
+  padding: 6px 10px;
+}
+
+#btn-visao:hover { color: var(--fg2); border-color: var(--line2); }
+#btn-visao.ativa { background: var(--bg3); color: var(--fg); border-color: var(--line2); }
+
+/* No mapa, densidade e ordenacao NAO FAZEM NADA: `--cols` nao se aplica a
+   elemento posicionado, e `style.order` idem. Controle que existe e nao muda
+   nada e pior que controle ausente -- entao eles somem, e o espaco fica para
+   os controles do mapa. */
+#app[data-modo="mapa"] #densidade,
+#app[data-modo="mapa"] #ordenacao { display: none; }
+
 /* ================================================================ vazio */
 
 #vazio {
@@ -2101,8 +2181,10 @@ button.primario:hover {
 
 /* A dica da toolbar e a primeira coisa a sair, como manda o doc 03: ela
    explica o que o campo ao lado ja mostra. Sem isto ela sozinha empurra a
-   ordenacao e a densidade para a segunda linha. */
-@media (max-width: 1180px) {
+   ordenacao e a densidade para a segunda linha.
+   O limite subiu de 1180 para 1320 quando os controles de modo entraram: uma
+   dica espremida em "sem no..." nao informa nada e ainda ocupa espaco. */
+@media (max-width: 1320px) {
   #barra-dica { display: none; }
   .campo-feature { min-width: 168px; }
 }

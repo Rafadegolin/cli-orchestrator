@@ -24,14 +24,16 @@ function novoId() {
 // contagem de painéis: um numero que muda sozinho a cada painel aberto e
 // exatamente o oposto de uma grade previsivel.
 function atualizarVazio() {
-  elVazio.hidden = elGrade.childElementCount > 0;
+  // Conta PAINEIS, nao filhos: o mapa deixa o <svg> das ligacoes dentro do
+  // #grade, e ele sozinho faria o app achar que ainda ha sessao aberta.
+  elVazio.hidden = porId.size > 0;
   // A grade mudou, entao a conta de "retomar todas" mudou junto. Sem isto o
   // botao ficava com o numero da restauracao para sempre -- fechei os quatro
   // painéis restaurados, abri quatro novos, e ele seguia dizendo "(4)".
   window.OrqLateral?.atualizarRetomarTodas?.();
 }
 
-async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponivel, ligacoes }) {
+async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponivel, ligacoes, x, y }) {
   const id = novoId();
 
   const painel = new OrqP.Painel({
@@ -51,6 +53,8 @@ async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponive
 
   painel.comandoInicial = comandoInicial || '';
   painel.ligacoes = Array.isArray(ligacoes) ? [...ligacoes] : [];
+  painel.x = Number.isFinite(x) ? x : null;
+  painel.y = Number.isFinite(y) ? y : null;
 
   elGrade.append(painel.el);
   atualizarVazio();
@@ -118,9 +122,13 @@ async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponive
 // Retrato do arranjo atual. Painel dormindo entra igual: ele faz parte do que
 // voce quer de volta amanha.
 function retratoSessao() {
-  return [...elGrade.children].map((el, ordem) => {
-    const p = porId.get(el.dataset.id);
-    return p ? {
+  // FILTRA PRIMEIRO, numera depois. O `#grade` nao tem so painéis dentro: o
+  // mapa deixa la o <svg> das ligacoes, e numerar pelo indice de todos os
+  // filhos empurrava a ordem de todo mundo em um.
+  return [...elGrade.children]
+    .map((el) => porId.get(el.dataset.id))
+    .filter(Boolean)
+    .map((p, ordem) => ({
       feature: p.feature,
       cwd: p.cwd,
       comandoInicial: p.comandoInicial || '',
@@ -128,8 +136,10 @@ function retratoSessao() {
       // sobrevive ao fechar e reabrir.
       ligacoes: p.ligacoes || [],
       ordem,
-    } : null;
-  }).filter(Boolean);
+      // Posicao no mapa, quando o painel ja foi arrastado alguma vez.
+      x: Number.isFinite(p.x) ? p.x : null,
+      y: Number.isFinite(p.y) ? p.y : null,
+    }));
 }
 
 // Debounce: abrir oito painéis nao pode virar oito gravacoes em disco.
@@ -193,6 +203,8 @@ async function restaurarSessao() {
       feature: s.feature,
       comandoInicial: s.comandoInicial,
       ligacoes: s.ligacoes,
+      x: s.x,
+      y: s.y,
       dormindo: true,
       indisponivel: !s.existe,
     });

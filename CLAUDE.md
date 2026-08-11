@@ -353,6 +353,33 @@ precisa do Enter separado do texto.
   fazendo. Nao e proibido; so nao acontece sem voce ver.
 - Dormindo e encerrada ficam de fora: nao ha para onde escrever.
 
+## O mapa
+
+`src/janela/mapa.js`. Modo alternativo a grade (`#app[data-modo]`), com os painéis posicionados
+livremente e as ligacoes desenhadas entre eles.
+
+**A regra que decide o desenho todo: o terminal NUNCA e escalado.** `transform: scale()` borra o
+xterm e nao re-rasteriza a textura do WebGL. Por isso nao ha zoom continuo, e sim dois estados: 1:1
+com painéis de verdade, e **visao geral** onde o painel vira cartao — o terminal e TROCADO, nao
+encolhido. Nada se perde: painel sem area visivel ja acumula a saida num buffer desde a Fase 6.1.
+
+- **Trocar de modo nao recria painel nenhum**: os painéis continuam no mesmo pai e so mudam de
+  posicionamento. Recriar destruiria os terminais.
+- Posicoes vao para o `sessao.json`, com `x`/`y` normalizados como os outros campos.
+- **No mapa, densidade e ordenacao somem da toolbar**: `--cols` nao se aplica a elemento posicionado
+  e `style.order` idem. Controle que existe e nao faz nada e pior que controle ausente.
+- Arrastar e pelo CABECALHO. Pelo corpo roubaria a selecao de texto do terminal.
+
+### O `<svg>` dentro do `#grade` quebrou a ordem dos painéis
+
+As linhas do mapa vivem num `<svg>` que fica como filho do `#grade`. `retratoSessao()` numerava a
+ordem pelo indice de **todos** os filhos, entao o svg empurrava todo painel em um e a Fase 7 gravava
+`1,2,3` no lugar de `0,1,2`. `atualizarVazio()` tinha o mesmo defeito: contava filhos e achava que
+havia sessao aberta com a grade vazia.
+
+Ambos agora contam PAINEIS (`porId`), nunca filhos do elemento. **Nao presuma que todo filho do
+`#grade` e um painel.**
+
 ## Layouts salvos
 
 `src/main/layouts.js` + `src/janela/layouts.js`, pela paleta (`tag: layout`).
@@ -771,3 +798,28 @@ Tres formas de obter numero falso, todas ja encontradas:
 
 Para somar CPU de varios processos, case as amostras **por pid**: somar tudo e subtrair da delta
 negativa quando um processo morre entre as duas leituras.
+
+6. **Comparar numero medido COM depurador contra base medida SEM.** O CDP conectado custa ~150 MB.
+   Com a base tirada do `npm run perfil` (sem depurador) e o total tirado do teste (com), a conta
+   dava 31 MB por painel em vez dos 15 reais — a diferenca era o proprio depurador dividido por
+   oito. `fase2.js` agora **mede a base na hora**, com a grade vazia e nas mesmas condicoes: assim
+   qualquer overhead comum aos dois lados se cancela, e o numero para de depender de quantas suites
+   rodaram antes.
+7. **Suite que deixa estado quebra a proxima.** Ja aconteceu duas vezes: `ui.js` deixando painéis no
+   `sessao.json` (a `fase7` restaurava os dela mais o que sobrou) e o app deixado no modo mapa (onde
+   `style.order` nao tem efeito visual e meia duzia de checagens de ordem falha por nada). Toda
+   suite agora **fixa o estado no comeco**, e nao so limpa no fim.
+
+### O que mudou nos numeros com o redesenho
+
+| | Fase 2 | agora |
+|---|---|---|
+| Base do app, 0 painéis, sem depurador | 283 MB | **330 MB** |
+| RAM marginal por painel | 11–20 MB | **15–28 MB** |
+| CPU parado, 8 painéis | 0,06–0,1% | **~1,6%** |
+
+Os ~47 MB a mais na base sao DOM e scripts dos overlays (paleta, modais, historico, diff, mapa), nao
+custo de painel. O CPU parado subiu porque agora ele e medido com a **janela em primeiro plano**
+(`aoFrente` no `fase2`), e quase tudo dele esta no **processo de GPU** compondo as animacoes de
+pulso — com a janela oculta o Chromium pausa a renderizacao e o mesmo app le 0,02%. O numero maior e
+o honesto: e o caso real, com alguem olhando a tela.

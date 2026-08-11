@@ -62,6 +62,15 @@ async function soltar(cdp) {
 
   await zerarGrade(cdp);
 
+  // Estado conhecido ANTES de comecar, e nao so ao terminar: a suite roda depois
+  // de outras (e de qualquer coisa que voce tenha clicado na tela), e quase tudo
+  // aqui pressupoe a grade. Com o app deixado no mapa, `style.order` nao tem
+  // efeito visual e meia duzia de checagens falha por motivo nenhum.
+  await cdp.avaliar(`window.OrqMapa?.definirModo('grade')`);
+  await cdp.avaliar(`window.OrqMapa?.definirVisao(false)`);
+  await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 2, ordem: 'urgencia' })`);
+  await esperar(500);
+
   checar('a casca carregou', await cdp.avaliar('typeof window.OrqCasca?.mudar') === 'function');
 
   // --- 0. escopo global compartilhado, sem nome repetido -----------------
@@ -999,8 +1008,137 @@ async function soltar(cdp) {
     (await cdp.avaliar(`JSON.stringify(window.OrqPaleta.comandos().map(c => c.rotulo))`))
       .includes('teste-revisao') === false, '');
 
+  // --- 19. o mapa ----------------------------------------------------------
+  await zerarGrade(cdp);
+  const mapa = {};
+  for (const f of ['mapa-a', 'mapa-b']) {
+    mapa[f] = await cdp.avaliar(`(async () => { const p = await window.OrqGrade.criarPainel(
+      { cwd: ${JSON.stringify(RAIZ)}, feature: ${JSON.stringify(f)} }); return p.id; })()`);
+    await esperar(500);
+  }
+  await esperar(2000);
+
+  const idsAntes = await cdp.avaliar(`JSON.stringify([...window.OrqGrade.painelPorId.keys()])`);
+  const rowsGrade = await cdp.avaliar(
+    `window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])}).term.rows`);
+
+  await cdp.avaliar(`window.OrqMapa.definirModo('mapa')`);
+  await esperar(1200);
+
+  const noMapa = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    modo: window.OrqMapa.modo(),
+    mesmos: JSON.stringify([...window.OrqGrade.painelPorId.keys()]) === ${JSON.stringify(idsAntes)},
+    posicionados: [...window.OrqGrade.painelPorId.values()]
+      .every(p => Number.isFinite(p.x) && Number.isFinite(p.y)),
+    naMesmaPosicao: (() => {
+      const [a, b] = [...window.OrqGrade.painelPorId.values()];
+      return a.x === b.x && a.y === b.y;
+    })(),
+    absoluto: getComputedStyle(document.querySelector('.painel')).position,
+  })`));
+  // O teste central: trocar de modo NAO pode recriar painel, senao o xterm
+  // morre junto.
+  checar('trocar para o mapa preserva os mesmos objetos de painel',
+    noMapa.modo === 'mapa' && noMapa.mesmos, JSON.stringify(noMapa));
+  checar('e o terminal continua respondendo depois da troca',
+    await cdp.avaliar(`(() => { const p = window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])});
+      return Boolean(p.term && p.term.rows > 0 && !p.encerrado); })()`), '');
+  checar('quem nunca foi arrastado ganha lugar, sem empilhar no canto',
+    noMapa.posicionados && !noMapa.naMesmaPosicao, JSON.stringify(noMapa));
+  checar('os painéis passam a ser posicionados', noMapa.absoluto === 'absolute', noMapa.absoluto);
+
+  // Ligacao vira linha. Ligadas pelas PASTAS, como manda o modelo de ligacoes.
+  await cdp.avaliar(`(() => {
+    const a = window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])});
+    const b = window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-b'])});
+    a.ligacoes = [b.cwd]; b.ligacoes = [a.cwd];
+    window.OrqMapa.desenharLinhas();
+    return 'ok';
+  })()`);
+  await esperar(400);
+  checar('duas sessoes ligadas viram uma linha (uma so, nao duas)',
+    await cdp.avaliar(`window.OrqMapa.linhas().length`) === 1, '');
+
+  await cdp.avaliar(`(() => {
+    for (const p of window.OrqPainel.painelPorId.values()) p.ligacoes = [];
+    window.OrqMapa.desenharLinhas();
+    return 'ok';
+  })()`);
+  checar('desligar apaga a linha', await cdp.avaliar(`window.OrqMapa.linhas().length`) === 0, '');
+
+  // Arrastar grava a posicao no retrato que a Fase 7 salva.
+  await cdp.avaliar(`(() => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])});
+    p.x = 777; p.y = 333;
+    window.OrqMapa.redesenhar();
+    window.OrqGrade.salvarSessao({ agora: true });
+    return 'ok';
+  })()`);
+  await esperar(600);
+  const salvoMapa = JSON.parse(await cdp.avaliar(`(async () => {
+    const s = await window.orq.sessaoCarregar();
+    const a = s.find(p => p.feature === 'mapa-a');
+    return JSON.stringify(a ? { x: a.x, y: a.y } : null);
+  })()`));
+  checar('a posicao no mapa vai para o sessao.json',
+    salvoMapa && salvoMapa.x === 777 && salvoMapa.y === 333, JSON.stringify(salvoMapa));
+
+  // Visao geral: o terminal e TROCADO por cartao, nunca encolhido.
+  await cdp.avaliar(`window.OrqMapa.definirVisao(true)`);
+  await esperar(600);
+  const geral = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    termosVisiveis: [...document.querySelectorAll('.painel-term')].filter(e => e.offsetParent !== null).length,
+    cabecalhos: document.querySelectorAll('.painel-cab').length,
+    // Nenhum SCALE em lugar nenhum: e o que garante que o xterm nao borra.
+    // Comparar com a string "none" nao serve: a animacao de entrada usa
+    // fill-mode both, o quadro final fica aplicado e o Chromium reporta a
+    // matriz IDENTIDADE. O que importa sao os fatores de escala, a e d.
+    escalas: [...document.querySelectorAll('.painel')].map(e => {
+      const t = getComputedStyle(e).transform;
+      if (t === 'none') return [1, 1];
+      const n = t.match(/-?[\\d.]+/g).map(Number);
+      return [n[0], n[3]];
+    }),
+  })`));
+  checar('na visao geral nenhum terminal fica visivel',
+    geral.termosVisiveis === 0 && geral.cabecalhos === 2, JSON.stringify(geral));
+  checar('e nada e ESCALADO — o terminal e trocado por cartao, nao encolhido',
+    geral.escalas.every(([x, y]) => x === 1 && y === 1), JSON.stringify(geral.escalas));
+
+  // Densidade e ordenacao nao fazem nada no mapa, entao nao ficam na tela.
+  const controles = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    densidade: getComputedStyle(document.getElementById('densidade')).display,
+    ordenacao: getComputedStyle(document.getElementById('ordenacao')).display,
+    visao: document.getElementById('btn-visao').hidden,
+  })`));
+  checar('no mapa somem os controles que nao fazem nada nele',
+    controles.densidade === 'none' && controles.ordenacao === 'none' && controles.visao === false,
+    JSON.stringify(controles));
+
+  // Voltar para a grade devolve tudo, inclusive o tamanho do terminal.
+  await cdp.avaliar(`window.OrqMapa.definirVisao(false)`);
+  await cdp.avaliar(`window.OrqMapa.definirModo('grade')`);
+  await esperar(1400);
+  const voltou = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    modo: window.OrqMapa.modo(),
+    mesmos: JSON.stringify([...window.OrqGrade.painelPorId.keys()]) === ${JSON.stringify(idsAntes)},
+    rows: window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])}).term.rows,
+    posicao: getComputedStyle(document.querySelector('.painel')).position,
+    guardouX: window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])}).x,
+  })`));
+  checar('voltar para a grade preserva os painéis',
+    voltou.modo === 'grade' && voltou.mesmos && voltou.posicao !== 'absolute', JSON.stringify(voltou));
+  checar('o terminal volta ao tamanho que tinha na grade',
+    voltou.rows === rowsGrade, `${rowsGrade} -> ${voltou.rows}`);
+  checar('e a posicao do mapa fica guardada para a proxima vez',
+    voltou.guardouX === 777, String(voltou.guardouX));
+
   await zerarGrade(cdp);
   await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 2, ordem: 'urgencia' })`);
+  // Limpa a sessao SALVA, e nao so a grade: sobrando painel no sessao.json, a
+  // fase7 restaura os dela mais o nosso e conta a ordem errada. Suite que
+  // deixa estado em disco quebra a proxima.
+  await cdp.avaliar(`window.orq.sessaoSalvar([])`);
 
   encerrar('UI');
 })().catch((e) => { console.error('ERRO', e.message); process.exit(3); });

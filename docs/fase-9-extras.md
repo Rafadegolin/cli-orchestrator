@@ -200,12 +200,17 @@ punha o cursor lá.
 2. ~~**Diff no app**~~ — **feito**.
 3. **Colar prompt em várias** — barato, e melhor ainda com as ligações prontas.
 4. ~~**Histórico**~~ — **feito**.
-5. **Canvas propriamente dito** (posicionamento, ligações desenhadas, nível de detalhe).
+5. ~~**Canvas propriamente dito**~~ — **feito** (`src/janela/mapa.js`). Sem zoom contínuo: o
+   terminal nunca é escalado, e o nível de detalhe virou um interruptor de dois estados — 1:1 com
+   painéis vivos, ou visão geral onde o painel é **trocado** por um cartão. Escalar borraria o
+   xterm, como este documento já previa.
 6. **Layouts salvos** — mais barato ainda agora: tema, densidade e ordenação já persistem em
    `ui.json`, então um layout é esse conjunto mais a lista de painéis.
    ~~aprovação por card~~ — **feita**.
 
-**Restam três**: colar prompt em várias, o canvas, e layouts salvos.
+**Todos feitos.** O que sobrou do item 1 são as camadas 2 e 3 (contexto compartilhado por feature e
+relé por evento), que o próprio documento marca como cooperativas e arriscadas — e que só valem
+depois de o mapa provar uso no dia a dia.
 
 > Pré-requisito de vários: os hooks precisam estar registrados no `~/.claude/settings.json` (botão na
 > barra lateral). Sem eles não há bolinha amarela para aprovar, nem transições para o histórico, nem

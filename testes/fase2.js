@@ -4,13 +4,24 @@
 
 const path = require('path');
 const { execSync } = require('child_process');
-const { conectar, checar, encerrar, esperar, zerarGrade } = require('./cdp');
+const { conectar, checar, encerrar, esperar, zerarGrade, aoFrente } = require('./cdp');
 const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
 
 // Base fixa do Electron nesta maquina, medida com 0 painéis. Nao cresce com o
 // numero de painéis, entao a metrica que diz se o app esta gordo e o custo
 // MARGINAL -- total/N carrega a base junto e nunca fecha com poucos painéis.
-const BASE_MB = 283;
+// Base do app SEM depurador e sem painel nenhum, medida com `npm run perfil`.
+// Serve so para traduzir o custo medido aqui numa estimativa comparavel com a
+// meta da spec.
+//
+// Subiu dos 283 MB da Fase 2 quando o redesenho trouxe os overlays -- paleta,
+// modais, historico, diff e mapa --, ou seja ~47 MB de DOM e scripts, e nao
+// custo de painel.
+const BASE_LIMPA = 330;
+
+// A base COM depurador e com a suite ja rodando e medida na hora, logo abaixo:
+// e a unica forma de a conta nao depender de quantas suites rodaram antes.
+let BASE_MEDIDA = 0;
 
 function medir(seg = 0) {
   return JSON.parse(execSync(
@@ -28,7 +39,19 @@ function contaCmd() {
 
 (async () => {
   const cdp = await conectar();
+
+  // O numero de CPU parado depende de a janela estar DESENHANDO: com ela
+  // oculta o Chromium pausa a renderizacao, o processo de GPU nao compoe nada
+  // e a medida cai para quase zero -- numero bonito e mentiroso. Trazer para a
+  // frente fixa a condicao, e o que se mede passa a ser o caso real: alguem
+  // olhando a tela.
+  await aoFrente(cdp);
   await zerarGrade(cdp);
+  await esperar(1500);
+
+  // Mede a base AQUI, com a grade ja vazia e nas mesmas condicoes do total la
+  // embaixo: mesma janela, mesmo depurador, mesmas suites ja tendo rodado.
+  BASE_MEDIDA = medir().ramMb;
 
   const cmdAntes = contaCmd();
 
@@ -82,9 +105,24 @@ function contaCmd() {
 
   const m = medir(60);
   checar('a medicao achou os processos do app', m.processos > 0 && m.ramMb > 0, JSON.stringify(m));
-  checar('RAM total abaixo de 700 MB', m.ramMb < 700, `${m.ramMb} MB em ${m.processos} processos`);
-  checar('RAM marginal por painel abaixo de 40 MB', (m.ramMb - BASE_MB) / 8 < 40,
-    `${((m.ramMb - BASE_MB) / 8).toFixed(1)} MB/painel  (crua: ${(m.ramMb / 8).toFixed(1)})`);
+
+  // O que os oito painéis CUSTARAM, e nao o total bruto.
+  //
+  // O total bruto nao serve de meta aqui: esta suite roda com o depurador
+  // conectado (~150 MB so dele) e frequentemente depois de outras, no mesmo
+  // processo. Comparar isso com os 700 MB da spec -- medidos num app limpo --
+  // reprova por causa da instrumentacao, nao do app.
+  //
+  // A base e medida NA HORA, com zero painéis, entao a conta se auto-calibra:
+  // qualquer overhead comum aos dois lados se cancela.
+  const custo = m.ramMb - BASE_MEDIDA;
+  const estimativaReal = BASE_LIMPA + custo;
+
+  checar('os 8 painéis cabem no orcamento de RAM da spec (700 MB num app limpo)',
+    estimativaReal < 700,
+    `${custo.toFixed(0)} MB de custo sobre a base -> ~${estimativaReal.toFixed(0)} MB num app limpo`);
+  checar('RAM marginal por painel abaixo de 40 MB', custo / 8 < 40,
+    `${(custo / 8).toFixed(1)} MB/painel  (bruta com depurador: ${(m.ramMb / 8).toFixed(1)})`);
   checar('CPU parado abaixo de 2%', m.cpuPct >= 0 && m.cpuPct < 2, `${m.cpuPct}% de ${m.nucleos} nucleos`);
 
   // O teto de contextos vale mesmo com todos a vista. A densidade 3 e a unica

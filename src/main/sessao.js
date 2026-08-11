@@ -32,6 +32,10 @@ function carregar() {
       // contrario de id de painel.
       ligacoes: Array.isArray(p.ligacoes) ? p.ligacoes.map(String) : [],
       ordem: Number.isFinite(p.ordem) ? p.ordem : i,
+      // Posicao no mapa. `null` significa "nunca foi arrastado" -- e o mapa
+      // arruma sozinho, em vez de empilhar tudo no canto superior esquerdo.
+      x: Number.isFinite(p.x) ? p.x : null,
+      y: Number.isFinite(p.y) ? p.y : null,
       // A pasta pode ter sumido enquanto o app estava fechado (worktree
       // arquivado, projeto movido). Abrir PTY ali so produz erro cru de spawn,
       // entao a janela precisa saber disso antes de tentar.
@@ -49,6 +53,8 @@ function salvar(paineis) {
       comandoInicial: p.comandoInicial ? String(p.comandoInicial) : '',
       ligacoes: Array.isArray(p.ligacoes) ? [...new Set(p.ligacoes.map(String))] : [],
       ordem: Number.isFinite(p.ordem) ? p.ordem : i,
+      x: Number.isFinite(p.x) ? Math.round(p.x) : null,
+      y: Number.isFinite(p.y) ? Math.round(p.y) : null,
     }));
 
   arquivo.gravarJson(NOME, {
