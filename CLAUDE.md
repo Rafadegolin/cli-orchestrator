@@ -38,6 +38,7 @@ npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
 npm run teste:fase7       # sessao salva, painel dormindo, retomar
 npm run teste:ui          # tokens, tema, densidade, fontes, paleta, overlays e contraste
 npm run teste:historico   # Node puro, sem app: agregacao de tempo por feature
+npm run teste:layouts     # Node puro: gravar, substituir e normalizar layouts
 npm run teste:ajuda       # a ajuda no app, e se os numeros dela batem com o codigo
 npm run teste:ligacoes    # mecanica das ligacoes, sem invocar o Claude
 npm run teste:ligacoes-reais # com Claude de verdade: ~3min e consome tokens
@@ -351,6 +352,20 @@ precisa do Enter separado do texto.
 - **Sessao em `rodando` vem marcada.** O texto entra na fila do stdin e atrapalha o que ela esta
   fazendo. Nao e proibido; so nao acontece sem voce ver.
 - Dormindo e encerrada ficam de fora: nao ha para onde escrever.
+
+## Layouts salvos
+
+`src/main/layouts.js` + `src/janela/layouts.js`, pela paleta (`tag: layout`).
+
+Um layout **nao inventa estrutura**: e o `retratoSessao()` que a grade ja produz, mais as tres
+preferencias que o `ui.json` ja guarda. Por isso ficou barato depois da Fase 7 e do redesenho.
+
+- **Salvar com nome repetido SUBSTITUI** aquele layout. Dois "modo revisao" na lista seria a pior das
+  duas opcoes.
+- **Aplicar fecha os painéis atuais**, entao pergunta antes quando ha sessao rodando, dizendo
+  quantas — a mesma regra que fechar o app ja segue.
+- Os painéis voltam **dormindo**, como na Fase 7: religar seis sessoes sozinho e caro e ninguem
+  pediu. O "Retomar todas" da lateral esta ali para isso.
 
 ## Historico de tempo por feature
 

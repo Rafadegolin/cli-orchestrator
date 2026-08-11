@@ -943,6 +943,62 @@ async function soltar(cdp) {
   checar('so o painel escolhido recebe, sem vazar para o vizinho',
     soUm.escolhido && !soUm.vizinho, JSON.stringify(soUm));
 
+  // --- 18. layouts salvos --------------------------------------------------
+  await zerarGrade(cdp);
+  await cdp.avaliar(`(async () => {
+    for (const l of await window.orq.layoutsListar()) await window.orq.layoutsRemover(l.nome);
+    await window.OrqLayouts.recarregar();
+    return 'ok';
+  })()`);
+
+  await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'claro', densidade: 3, ordem: 'projeto' })`);
+  for (const f of ['lay-a', 'lay-b']) {
+    await cdp.avaliar(`(async () => { await window.OrqGrade.criarPainel(
+      { cwd: ${JSON.stringify(RAIZ)}, feature: ${JSON.stringify(f)} }); return 'ok'; })()`);
+    await esperar(500);
+  }
+  await esperar(2000);
+
+  await cdp.avaliar(`(async () => { await window.OrqLayouts.salvarAtual('teste-revisao'); return 'ok'; })()`);
+  await esperar(600);
+  const layoutSalvo = JSON.parse(await cdp.avaliar(`(async () => {
+    const l = (await window.orq.layoutsListar()).find(x => x.nome === 'teste-revisao');
+    return JSON.stringify(l ? { tema: l.tema, densidade: l.densidade, ordem: l.ordem, paineis: l.paineis.length } : null);
+  })()`));
+  checar('salvar guarda o arranjo e as tres preferencias',
+    layoutSalvo && layoutSalvo.tema === 'claro' && layoutSalvo.densidade === 3
+    && layoutSalvo.ordem === 'projeto' && layoutSalvo.paineis === 2, JSON.stringify(layoutSalvo));
+
+  // Muda tudo, e o layout tem de trazer de volta.
+  await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 1, ordem: 'urgencia' })`);
+  await zerarGrade(cdp);
+  await esperar(500);
+
+  // `confirmar: false` porque a confirmacao e um dialogo nativo, que o CDP nao
+  // dirige. O caminho com pergunta e o mesmo, so com o window.confirm na frente.
+  await cdp.avaliar(`(async () => { await window.OrqLayouts.aplicar('teste-revisao', { confirmar: false }); return 'ok'; })()`);
+  await esperar(2500);
+
+  const aplicado = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    tema: window.OrqCasca.tema(),
+    densidade: window.OrqCasca.densidade(),
+    ordem: window.OrqCasca.ordem(),
+    paineis: window.OrqGrade.painelPorId.size,
+    dormindo: window.OrqGrade.dormindos().length,
+    comPty: [...window.OrqGrade.painelPorId.values()].filter(p => !p.dormindo).length,
+  })`));
+  checar('aplicar traz tema, densidade e ordenacao de volta',
+    aplicado.tema === 'claro' && aplicado.densidade === 3 && aplicado.ordem === 'projeto',
+    JSON.stringify(aplicado));
+  checar('e os painéis voltam DORMINDO, sem subir PTY sozinho',
+    aplicado.paineis === 2 && aplicado.dormindo === 2 && aplicado.comPty === 0,
+    JSON.stringify(aplicado));
+
+  await cdp.avaliar(`(async () => { await window.OrqLayouts.remover('teste-revisao'); return 'ok'; })()`);
+  checar('remover tira o layout da paleta',
+    (await cdp.avaliar(`JSON.stringify(window.OrqPaleta.comandos().map(c => c.rotulo))`))
+      .includes('teste-revisao') === false, '');
+
   await zerarGrade(cdp);
   await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 2, ordem: 'urgencia' })`);
 

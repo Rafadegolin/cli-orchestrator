@@ -17,6 +17,7 @@ const arquivo = require('./arquivo');
 const preferencias = require('./preferencias');
 const metricas = require('./metricas');
 const historico = require('./historico');
+const layouts = require('./layouts');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -380,6 +381,16 @@ ipcMain.handle('ui:salvar', (_e, parcial) => {
 ipcMain.handle('app:metricas', () => metricas.agora());
 
 ipcMain.handle('historico:resumo', () => historico.resumo());
+
+ipcMain.handle('layouts:listar', () => layouts.listar());
+ipcMain.handle('layouts:salvar', (_e, layout) => {
+  try {
+    return { ok: true, layout: layouts.salvar(layout), layouts: layouts.listar() };
+  } catch (err) {
+    return { ok: false, erro: err.message, layouts: layouts.listar() };
+  }
+});
+ipcMain.handle('layouts:remover', (_e, nome) => ({ ...layouts.remover(nome), layouts: layouts.listar() }));
 
 ipcMain.handle('atualizacao:situacao', () => ({ ...atualizacao.situacao }));
 ipcMain.handle('atualizacao:verificar', () => { atualizacao.verificar(); return true; });

@@ -157,6 +157,11 @@ começar**, porque histórico não se recupera retroativamente.
 
 ## 5. Layouts salvos
 
+> **FEITO.** `src/main/layouts.js`, pela paleta. Ficou ainda mais barato do que este documento
+> previa: tema, densidade e ordenação já persistiam em `ui.json` desde o redesenho, e o retrato dos
+> painéis é o mesmo que a Fase 7 grava. Aplicar traz os painéis **dormindo**, e pergunta antes se
+> houver sessão rodando.
+
 "Modo revisão" com 2 painéis grandes, "modo tocaia" com 8 pequenos.
 
 Ficou barato depois da Fase 7: já há persistência em JSON, a contagem de colunas é uma variável CSS

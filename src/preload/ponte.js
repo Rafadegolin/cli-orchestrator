@@ -53,6 +53,10 @@ contextBridge.exposeInMainWorld('orq', {
 
   metricas: () => ipcRenderer.invoke('app:metricas'),
   historico: () => ipcRenderer.invoke('historico:resumo'),
+
+  layoutsListar: () => ipcRenderer.invoke('layouts:listar'),
+  layoutsSalvar: (layout) => ipcRenderer.invoke('layouts:salvar', layout),
+  layoutsRemover: (nome) => ipcRenderer.invoke('layouts:remover', nome),
   aoMedir: (fn) => ipcRenderer.on('app:metricas', (_e, m) => fn(m)),
 
   atualizacaoSituacao: () => ipcRenderer.invoke('atualizacao:situacao'),

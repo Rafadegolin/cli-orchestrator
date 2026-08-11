@@ -21,6 +21,7 @@
     nova: 'var(--acc)',
     todas: 'var(--acc)',
     tema: 'var(--info)',
+    layout: 'var(--info)',
     ajuda: 'var(--info)',
   };
 
@@ -102,6 +103,25 @@
       rotulo: escuro ? 'Mudar para o tema claro' : 'Mudar para o tema escuro',
       dica: '',
       correr: () => window.OrqCasca.mudar({ tema: escuro ? 'claro' : 'escuro' }),
+    });
+
+    for (const l of window.OrqLayouts?.listar() || []) {
+      lista.push({
+        tag: 'layout',
+        rotulo: `Aplicar layout ${l.nome}`,
+        dica: `${l.paineis.length} ${l.paineis.length === 1 ? 'painel' : 'painéis'}`,
+        correr: () => window.OrqLayouts.aplicar(l.nome),
+      });
+    }
+
+    lista.push({
+      tag: 'layout',
+      rotulo: 'Salvar este arranjo como layout',
+      dica: '',
+      correr: () => {
+        const nome = window.prompt('Nome do layout:', '');
+        if (nome) window.OrqLayouts.salvarAtual(nome);
+      },
     });
 
     lista.push({
