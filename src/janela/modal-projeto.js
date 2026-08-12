@@ -13,6 +13,7 @@
   const elFaixas = document.getElementById('projeto-faixas');
   const elErro = document.getElementById('projeto-erro');
   const btnProcurar = document.getElementById('projeto-procurar');
+  const btnVarias = document.getElementById('projeto-varias');
   const btnConfirmar = document.getElementById('projeto-confirmar');
   const btnCancelar = document.getElementById('projeto-cancelar');
 
@@ -65,6 +66,31 @@
     }
   }
 
+  // Importacao em massa: o diálogo do Windows aceita varias pastas de uma vez.
+  //
+  // Aqui a faixa de portas NAO vem das tres opcoes do modal -- dez projetos nao
+  // cabem em tres faixas. O processo principal atribui a proxima livre a cada um.
+  async function procurarVarias() {
+    const escolhidas = await window.orq.escolherPastas();
+    if (!escolhidas?.length) return null;
+
+    const r = await window.orq.projetosAdicionarVarios(escolhidas);
+    await window.OrqProjetos?.carregarProjetos();
+
+    // UM toast so, com o resumo. O toast e um de cada vez: N deles se
+    // atropelariam e voce leria o ultimo.
+    const partes = [];
+    if (r.novos.length) partes.push(`${r.novos.length} cadastrado${r.novos.length === 1 ? '' : 's'}`);
+    if (r.jaExistiam.length) partes.push(`${r.jaExistiam.length} já estava${r.jaExistiam.length === 1 ? '' : 'm'} na lista`);
+    if (r.recusados.length) partes.push(`${r.recusados.length} recusado${r.recusados.length === 1 ? '' : 's'}`);
+
+    if (r.novos.length) fechar();
+    else if (r.recusados.length) mostrarErro(r.recusados[0].motivo);
+
+    window.OrqToast?.mostrar(partes.join(' · ') || 'Nada para cadastrar');
+    return r;
+  }
+
   async function confirmar() {
     const caminho = (elCaminho.value || '').trim();
     if (!caminho) {
@@ -94,6 +120,7 @@
   }
 
   btnProcurar?.addEventListener('click', procurar);
+  btnVarias?.addEventListener('click', procurarVarias);
   btnConfirmar?.addEventListener('click', confirmar);
   btnCancelar?.addEventListener('click', fechar);
 
@@ -104,7 +131,7 @@
   window.OrqOverlays?.registrar(elModal, fechar);
 
   window.OrqModalProjeto = {
-    abrir, fechar, confirmar, procurar, FAIXAS,
+    abrir, fechar, confirmar, procurar, procurarVarias, FAIXAS,
     escolher: (i) => { escolhida = i; desenharFaixas(); },
     faixaEscolhida: () => FAIXAS[escolhida],
   };

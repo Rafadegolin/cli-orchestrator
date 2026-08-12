@@ -55,13 +55,16 @@ const SECOES = [
       passos([
         '<b>Instale os hooks</b> no botão "Hooks: instalar", no rodapé desta barra lateral. '
           + 'É o que faz as bolinhas mudarem sozinhas.',
-        '<b>Cadastre um projeto</b> no <b>+</b> da seção PROJETOS: escolha a pasta do repositório.',
+        '<b>Cadastre um projeto</b> no <b>+</b> da seção PROJETOS: escolha a pasta do repositório. '
+          + 'Se você tem vários, <b>Várias…</b> aceita escolher tudo de uma vez, e cada um já sai '
+          + 'com sua própria faixa de portas.',
         '<b>Digite o nome da feature</b> no campo de cima e <b>clique no projeto</b>. '
           + 'O painel abre e o Claude sobe sozinho.',
       ]),
       aviso('Sem os hooks o app funciona, mas os status ficam parados — e é o status que faz a grade '
         + 'valer a pena. O app pergunta antes de editar o <code>{arquivoHooks}</code>, faz backup e '
-        + 'preserva o que já estiver lá.'),
+        + 'preserva o que já estiver lá. Se o botão disser <b>desatualizados</b>, é porque o app '
+        + 'passou a registrar mais eventos do que os que estão lá: clique para registrar de novo.'),
     ],
   },
   {
@@ -84,6 +87,14 @@ const SECOES = [
         + 'sem cadastrar projeto.'),
       p('Projeto que não é repositório git aparece com a etiqueta <b>sem git</b> e nunca recebe '
         + '<code>-w</code> — worktree exige git.'),
+      p('<b>Se o Claude já conversou naquela pasta antes</b>, clicar no projeto pergunta se você '
+        + 'quer uma sessão nova ou retomar uma anterior. Retomar roda <code>claude -r</code>, que '
+        + 'abre o seletor de conversas do próprio Claude dentro do painel — quem escolhe qual é '
+        + 'você. Sem conversa guardada não há pergunta: abre nova direto.'),
+      p('<b>Arrastar um arquivo para cima de um terminal</b> escreve o caminho dele na caixa de '
+        + 'entrada do Claude, entre aspas. Serve para documento, print, o que for. <b>Nada é '
+        + 'enviado</b>: o Enter continua sendo seu, então dá para escrever a pergunta junto e um '
+        + 'arrasto sem querer não custa nada.'),
     ],
   },
   {
@@ -93,15 +104,20 @@ const SECOES = [
       p('Vêm dos hooks do Claude Code, não de ler o texto do terminal. Por isso são confiáveis e '
         + 'mudam em menos de um décimo de segundo, mesmo com o painel fora da tela.'),
       tabela(['Cor', 'Significa'], [
-        ['<span class="ajuda-bolinha bolinha-esperando"></span> amarela', 'Parou te esperando: pedindo permissão, ou ociosa. O cronômetro conta desde quando.'],
+        ['<span class="ajuda-bolinha bolinha-esperando"></span> amarela', '<b>Tem uma pergunta te bloqueando</b>: permissão ou uma resposta. Só isso é amarelo, e é o único estado que entra na fila e notifica.'],
         ['<span class="ajuda-bolinha bolinha-rodando"></span> verde', 'Trabalhando.'],
         ['<span class="ajuda-bolinha bolinha-terminou"></span> azul', 'Terminou; pronto para você revisar.'],
+        ['<span class="ajuda-bolinha bolinha-parada"></span> apagada', 'Acabou e ficou parada, sem nada pendente. Não te chama.'],
         ['<span class="ajuda-bolinha bolinha-encerrada"></span> cinza', 'Sessão encerrada.'],
         ['<span class="ajuda-bolinha bolinha-dormindo"></span> vazada', 'Sessão salva da última vez que você fechou o app, esperando você retomar.'],
       ]),
       p('Ao lado da bolinha vem sempre o texto — <b>trabalhando</b>, <b>esperando há 12min</b>, '
-        + '<b>pronto para revisar</b>, <b>sessão salva</b>. A cor acelera quem já conhece; o texto '
-        + 'ensina quem está chegando. O motivo exato do Claude fica no balão ao passar o mouse.'),
+        + '<b>pronto para revisar</b>, <b>parada há 40min</b>, <b>sessão salva</b>. A cor acelera '
+        + 'quem já conhece; o texto ensina quem está chegando. O motivo exato do Claude fica no '
+        + 'balão ao passar o mouse.'),
+      aviso('<b>Amarelo significa uma coisa só: alguém travado te esperando.</b> Uma sessão que '
+        + 'apenas terminou e ficou parada não fica amarela — ela era, e isso enchia a fila de '
+        + 'sessões que não pediam nada. Quando aparece amarelo, é porque tem pergunta.'),
     ],
   },
   {

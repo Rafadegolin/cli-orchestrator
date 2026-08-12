@@ -142,6 +142,42 @@ function dispararHook(evento, tipo, { orqId = '', cwd = '', message = '' } = {})
     faixa.acesa && faixa.aprovar && faixa.texto === 'Claude needs your permission to use Bash',
     JSON.stringify(faixa));
 
+  // --- ocioso NAO e espera ------------------------------------------------
+  //
+  // Medido no binario do CLI: `idle_prompt` dispara 60s depois da ultima
+  // mensagem com a sessao parada no prompt -- "acabou e ninguem esta
+  // bloqueado". Enquanto ele virava `esperando`, uma sessao que tinha terminado
+  // ficava amarela sozinha um minuto depois, sem ter pergunta nenhuma. Foi
+  // relatado, e este e o teste que impede a volta.
+  const filaAntes = await cdp.avaliar(`window.OrqLateral.filaAtencao().length`);
+  dispararHook('Notification', 'ocioso', { orqId: ids[0] });
+  await esperar(700);
+  const ocioso = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    status: window.OrqLateral.cards.get(${JSON.stringify(ids[0])})?.status,
+    rotulo: window.OrqLateral.rotuloDe(window.OrqLateral.cards.get(${JSON.stringify(ids[0])})),
+    bolinha: window.OrqPainel.painelPorId.get(${JSON.stringify(ids[0])}).elBolinha.className,
+    naFila: window.OrqLateral.filaAtencao().length,
+  })`));
+  checar('sessao ociosa NAO fica amarela: vira `parada`',
+    ocioso.status === 'parada' && ocioso.bolinha.includes('bolinha-parada'), JSON.stringify(ocioso));
+  checar('e o rotulo nao diz "esperando"',
+    ocioso.rotulo.startsWith('parada') && !ocioso.rotulo.includes('esperando'), ocioso.rotulo);
+  checar('nem entra na fila ESPERANDO VOCE',
+    ocioso.naFila === filaAntes - 1, `${filaAntes} -> ${ocioso.naFila}`);
+
+  // --- os matchers que faltavam -------------------------------------------
+  //
+  // `elicitation_dialog` e literalmente "Claude Code needs your input" e nao
+  // tinha matcher registrado: a sessao ficava travada nessa pergunta com o
+  // painel verde, para sempre.
+  dispararHook('Notification', 'elicitacao', { orqId: ids[0] });
+  await esperar(700);
+  checar('elicitation_dialog acende o amarelo',
+    await cdp.avaliar(`window.OrqLateral.cards.get(${JSON.stringify(ids[0])})?.status`) === 'esperando', '');
+
+  dispararHook('Notification', 'permissao', { orqId: ids[0] });
+  await esperar(600);
+
   checar('Ctrl+Enter foca quem espera ha mais tempo',
     await cdp.avaliar(`window.OrqLateral.pularParaMaisAntigo()`) === ids[1]);
   checar('o painel certo ficou com o foco visual',

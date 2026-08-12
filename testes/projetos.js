@@ -87,6 +87,58 @@ function lerArquivo() {
   checar('recusa pasta inexistente, com motivo legivel',
     Boolean(erro.erro) && !erro.criou && erro.total === 1, JSON.stringify(erro));
 
+  // --- lote: um caminho ruim nao derruba os bons -------------------------
+  //
+  // `adicionar` LANCA quando a pasta nao existe; num laco ingenuo, um caminho
+  // torto no meio abortaria a importacao inteira. E cada `adicionar` reescreve
+  // o arquivo todo -- dez projetos seriam dez ciclos de escrita atomica.
+  const LOTE = path.join(os.tmpdir(), `orq-teste-lote-${Date.now()}`);
+  const bomA = path.join(LOTE, 'lote-a');
+  const bomB = path.join(LOTE, 'lote-b');
+  fs.mkdirSync(bomA, { recursive: true });
+  fs.mkdirSync(bomB, { recursive: true });
+
+  const lote = JSON.parse(await cdp.avaliar(`(async () => {
+    const r = await window.orq.projetosAdicionarVarios(${JSON.stringify([
+    bomA.replace(/\\/g, '/'),
+    path.join(LOTE, 'nao-existe').replace(/\\/g, '/'),
+    bomB.replace(/\\/g, '/'),
+    bomA.replace(/\\/g, '/'),
+  ])});
+    return JSON.stringify({
+      novos: r.novos.map((p) => p.nome),
+      faixas: r.novos.map((p) => p.faixa),
+      jaExistiam: r.jaExistiam.length,
+      recusados: r.recusados,
+      total: r.projetos.length,
+    });
+  })()`));
+
+  checar('o lote cadastra os caminhos bons', lote.novos.length === 2, JSON.stringify(lote.novos));
+  checar('o caminho ruim vira recusa com motivo, sem derrubar o resto',
+    lote.recusados.length === 1 && /nao existe/.test(lote.recusados[0].motivo),
+    JSON.stringify(lote.recusados));
+  checar('repetido dentro do proprio lote nao entra duas vezes',
+    lote.jaExistiam === 1, String(lote.jaExistiam));
+  checar('cada projeto do lote ganha faixa de portas propria, sem colidir',
+    lote.faixas.length === 2 && lote.faixas[0][0] !== lote.faixas[1][0],
+    JSON.stringify(lote.faixas));
+
+  // Limpa: estes tres nao podem sobrar para as checagens seguintes.
+  // A lista do PROCESSO PRINCIPAL, e nao o cache do renderer: o cache so
+  // acompanha depois de `carregarProjetos()`, e limpar por ele deixava para tras
+  // exatamente o que este teste acabou de criar.
+  await cdp.avaliar(`(async () => {
+    for (const p of await window.orq.projetosListar()) {
+      if (p.caminho.includes('orq-teste-lote-')) {
+        await window.orq.projetosRemover(p.id, false);
+      }
+    }
+    await window.OrqProjetos.carregarProjetos();
+    return 'ok';
+  })()`);
+  fs.rmSync(LOTE, { recursive: true, force: true });
+
   // --- abertura a partir do projeto -------------------------------------
   const id = await cdp.avaliar(`window.OrqProjetos.lista()[0].id`);
   const painel = JSON.parse(await cdp.avaliar(`(async () => {

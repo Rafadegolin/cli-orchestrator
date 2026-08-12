@@ -30,7 +30,25 @@ const MS_ESPERA_CONFIRMACAO = 12_000;
 // proibe PARA STATUS -- e com razao, porque quebra a cada atualizacao. Aqui nao
 // e status: e uma interacao pontual que a gente mesmo acabou de provocar, e o
 // pior caso de errar e um Enter sobrando numa caixa vazia.
+//
+// Confirmado no binario do CLI 2.1.220: e o `title` do dialogo
+// (`wh.jsx(nr,{title:"Add directory to workspace",...})`), e as opcoes sao
+// "Yes, for this session" / "Yes, and remember this directory".
 const MARCA_CONFIRMACAO = 'Add directory to workspace';
+
+// Como se sabe que DEU CERTO. Medido no spike contra o CLI real: o Enter
+// confirma mesmo (diferente do prompt de permissao, que exige o digito), e a
+// sessao responde com "Added <caminho> as a working directory for this
+// session". Toda comparacao roda sobre o texto ACHATADO -- no spike essa
+// resposta veio quebrada entre "as" e "a working directory", e era por isso que
+// uma ligacao bem-sucedida parecia ter falhado.
+const MARCA_SUCESSO = 'as a working directory';
+const MARCA_JA_TINHA = 'is already';
+
+// Sessao ocupada ou esperando nao pode receber texto: em `esperando` o caminho
+// seria digitado DENTRO do seletor de permissao, que responde a digitos -- um
+// numero no caminho escolheria uma opcao e o Enter seguinte confirmaria.
+const STATUS_QUE_RECUSAM = new Set(['esperando']);
 
 function painel(id) {
   return window.OrqPainel?.painelPorId.get(id);
@@ -51,10 +69,25 @@ async function enviarLinha(id, texto) {
 // pendentes por o painel estar fora da vista. Ler `term.buffer` daqui direto,
 // como era antes, devolvia texto velho nesse caso -- e a confirmacao do
 // /add-dir podia nunca ser encontrada.
-async function esperarNoBuffer(id, trecho, ms) {
+function bufferAchatado(id) {
+  return window.OrqPainel.achatar(painel(id)?.textoDoBuffer() || '');
+}
+
+// Espera um trecho aparecer NO QUE CHEGOU DEPOIS de agora.
+//
+// O `textoDoBuffer()` inclui o scrollback inteiro, entao uma confirmacao de
+// dez minutos atras casava na primeira volta do laco: o app achava que o
+// dialogo estava na tela, esperava 800ms e disparava um Enter no que quer que
+// estivesse ali. Na pratica, a SEGUNDA ligacao de uma sessao nao fazia nada e
+// reportava sucesso. Guardar o tamanho antes e olhar so a cauda resolve.
+async function esperarNovoNoBuffer(id, trecho, ms, desde) {
   const fim = Date.now() + ms;
   while (Date.now() < fim) {
-    if ((painel(id)?.textoDoBuffer() || '').includes(trecho)) return true;
+    const texto = bufferAchatado(id);
+    if (texto.length >= desde && texto.slice(desde).includes(trecho)) return true;
+    // O buffer pode ter ENCOLHIDO (o `cls`, ou o scrollback girando). Ai a
+    // marca de corte nao vale mais e o jeito honesto e olhar tudo.
+    if (texto.length < desde && texto.includes(trecho)) return true;
     await new Promise((r) => setTimeout(r, 300));
   }
   return false;
@@ -93,52 +126,122 @@ function painelEm(caminho) {
 
 // Aplica numa sessao que ja esta rodando. O comando e a resposta aparecem no
 // terminal: nada acontece escondido do usuario.
-async function aplicarEmSessaoViva(id, caminho) {
+// `ms` e parametro (e nao so a constante) para o teste conseguir exercitar o
+// caminho do ESTOURO sem esperar doze segundos por caso. Mesma convencao do
+// `{ confirmar = true }` que os dialogos do processo principal ja usam.
+async function aplicarEmSessaoViva(id, caminho, ms = MS_ESPERA_CONFIRMACAO) {
   const p = painel(id);
-  if (!p || p.dormindo || p.encerrado) return { aplicado: false, motivo: 'sem sessao viva' };
+  if (!p || p.encerrado) return { aplicado: false, motivo: 'painel não existe mais' };
+  if (p.dormindo) return { aplicado: false, motivo: 'dormindo' };
+  if (STATUS_QUE_RECUSAM.has(p.status)) {
+    return { aplicado: false, motivo: 'a sessão está esperando uma resposta sua' };
+  }
 
+  const desde = bufferAchatado(id).length;
   await enviarLinha(id, `/add-dir ${caminho}`);
 
-  // O /add-dir pergunta antes de liberar o diretorio. Responder o Enter aceita
-  // a opcao 1, "Yes, for this session" -- e nao a 2, "remember", que mudaria
-  // estado alem desta sessao sem o usuario ter pedido isso.
-  const perguntou = await esperarNoBuffer(id, MARCA_CONFIRMACAO, MS_ESPERA_CONFIRMACAO);
+  // O /add-dir pergunta antes de liberar o diretorio. O Enter aceita a opcao 1,
+  // "Yes, for this session" -- e nao a 2, "remember", que mudaria estado alem
+  // desta sessao sem o usuario ter pedido isso. (Medido: aqui o Enter resolve;
+  // no prompt de PERMISSAO nao, e por isso os dois foram medidos separados.)
+  const perguntou = await esperarNovoNoBuffer(id, MARCA_CONFIRMACAO, ms, desde);
   if (perguntou) {
     await new Promise((r) => setTimeout(r, 800));
     window.orq.escrever(id, '\r');
   }
-  return { aplicado: true, confirmou: perguntou };
+
+  // Confirmar nao e o mesmo que ter dado certo: quem diz isso e a sessao.
+  const ok = await esperarNovoNoBuffer(id, MARCA_SUCESSO, ms, desde)
+    || bufferAchatado(id).slice(desde).includes(MARCA_JA_TINHA);
+
+  if (!ok) {
+    return {
+      aplicado: false,
+      motivo: perguntou
+        ? 'o Claude não confirmou o acesso'
+        : 'o Claude não pediu a confirmação a tempo',
+    };
+  }
+  return { aplicado: true };
 }
 
 // Ligacao e MUTUA quando os dois lados sao painéis: cada sessao enxerga o repo
 // da outra. Quando o alvo e so um projeto cadastrado, nao ha sessao do outro
 // lado para receber a contrapartida -- fica de ida, e a interface diz isso.
-async function ligar(id, caminho, { aplicar = true } = {}) {
+// Registra a ligacao num painel. Devolve o que aconteceu do lado do CLI.
+//
+// A ORDEM AQUI E O CONSERTO PRINCIPAL. Antes o registro era gravado primeiro e
+// o CLI depois, sem ninguem olhar o resultado: se a aplicacao falhasse, a
+// ligacao ficava registrada assim mesmo, o seletor ja mostrava "desligar" e a
+// proxima tentativa caia no `novo === false` e nao mandava NADA. A falha virava
+// permanente e sem saida pela interface -- e essa e a forma exata do relato
+// "nao esta ligando".
+//
+// Agora: painel dormindo registra (a flag `--add-dir` entra na proxima
+// partida); sessao viva so registra depois de a sessao confirmar; e falha deixa
+// o registro PENDENTE, que e o que permite tentar de novo.
+async function registrarEm(p, caminho, aplicar, ms) {
+  if (jaLigado(p.id, caminho) && !pendenteEm(p.id, caminho)) {
+    return { mudou: false, aplicado: true };
+  }
+
+  if (!aplicar || p.dormindo) {
+    guardar(p, caminho, { pendente: false });
+    return { mudou: true, aplicado: true, sóAoRetomar: Boolean(p.dormindo) };
+  }
+
+  const r = await aplicarEmSessaoViva(p.id, caminho, ms);
+  guardar(p, caminho, { pendente: !r.aplicado });
+  return { mudou: true, aplicado: r.aplicado, motivo: r.motivo };
+}
+
+function guardar(p, caminho, { pendente }) {
+  if (!jaLigado(p.id, caminho)) p.ligacoes = [...ligacoesDe(p.id), caminho];
+  p.pendentes = (p.pendentes || []).filter((c) => normalizar(c) !== normalizar(caminho));
+  if (pendente) p.pendentes.push(caminho);
+  p.mostrarLigacoes?.();
+}
+
+// Ligacao registrada que o CLI ainda nao aceitou. Existir como ESTADO e o que
+// devolve o botao de tentar de novo -- antes isso era um silencio.
+function pendenteEm(id, caminho) {
+  return (painel(id)?.pendentes || []).some((c) => normalizar(c) === normalizar(caminho));
+}
+
+async function ligar(id, caminho, { aplicar = true, ms = MS_ESPERA_CONFIRMACAO } = {}) {
   const p = painel(id);
   if (!p || !caminho) return { ok: false };
   if (normalizar(p.cwd) === normalizar(caminho)) {
     return { ok: false, motivo: 'um painel nao se liga a si mesmo' };
   }
 
-  const novo = !jaLigado(id, caminho);
-  if (novo) {
-    p.ligacoes = [...ligacoesDe(id), caminho];
-    p.mostrarLigacoes?.();
-    if (aplicar) await aplicarEmSessaoViva(id, caminho);
-  }
+  const aqui = await registrarEm(p, caminho, aplicar, ms);
 
   // Espelho: se ha painel do outro lado, ele passa a enxergar este.
   const outro = painelEm(caminho);
-  let mutua = false;
-  if (outro && !jaLigado(outro.id, p.cwd)) {
-    outro.ligacoes = [...ligacoesDe(outro.id), p.cwd];
-    outro.mostrarLigacoes?.();
-    if (aplicar) await aplicarEmSessaoViva(outro.id, p.cwd);
-    mutua = true;
-  }
+  let la = null;
+  if (outro && outro.id !== p.id) la = await registrarEm(outro, p.cwd, aplicar, ms);
 
   window.OrqGrade?.salvarSessao?.();
-  return { ok: true, novo, mutua: mutua || Boolean(outro) };
+
+  const falhou = [aqui, la].filter((r) => r && r.mudou && !r.aplicado);
+  const ok = falhou.length === 0;
+
+  // O resultado deixou de ser descartado: sem isto, uma falha do lado do CLI
+  // era indistinguivel de sucesso para quem estava olhando a tela.
+  if (!ok) {
+    window.OrqToast?.mostrar(`Não consegui ligar: ${falhou[0].motivo}. Clique em aplicar para tentar de novo.`);
+  } else if (aqui.sóAoRetomar) {
+    window.OrqToast?.mostrar('Ligação registrada: vale quando você retomar a sessão.');
+  }
+
+  return {
+    ok,
+    novo: aqui.mudou,
+    mutua: Boolean(outro),
+    aplicado: ok,
+    motivo: ok ? '' : falhou[0].motivo,
+  };
 }
 
 // Desligar tira dos dois lados. Nao ha como retirar um diretorio de uma sessao
@@ -149,11 +252,13 @@ function desligar(id, caminho) {
   if (!p) return { ok: false };
 
   p.ligacoes = ligacoesDe(id).filter((c) => normalizar(c) !== normalizar(caminho));
+  p.pendentes = (p.pendentes || []).filter((c) => normalizar(c) !== normalizar(caminho));
   p.mostrarLigacoes?.();
 
   const outro = painelEm(caminho);
   if (outro) {
     outro.ligacoes = ligacoesDe(outro.id).filter((c) => normalizar(c) !== normalizar(p.cwd));
+    outro.pendentes = (outro.pendentes || []).filter((c) => normalizar(c) !== normalizar(p.cwd));
     outro.mostrarLigacoes?.();
   }
 
@@ -164,13 +269,16 @@ function desligar(id, caminho) {
 window.OrqLigacoes = {
   MS_ANTES_DO_ENTER,
   MARCA_CONFIRMACAO,
+  MARCA_SUCESSO,
   enviarLinha,
   comAddDir,
   ligar,
   desligar,
   ligacoesDe,
   jaLigado,
+  pendenteEm,
   painelEm,
   aplicarEmSessaoViva,
+  esperarNovoNoBuffer,
   normalizar,
 };

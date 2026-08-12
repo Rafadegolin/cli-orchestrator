@@ -60,10 +60,15 @@ async function desenharSeletor() {
   }
 
   elSeletorLista.replaceChildren(...alvos.map((a) => {
-    const ligado = L.jaLigado(id, a.caminho);
+    // Tres estados, e nao dois. `pendente` e a ligacao que ficou registrada sem
+    // o CLI ter aceitado: antes ela ja aparecia como "desligar", e nao havia
+    // como tentar de novo sem desligar antes.
+    const pendente = L.pendenteEm(id, a.caminho);
+    const ligado = L.jaLigado(id, a.caminho) && !pendente;
 
     const li = document.createElement('li');
-    li.className = 'seletor-item' + (ligado ? ' seletor-ligado' : '');
+    li.className = 'seletor-item' + (ligado ? ' seletor-ligado' : '')
+      + (pendente ? ' seletor-pendente' : '');
 
     const nome = document.createElement('span');
     nome.className = 'seletor-nome';
@@ -83,8 +88,12 @@ async function desenharSeletor() {
     caminho.title = a.caminho;
 
     const botao = document.createElement('button');
-    botao.textContent = ligado ? 'desligar' : 'ligar';
+    botao.textContent = ligado ? 'desligar' : (pendente ? 'aplicar' : 'ligar');
     botao.className = ligado ? 'seletor-desligar' : 'seletor-ligar';
+    if (pendente) {
+      botao.title = 'A ligação está registrada, mas a sessão ainda não aceitou. '
+        + 'Clique para tentar de novo.';
+    }
     botao.addEventListener('click', async (ev) => {
       ev.stopPropagation();
       botao.disabled = true;

@@ -7,6 +7,7 @@
 // a porta do servidor.
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const arquivo = require('./arquivo');
@@ -89,6 +90,69 @@ function adicionar(caminho, faixa) {
   return { projeto, novo: true };
 }
 
+// A proxima faixa de 100 portas livre, a partir de 3100.
+//
+// O cadastro de um projeto so oferece tres faixas fixas; dez projetos de uma vez
+// nao cabem nelas. Aqui a faixa sai sozinha, pulando o que ja esta em uso.
+const FAIXA_BASE = 3100;
+const FAIXA_TAMANHO = 100;
+
+function proximaFaixa(extras = []) {
+  const usadas = [...ler(), ...extras]
+    .map((p) => p.faixa)
+    .filter(faixaValida)
+    .map((f) => f[0]);
+
+  for (let inicio = FAIXA_BASE; inicio < 65000; inicio += FAIXA_TAMANHO) {
+    if (!usadas.includes(inicio)) return [inicio, inicio + FAIXA_TAMANHO - 1];
+  }
+  return null;
+}
+
+// Cadastra um LOTE, com UMA gravacao so.
+//
+// Duas coisas que o `adicionar` sozinho num laco nao daria:
+//  - `gravar()` reescreve o arquivo inteiro, entao N projetos seriam N ciclos
+//    de leitura e escrita atomica;
+//  - `adicionar` LANCA quando a pasta nao existe, e um caminho ruim derrubaria
+//    o lote inteiro. Aqui cada recusa e um item do relatorio, e o resto entra.
+function adicionarVarios(caminhos) {
+  const projetos = ler();
+  const novos = [];
+  const jaExistiam = [];
+  const recusados = [];
+
+  for (const bruto of caminhos || []) {
+    const resolvido = bruto ? path.resolve(String(bruto)) : '';
+    if (!resolvido) { recusados.push({ caminho: String(bruto), motivo: 'caminho vazio' }); continue; }
+    if (!fs.existsSync(resolvido)) {
+      recusados.push({ caminho: resolvido, motivo: 'pasta nao existe' });
+      continue;
+    }
+
+    const k = chave(resolvido);
+    if ([...projetos, ...novos].some((p) => chave(p.caminho) === k)) {
+      jaExistiam.push(resolvido);
+      continue;
+    }
+
+    const faixa = proximaFaixa(novos);
+    const projeto = {
+      // O sufixo aleatorio sozinho carregaria a unicidade quando varios entram
+      // no mesmo milissegundo; o indice fecha a conta.
+      id: `pj-${Date.now().toString(36)}-${novos.length}-${Math.floor(Math.random() * 1e6).toString(36)}`,
+      caminho: resolvido,
+      nome: nomeCurto(resolvido),
+      adicionadoEm: new Date().toISOString(),
+    };
+    if (faixa) projeto.faixa = faixa;
+    novos.push(projeto);
+  }
+
+  if (novos.length) gravar([...projetos, ...novos]);
+  return { novos, jaExistiam, recusados };
+}
+
 // Qual projeto e dono de uma pasta.
 //
 // Casa pelo prefixo MAIS ESPECIFICO: um worktree vive em
@@ -135,7 +199,30 @@ function renomear(id, nome) {
   return { renomeado: true, nome: p.nome };
 }
 
+// Quantas conversas o Claude Code ja guardou para esta pasta.
+//
+// Ele grava os transcritos em `~/.claude/projects/<caminho-codificado>/*.jsonl`,
+// e a codificacao (conferida em 19 pastas reais desta maquina) troca `:`, `\`,
+// `/` e `.` por `-`. Isso e layout INTERNO do CLI, nao contrato: se mudar, a
+// contagem vira zero e o app so deixa de oferecer o "retomar" -- degrada sem
+// quebrar, e por isso da para depender disso sem medo.
+//
+// Ressalva: worktree tem pasta propria, porque o cwd e outro. A contagem de um
+// projeto nao inclui as conversas das worktrees dele.
+function conversas(caminho) {
+  try {
+    const codificado = path.resolve(String(caminho)).replace(/[:\\/.]/g, '-');
+    const pasta = path.join(os.homedir(), '.claude', 'projects', codificado);
+    return fs.readdirSync(pasta).filter((f) => f.endsWith('.jsonl')).length;
+  } catch {
+    return 0;
+  }
+}
+
 module.exports = {
+  conversas,
+  adicionarVarios,
+  proximaFaixa,
   ARQUIVO, PASTA, listar, adicionar, remover, renomear, nomeCurto, ehRepositorio,
   faixaDe, faixaValida, donoDe,
 };

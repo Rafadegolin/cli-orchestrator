@@ -10,7 +10,11 @@ const historico = require('./historico');
 const projetos = require('./projetos');
 
 // A ordem importa para a barra lateral: quem espera ha mais tempo primeiro.
-const STATUS = ['esperando', 'terminou', 'rodando', 'iniciando', 'encerrada'];
+//
+// `parada` fica entre `terminou` e `rodando`: e uma sessao que acabou e ficou
+// la, sem nada pendente. Menos urgente que uma que acabou agora e espera
+// revisao, mais visivel que uma trabalhando.
+const STATUS = ['esperando', 'terminou', 'parada', 'rodando', 'iniciando', 'encerrada'];
 
 const sessoes = new Map();
 let janela = null;
@@ -82,6 +86,18 @@ function resolver({ orqId, cwd }) {
   const alvo = normalizar(cwd);
   if (!alvo) return null;
 
+  // `cwdSessao` ANTES do cwd de spawn.
+  //
+  // O app grava o cwd real da sessao assim que ele aparece num evento -- depois
+  // de `claude -w`, a pasta do worktree. Ele estava sendo gravado e nunca
+  // consultado: um evento sem ORQ_ID vindo daquele mesmo worktree caia na regra
+  // do descendente (ou em nada), mesmo o app ja sabendo de quem era. E quando
+  // dois painéis vivem na MESMA pasta de projeto, o cwd de spawn nao distingue
+  // os dois e o primeiro do Map levava tudo -- o painel 2 esperando acendia o 1.
+  for (const s of sessoes.values()) {
+    if (s.cwdSessao && s.cwdSessao === alvo) return s.id;
+  }
+
   for (const s of sessoes.values()) {
     if (s.cwd === alvo) return s.id;
   }
@@ -99,15 +115,39 @@ function resolver({ orqId, cwd }) {
   return melhor;
 }
 
-// Evento do Claude -> status. O tipo vem da query string do hook (o matcher do
-// settings.json ja separou permission_prompt de idle_prompt), e o corpo serve
-// so de reforco.
+// O `notification_type` do Claude Code, ja separado pelo matcher do
+// settings.json e entregue na rota do hook.
+//
+// A lista completa esta no binario do CLI 2.1.220
+// (`fieldToMatch:"notification_type"`) e tem OITO valores; o app registrava
+// matcher para dois. Os que faltavam e significam espera de verdade entram
+// aqui -- `elicitation_dialog` e literalmente "Claude Code needs your input",
+// e sem matcher ele nao gerava evento nenhum: a sessao ficava esperando com o
+// painel verde, para sempre.
+//
+// E `ocioso` (idle_prompt) DEIXOU de ser amarelo. Medido no binario: ele
+// dispara 60s depois da ultima mensagem com a sessao parada no prompt, ou seja
+// "acabou e ninguem esta bloqueado". Enquanto ele virava `esperando`, uma
+// sessao que tinha terminado ficava amarela sozinha um minuto depois, sem ter
+// pergunta nenhuma -- foi relatado, e e o oposto do que o amarelo promete.
+const TIPOS_NOTIFICACAO = {
+  permissao: { status: 'esperando', motivo: 'pedindo permissao' },
+  elicitacao: { status: 'esperando', motivo: 'pedindo uma resposta' },
+  agente: { status: 'esperando', motivo: 'agente em segundo plano travado' },
+  ocioso: { status: 'parada', motivo: 'sem nada pendente' },
+  concluido: { status: 'terminou', motivo: 'pronto para revisar' },
+};
+
+// Evento do Claude -> status. O tipo vem da rota do hook (o matcher do
+// settings.json ja separou os tipos), e o corpo serve so de reforco.
 function statusDe(evento, tipo) {
   switch (evento) {
     case 'Notification':
-      return tipo === 'ocioso'
-        ? { status: 'esperando', motivo: 'parado ha 60s' }
-        : { status: 'esperando', motivo: 'pedindo permissao' };
+      // Tipo desconhecido cai em `esperando`: se o Claude notificou e a gente
+      // nao sabe por que, mostrar e melhor que engolir. Isso so alcanca um
+      // settings.json editado a mao -- matcher que o app nao registrou nao
+      // dispara hook nenhum.
+      return TIPOS_NOTIFICACAO[tipo] || TIPOS_NOTIFICACAO.permissao;
     case 'UserPromptSubmit':
     case 'PostToolUse':
     case 'SessionStart':

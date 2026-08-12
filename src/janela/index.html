@@ -265,6 +265,7 @@
       <div class="modal-linha">
         <input id="projeto-caminho" type="text" spellcheck="false" placeholder="C:\Users\voce\meu-repo" />
         <button id="projeto-procurar">Procurar</button>
+        <button id="projeto-varias" title="Escolher várias pastas de uma vez; cada uma ganha sua faixa de portas">Várias…</button>
       </div>
 
       <div class="modal-rotulo">Faixa de portas</div>
@@ -290,6 +291,21 @@
         Ligar dá a esta sessão acesso de leitura ao código do outro repositório,
         usando o <code>--add-dir</code> do próprio Claude Code.
       </p>
+    </div>
+  </div>
+
+  <!-- Nova sessao ou retomar uma anterior. So aparece quando ha conversa
+       guardada para aquela pasta: perguntar sem alternativa e so um clique a
+       mais. -->
+  <div id="escolha-sessao" class="overlay" hidden>
+    <div class="modal-caixa">
+      <h2 id="escolha-titulo">Abrir sessão</h2>
+      <p class="modal-explica" id="escolha-explica"></p>
+      <div class="modal-acoes">
+        <button id="escolha-retomar">Retomar uma anterior</button>
+        <button id="escolha-nova" class="primario">Sessão nova</button>
+        <button id="escolha-cancelar">Cancelar</button>
+      </div>
     </div>
   </div>
 
@@ -329,4 +345,6 @@
 <script src="layouts.js"></script>
 <script src="mapa.js"></script>
 <script src="personalizado.js"></script>
+<script src="anexos.js"></script>
+<script src="escolha-sessao.js"></script>
 <script src="paleta.js"></script>

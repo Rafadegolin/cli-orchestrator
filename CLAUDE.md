@@ -143,7 +143,10 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
     `.exe` — que e o do Electron. Dai `src/main/atalho.js`, que cria um `.lnk` no menu Iniciar com o
     nosso `.ico` e o `appUserModelId`, mais `app.setAppUserModelId` no `index.js` com o MESMO id (e
     ele que faz o Windows entender que a janela aberta e aquele atalho). O `.lnk` e criado na maquina
-    de quem usa, pela paleta: ele grava caminho absoluto e viajaria quebrado dentro do zip.
+    de quem usa — **sozinho, no arranque**, nos layouts portatil e `-sac` (`atalho.garantir()`), e
+    pela paleta como caminho manual: ele grava caminho absoluto e viajaria quebrado dentro do zip.
+    **Sem um atalho carregando o mesmo AppUserModelID, o Windows descarta os toasts do app em
+    silencio** — e este app avisa por toast quando uma sessao para pedindo permissao.
 - **`app.isPackaged` MENTE neste projeto, e a falha e muda.** O Electron responde pelo NOME do
   executavel (`electron.exe` -> "nao empacotado"), e o pacote `-sac` roda sobre exatamente esse nome.
   O updater inteiro se desligava sozinho: nenhum aviso de versao nova, para sempre, sem um erro
@@ -648,9 +651,30 @@ Detalhes que decidem correcao:
   receber a contrapartida, e o seletor diz isso na etiqueta.
 - **Nao existe `/remove-dir`**: desligar limpa o registro dos dois lados, mas a sessao em andamento
   so perde o acesso ao reiniciar. A interface avisa em vez de fingir que sumiu.
-- Ler o buffer do terminal para achar o prompt de confirmacao e a **unica** excecao a regra de nunca
-  interpretar bytes do Canal 1 — e nao e status, e uma interacao pontual que o proprio app acabou de
-  provocar. Se o texto mudar, o pior caso e um Enter sobrando numa caixa vazia.
+- Ler o buffer do terminal para achar o prompt de confirmacao e uma excecao consciente a regra de
+  nunca interpretar bytes do Canal 1 — e nao e status, e uma interacao pontual que o proprio app
+  acabou de provocar. Se o texto mudar, o pior caso e um Enter sobrando numa caixa vazia.
+
+**O registro so existe depois de o CLI concordar** — e este era o defeito relatado como "nao esta
+ligando". Antes `ligar()` gravava `p.ligacoes` **antes e independentemente** do lado do CLI, e
+descartava o resultado. Falhou? O registro ficava, o seletor ja mostrava "desligar", e a proxima
+tentativa caia no `novo === false` e **nao mandava nada**: a falha virava permanente e sem saida pela
+interface.
+
+- Sessao viva grava **so depois** de a sessao responder; painel dormindo grava sem aplicar (a flag
+  entra na proxima partida) e o toast diz isso.
+- Falha deixa a ligacao **pendente**, e o seletor troca o botao para **aplicar** — e o que devolve a
+  chance de tentar de novo.
+- A leitura do buffer olha so o que chegou **depois** do envio: o `textoDoBuffer()` inclui o
+  scrollback, entao uma confirmacao de dez minutos atras casava na primeira volta e o app disparava
+  um Enter no que estivesse na tela. Na pratica a **segunda** ligacao de uma sessao nao fazia nada e
+  reportava sucesso.
+- Toast em toda recusa, e portao por status: em `esperando` o app **recusa** escrever, porque o
+  caminho seria digitado dentro do seletor de permissao — que responde a digitos.
+- Medido no spike: **o Enter confirma o `/add-dir`** (diferente do prompt de permissao, que exige o
+  digito), e as opcoes sao `Yes, for this session` / `Yes, and remember this directory`. A marca
+  `Add directory to workspace` esta certa — confirmada como o `title` do dialogo no binario. O que
+  falhava era a leitura, nao a marca (ver a secao sobre `isWrapped`).
 
 ## Sobreviver ao fechar e reabrir (Fase 7)
 
@@ -748,6 +772,17 @@ locked   claude session feat-x (pid 24172 start 639219707467220630)
 - Quatro portoes antes de apagar: sessao viva, alteracao sem commit, commit fora da base, e painel
   deste app aberto na pasta (`terminais.cwdDe`). Cada recusa diz **qual** deles impediu — um "nao
   deu" generico obrigaria a ir descobrir no terminal, que e o que este app existe para evitar.
+- **Os portoes sao todos LOCAIS: `push` nao libera nada.** Nao ha nenhuma checagem de remoto no app;
+  o portao e `git log <base>..<branch>`. Branch com push e sem merge na base **e recusado**, e nada
+  aqui apaga branch remoto. Quem libera e o merge na base.
+- **Arquivo IGNORADO pelo git some junto, e nenhum portao via isso.** `git status --porcelain` nao
+  lista ignorado, e `git worktree remove` apaga sem reclamar — o `.env` ia embora em silencio, e e
+  este mesmo modulo que incentiva copia-lo para dentro do worktree pelo `.worktreeinclude`. Agora
+  `ignorados()` (`git ls-files --others --ignored --exclude-standard`) entra no `listar()` e o
+  dialogo **nomeia** o que vai apagar. Nao bloqueia: so para de apagar calado.
+- **Fechar o painel nao apaga NADA.** `destruir()` mata a arvore de processos e limpa a tela; nao ha
+  uma chamada de filesystem ou git em todo esse caminho. Apagar exige o `×` da linha do worktree, com
+  dialogo cujo padrao e Cancelar.
 - Todos os comandos usam `execFile` com argumentos em **array**: os caminhos vem do usuario e podem
   conter espaco ou `&`.
 
@@ -807,6 +842,40 @@ que impede os testes de mexerem na lista real). Clicar num projeto abre painel n
   virar repositorio depois de cadastrada.
 - **`projetos:adicionar` recebe o caminho pronto**, sem abrir dialogo por dentro: separa a escolha da
   gravacao e e o que torna o fluxo testavel, ja que o CDP nao dirige dialogo nativo do Windows.
+- **Importar em lote nao e `adicionar` num laco.** `adicionar` **lanca** quando a pasta nao existe, e
+  um caminho torto derrubaria a importacao inteira; e `gravar()` reescreve o arquivo todo, entao N
+  projetos seriam N ciclos de escrita atomica. `adicionarVarios` acumula, grava **uma vez**, e devolve
+  `{ novos, jaExistiam, recusados }` — cada recusa com motivo, em vez de uma excecao. Um toast so com
+  o resumo: o toast e um de cada vez, e N deles se atropelariam.
+- **A faixa de portas do lote sai de `proximaFaixa()`**, o proximo bloco de 100 livre a partir de
+  3100. As tres faixas fixas do modal servem para cadastrar um projeto; dez de uma vez nao cabem
+  nelas.
+- **`app:escolherPastas` e handler SEPARADO do `escolherPasta`**, e nao um parametro nele: o "Painel
+  avulso" depende do contrato de string unica, e trocar o retorno para array quebraria aquele caminho
+  em silencio.
+- **Clicar num projeto com conversa anterior pergunta** antes de abrir: sessao nova, ou retomar. O
+  "retomar" e `cls && claude -r`, que abre o **seletor do proprio Claude** dentro do painel — o app
+  nao precisa saber id de sessao nenhum. A contagem sai de
+  `~/.claude/projects/<caminho-codificado>/*.jsonl`, com a codificacao trocando `:`, `\`, `/` e `.`
+  por `-` (conferida em 19 pastas reais). Isso e layout **interno** do CLI: se mudar, a contagem vira
+  zero e o app so deixa de oferecer o retomar — degrada sem quebrar. Worktree tem pasta propria,
+  entao a contagem de um projeto nao inclui as conversas das worktrees dele.
+
+## Arrastar arquivo para dentro do terminal
+
+`src/janela/anexos.js`. Soltar um arquivo em cima de um painel escreve o **caminho absoluto entre
+aspas**, com um espaco no fim. **Nada e enviado** — o Enter continua sendo do usuario, entao da para
+escrever a pergunta junto e um arrasto sem querer nao dispara execucao nem custo de token.
+
+- **`preventDefault` no `dragover` E no `drop` da JANELA INTEIRA**, e nao so do painel: sem isso o
+  Electron **navega o renderer para o arquivo solto** e o app vira a imagem que voce arrastou.
+- **`file.path` nao existe mais desde o Electron 32** (aqui e o 43). Quem devolve o caminho e
+  `webUtils.getPathForFile`, chamado no preload — funciona com `sandbox: true`, que e como a janela
+  sobe.
+- Soltar fora de um painel vira toast: sem isso o arquivo "some" e ninguem entende por que.
+- O teste cobre a regra (aspas, e o buffer NAO crescer com resposta) e o `preventDefault`. O arrasto
+  do sistema operacional em si nao da para simular: um `File` criado por script nao tem caminho no
+  disco, que e justamente o que o `webUtils` devolve.
 - Gravacao atomica (`.tmp` + `rename`): o app morrer no meio de um `writeFile` nao pode zerar a lista.
 - Remover projeto tira **so o cadastro** — a pasta no disco nunca e tocada, e o dialogo diz isso.
 
@@ -873,6 +942,67 @@ que impede os testes de mexerem na lista real). Clicar num projeto abre painel n
   faz o curl esperar o proprio timeout.
 - Escute so em `127.0.0.1`. Porta fixa 47615, gravada em `~/.orquestrador/porta`.
 
+## O aviso de espera: o que foi medido DENTRO do CLI
+
+Dois relatos de campo, opostos na aparencia e com a mesma raiz: *"estava esperando e nao avisou"* e
+*"apareceu 'Esperando voce' numa sessao que ja tinha terminado"*. As respostas sairam de ler o
+binario do CLI 2.1.220, nao de supor.
+
+- **O hook de permissao nao pode chegar em menos de ~6 SEGUNDOS.** A funcao que emite a notificacao
+  arma um temporizador de `Q3f = 6000` e so dispara se `Date.now() - lastInteractionTime >= 6000` --
+  e zera esse relogio quando o dialogo monta:
+
+  ```js
+  function ADr(e,t){ useEffect(()=>{UNr()},[]);                    // UNr() zera lastInteractionTime
+    Rc(()=>{ if(nkS(Q3f)) dAe({message:e,notificationType:t}) }, n?null:Q3f) }
+  var Q3f=6000;  function nkS(e){return Date.now()-MN()>=e}
+  async function bz(e){ ... await TL({hookInput:{hook_event_name:"Notification",...},matchQuery:o}) }
+  ```
+
+  **Isso corrige um numero desta documentacao.** A tabela de metas diz "permissao -> bolinha amarela,
+  medido 71–79ms". O numero e honesto mas mede a perna hook -> bolinha; a perna CLI -> hook nunca
+  tinha sido medida. **De ponta a ponta sao ~6s + 71ms.** O `idle_prompt` e pior: 60s
+  (`messageIdleNotifThresholdMs: 60000`).
+- **Sao OITO tipos de notificacao, e o app registrava dois.** A lista autoritativa esta no binario
+  (`matcherMetadata:{fieldToMatch:"notification_type",values:[...]}`):
+  `permission_prompt · idle_prompt · auth_success · elicitation_dialog · elicitation_complete ·
+  elicitation_response · agent_needs_input · agent_completed`. **`elicitation_dialog` e literalmente
+  "Claude Code needs your input"** — sem matcher, uma sessao travada nessa pergunta ficava verde
+  para sempre. Hoje o app registra tambem `elicitation_dialog`, `agent_needs_input` e
+  `agent_completed`.
+- **`idle_prompt` NAO e espera, e virou status proprio (`parada`).** Ele significa "faz 60s que a
+  sessao esta parada no prompt" — acabou, ninguem bloqueado. Enquanto ele e o `permission_prompt`
+  viravam o mesmo `esperando`, uma sessao que terminava ficava amarela sozinha um minuto depois. O
+  amarelo voltou a significar **uma coisa so**: tem pergunta te bloqueando. `parada` fica fora da
+  fila e nao notifica.
+- **O farejador do Canal 1** (`aprovacao.js`) cobre os 6 segundos: le as duas marcas que ja
+  autorizam escrever no PTY e acende o amarelo na hora. **So ACENDE, nunca apaga** — sair do amarelo
+  continua sendo exclusividade do Canal 2. So painel visivel, e lendo so a tela (`textoDaTela`), sem
+  flush: painel fora da vista nao paga o custo nem perde a economia da Fase 6.1. E a terceira
+  excecao consciente a regra de nao deduzir status do Canal 1; as outras duas sao o `/add-dir` e a
+  leitura da pergunta na faixa.
+- **`jaAvisado` era marcado ANTES do teste de foco.** Uma sessao que comecava a esperar com a janela
+  na frente queimava ali a unica chance de aviso: ao trocar de janela um minuto depois, nada. Agora
+  o aviso fica **pendente** e sai no `blur`. `Stop` tambem passou a avisar (`terminou`), e um
+  lembrete insiste uma vez apos 5min. `flashFrame` acompanha todo aviso, porque o toast do Windows
+  pode ser descartado em silencio e ele e o unico sinal que sobra.
+- **O botao de hooks mentia.** `estaInstalado()` devolvia `true` se **um** hook nosso sobrevivesse em
+  qualquer evento — sumindo so as entradas de `Notification`, o verde e o azul seguiam mudando, o
+  amarelo morria, e a lateral dizia "ligados". Agora `situacao()` confere o conjunto inteiro e diz
+  **`desatualizados`** quando falta algo.
+
+## Ler o buffer do terminal: `isWrapped` decide se funciona
+
+`textoDoBuffer()` e `textoDaTela()` juntam as linhas **respeitando `isWrapped`**: continuacao de
+quebra automatica cola na anterior, quebra de verdade vira `\n`. E `OrqPainel.achatar()` colapsa
+espacos antes de qualquer comparacao.
+
+Isso nao e polimento — e a diferenca entre achar e nao achar. Medido no spike do `/add-dir`: a
+resposta de sucesso chegou partida (`...repo-alvo as` / `a working directory...`) e o
+`.includes('as a working directory')` nunca via nada, **mesmo com a ligacao tendo funcionado**. Com
+painel de 200px numa grade, isso deixa de ser caso raro e vira o caso normal. As marcas do
+`aprovacao.js` tambem deixaram de ser ancoradas em `^...$` pelo mesmo motivo.
+
 ## O contrato do hook (medido contra o CLI 2.1.220, nao suposto)
 
 ```
@@ -910,7 +1040,7 @@ estiver commitado. `instalar-hooks.js` faz merge preservando tudo, grava backup 
 | RAM total, 8 painéis (< 700 MB) | **375–400 MB** | ok |
 | RAM por painel (< 40 MB) | **11–14 MB marginal** | ok no marginal |
 | Abertura ate o 1o terminal (< 1,5s) | **443ms** | ok |
-| Permissao -> bolinha amarela (< 300ms) | **71–79ms** | ok |
+| Permissao -> bolinha amarela (< 300ms) | **71–79ms** do hook; **~6s** do CLI | ver acima |
 | Tecla -> tela (< 16ms) | **~30ms** ida e volta | ver abaixo |
 
 Duas ressalvas honestas, ambas sobre a **metrica**, nao sobre o codigo:

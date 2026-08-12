@@ -330,13 +330,64 @@ class Painel {
   // buffer no proximo passo do parser, nao nesta chamada. Por isso todo mundo
   // que espera algo aqui usa laco com intervalo (`esperarPedido`,
   // `esperarNoBuffer`) -- uma leitura unica logo apos o flush le o passado.
+  // A JUNCAO RESPEITA `isWrapped`, e isso decide se procurar texto aqui
+  // funciona ou nao.
+  //
+  // Quando o terminal QUEBRA uma linha que nao cabe, a continuacao e a mesma
+  // linha logica -- juntar com `\n` parte palavras ao meio. Um caminho solto num
+  // painel estreito virava `...captura.p` + `ng"`, e nenhum `includes` do mundo
+  // acha `captura.png` ali. Quebra de verdade (linha nova de fato) continua
+  // virando `\n`, e o `achatar` a transforma em espaco -- que e o certo para o
+  // texto que o proprio CLI quebrou com indentacao.
   textoDoBuffer() {
     if (this.encerrado || !this.term) return '';
     this.descarregarPendentes();
-    const b = this.term.buffer.active;
+    return Painel._juntar(this.term.buffer.active, 0, this.term.buffer.active.length);
+  }
+
+  static _juntar(b, inicio, fim) {
     let t = '';
-    for (let i = 0; i < b.length; i++) t += `${b.getLine(i).translateToString(true)}\n`;
+    for (let i = inicio; i < fim; i++) {
+      const linha = b.getLine(i);
+      if (!linha) continue;
+      // A continuacao cola na anterior; o resto entra em linha propria.
+      if (i > inicio && !linha.isWrapped) t += '\n';
+      t += linha.translateToString(true);
+    }
     return t;
+  }
+
+  // O texto do terminal com os espacos ACHATADOS: toda sequencia de espaco,
+  // tabulacao e quebra de linha vira um espaco so.
+  //
+  // Procurar frase em terminal sem isto e loteria, e foi MEDIDO: o CLI quebra a
+  // linha onde a largura do painel mandar, e a mesma frase que casa num painel
+  // largo nao casa num estreito. No spike do `/add-dir`, a confirmacao chegou
+  // partida ao meio --
+  //
+  //     Added C:\...\repo-alvo as
+  //     a working directory for this session
+  //
+  // -- e o `.includes('as a working directory')` nunca via nada, mesmo com a
+  // ligacao tendo dado certo. Como os painéis aqui vivem numa grade e podem ter
+  // 200px de largura, isso deixa de ser caso raro e vira o caso normal.
+  static achatar(texto) {
+    return String(texto || '').replace(/\s+/g, ' ');
+  }
+
+  // So o que esta VISIVEL na janela do terminal, sem scrollback e sem flush.
+  //
+  // Existe para ser lido de tempos em tempos: `textoDoBuffer()` percorre as 3000
+  // linhas do scrollback e ainda descarrega os bytes pendentes -- barato uma
+  // vez, caro a cada segundo em oito painéis. Aqui sao as ~15 linhas da tela, e
+  // e onde o prompt de permissao sempre esta.
+  //
+  // Sem flush de proposito: quem chama isto em laco pula painel fora da vista,
+  // justamente para nao desfazer a economia da Fase 6.1.
+  textoDaTela() {
+    if (this.encerrado || !this.term) return '';
+    const b = this.term.buffer.active;
+    return Painel._juntar(b, b.baseY, b.baseY + this.term.rows);
   }
 
   definirVisivel(visivel) {
@@ -652,4 +703,4 @@ function nomeCurto(caminho) {
   return partes[partes.length - 1] || caminho;
 }
 
-window.OrqPainel = { Painel, painelPorId, nomeCurto };
+window.OrqPainel = { Painel, painelPorId, nomeCurto, achatar: Painel.achatar };

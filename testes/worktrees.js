@@ -108,6 +108,33 @@ function achar(nome) {
     depoisDasRecusas.filter((w) => w.travado).length === 4,
     depoisDasRecusas.map((w) => `${w.nome}:${w.travado}`).join(' '));
 
+  // --- o que o `limpo` NAO enxerga ----------------------------------------
+  //
+  // `git status --porcelain` nao lista arquivo ignorado, e o `git worktree
+  // remove` apaga ignorado sem reclamar. O `.env` dentro do worktree sumia em
+  // silencio -- e e o app que incentiva copiar o .env para la, pelo
+  // .worktreeinclude. Nao bloqueia: o dialogo passa a NOMEAR o que vai apagar.
+  fs.writeFileSync(path.join(dLimpo, '.env'), 'TOKEN=abc\n');
+  // Ignorado, mas NAO e um dos candidatos conhecidos: nao pode entrar na lista,
+  // senao o dialogo viraria um despejo de node_modules.
+  fs.mkdirSync(path.join(dLimpo, 'node_modules'), { recursive: true });
+  fs.writeFileSync(path.join(dLimpo, 'node_modules', 'x.js'), '\n');
+  // Pelo `info/exclude`, e nao pelo `.gitignore`: o `.gitignore` e VERSIONADO, e
+  // o worktree carrega a versao da propria branch -- editar la nao ignoraria
+  // nada aqui, e ainda sujaria a arvore. O `info/exclude` mora no diretorio
+  // comum e vale para todos os worktrees.
+  fs.appendFileSync(path.join(RAIZ, '.git', 'info', 'exclude'), '\nnode_modules/\n');
+
+  const comEnv = achar('limpo');
+  checar('o .env ignorado aparece na lista de ignorados',
+    comEnv.ignorados.includes('.env'), JSON.stringify(comEnv.ignorados));
+  checar('e o worktree continua "limpo" -- e por isso que o portao precisava existir',
+    comEnv.limpo === true && comEnv.sujos === 0, JSON.stringify({ l: comEnv.limpo, s: comEnv.sujos }));
+  checar('ignorado que nao e arquivo de ambiente fica de fora',
+    !comEnv.ignorados.some((i) => i.includes('node_modules')), JSON.stringify(comEnv.ignorados));
+  checar('e ter .env NAO impede de arquivar (so avisa)',
+    wt.podeArquivar(comEnv).pode === true, JSON.stringify(wt.podeArquivar(comEnv)));
+
   // --- arquivar de verdade o que esta limpo -------------------------------
   const r = wt.arquivar(RAIZ, dLimpo);
   checar('arquiva o worktree limpo', r.ok === true, JSON.stringify(r));

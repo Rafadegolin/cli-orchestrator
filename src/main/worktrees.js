@@ -127,9 +127,37 @@ function listar(projeto) {
       limpo: existe && st.ok && sujos === 0,
       sujos,
       naoMesclados,
+      // O que o `limpo` NAO enxerga, e o `git worktree remove` apaga assim
+      // mesmo. Ver `ignorados()`.
+      ignorados: existe ? ignorados(caminho) : [],
       prunable: 'prunable' in p,
     };
   });
+}
+
+// Arquivos que o git IGNORA dentro do worktree -- e que o arquivamento apaga
+// sem dizer nada.
+//
+// `git status --porcelain`, que alimenta o `limpo`, nao lista arquivo ignorado.
+// E `git worktree remove` (sem --force) recusa por arquivo rastreado sujo, mas
+// remove ignorado calado. O resultado era o pior tipo de perda: silenciosa, e
+// justamente do `.env` -- que este mesmo modulo INCENTIVA a copiar para dentro
+// do worktree pelo `.worktreeinclude`. Editou o .env so ali dentro? Foi embora.
+//
+// So os candidatos conhecidos entram: listar `node_modules` inteiro seria
+// ruido, e o que interessa e o que voce nao consegue recriar.
+function ignorados(caminho) {
+  const r = gitSilencioso(caminho, [
+    'ls-files', '--others', '--ignored', '--exclude-standard', '--directory', '--no-empty-directory',
+  ]);
+  if (!r.ok) return [];
+
+  const conhecidos = new Set(CANDIDATOS_ENV.map((c) => c.toLowerCase()));
+  return r.saida
+    .split(/\r?\n/)
+    .map((l) => l.trim().replace(/\/$/, ''))
+    .filter(Boolean)
+    .filter((l) => conhecidos.has(path.basename(l).toLowerCase()));
 }
 
 // Diz se da para arquivar, e QUAL dos motivos impede. Um "nao deu" generico
@@ -319,6 +347,7 @@ function criarInclude(projeto, linhas) {
 
 module.exports = {
   CANDIDATOS_ENV,
+  ignorados,
   listar,
   podeArquivar,
   arquivar,

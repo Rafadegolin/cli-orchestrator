@@ -171,7 +171,12 @@ function desenharProjetos() {
     linha.className = 'projeto-linha';
     linha.append(btnAbrir, tinta, nome, marca, btnRemover);
     linha.title = p.caminho;
-    linha.addEventListener('click', () => abrirProjeto(p.id));
+    // Passa pela escolha: com conversa anterior guardada ela pergunta, e sem
+    // nenhuma cai direto no `abrirProjeto`. A paleta continua indo direto ao
+    // `abrirProjeto` -- la voce ja escolheu o que queria.
+    linha.addEventListener('click', () => (window.OrqEscolhaSessao
+      ? window.OrqEscolhaSessao.abrir(p.id)
+      : abrirProjeto(p.id)));
 
     li.append(linha);
 
@@ -283,6 +288,10 @@ function desenharDetalhe(p) {
       ev.stopPropagation();
       const r = await window.orq.worktreesArquivar(p.caminho, w.caminho);
       if (!r.ok && r.texto) btnArquivar.title = r.texto;
+      // O `git branch -d` pode ter recusado (commit nao mesclado) mesmo com a
+      // pasta ja removida. Isso vem em `ok: true` com `avisoBranch`, e estava
+      // sendo descartado -- o branch sobrevivia e ninguem ficava sabendo.
+      if (r.ok && r.avisoBranch) window.OrqToast?.mostrar(r.avisoBranch);
       carregarDetalhes(p.id);
     });
 

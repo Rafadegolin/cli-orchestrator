@@ -18,12 +18,12 @@ const elVersao = document.getElementById('lateral-versao');
 // Ordem de urgencia, nao de projeto: quem espera ha mais tempo primeiro, depois
 // quem terminou e precisa de revisao, depois quem esta rodando, por ultimo
 // quem parou.
-const PESO = { esperando: 0, terminou: 1, rodando: 2, iniciando: 3, encerrada: 4 };
+const PESO = { esperando: 0, terminou: 1, parada: 2, rodando: 3, iniciando: 4, encerrada: 5 };
 
 // Painel dormindo vai para o fim, e por isso o peso NAO pode sair so do status:
 // ele carrega 'iniciando' (peso 3) e cairia no meio da lista, na frente de
 // sessoes vivas. Nao ha processo nenhum ali para exigir sua atencao.
-const PESO_DORMINDO = 5;
+const PESO_DORMINDO = 6;
 
 // O rotulo diz o ESTADO. O motivo que veio do hook ("pedindo permissao",
 // "parado ha 60s") vai para o title -- juntar os dois produzia coisas como
@@ -31,6 +31,9 @@ const PESO_DORMINDO = 5;
 const ROTULO = {
   esperando: 'esperando',
   terminou: 'pronto para revisar',
+  // `parada` NAO diz "esperando": ela acabou e nao ha nada pendente. Chamar
+  // isso de espera era o falso alarme que um usuario relatou.
+  parada: 'parada',
   rodando: 'trabalhando',
   iniciando: 'iniciando',
   encerrada: 'encerrada',
@@ -39,7 +42,26 @@ const ROTULO = {
 const ROTULO_DORMINDO = 'sessão salva';
 
 const cards = new Map();
-let jaAvisado = new Set();
+
+// Os dois status que merecem tirar voce de outra janela. `parada` NAO entra: e
+// justamente a sessao que nao esta pedindo nada.
+const PRECISA_AVISO = new Set(['esperando', 'terminou']);
+
+// id -> status ja anunciado. Era um Set, e por isso um aviso de `esperando`
+// engolia o `terminou` que viesse depois; guardando o status, cada mudanca que
+// merece aviso ganha o seu.
+const jaAvisado = new Map();
+
+// id -> { titulo, corpo }. Aviso que NAO foi dado porque a janela estava em
+// foco na hora. Fica guardado e sai quando voce troca de janela.
+const avisoPendente = new Map();
+
+// id -> true. Um lembrete por episodio, e so.
+const jaLembrado = new Set();
+
+// Quanto tempo esperando ate insistir uma vez. Uma sessao parada quarenta
+// minutos gerava UM toast e nunca mais nada.
+const MS_LEMBRETE = 5 * 60 * 1000;
 
 function registrar({ id, feature, cwd }) {
   cards.set(id, { id, feature, cwd, status: 'iniciando', motivo: '', desde: Date.now() });
@@ -48,8 +70,14 @@ function registrar({ id, feature, cwd }) {
 
 function remover(id) {
   cards.delete(id);
-  jaAvisado.delete(id);
+  esquecerAvisos(id);
   redesenhar();
+}
+
+function esquecerAvisos(id) {
+  jaAvisado.delete(id);
+  avisoPendente.delete(id);
+  jaLembrado.delete(id);
 }
 
 function definirStatus(id, status, motivo = '', desde = Date.now(), extra = {}) {
@@ -66,8 +94,8 @@ function definirStatus(id, status, motivo = '', desde = Date.now(), extra = {}) 
   window.OrqPainel.painelPorId.get(id)?.definirStatus(status, rotuloDe(c), motivo);
   window.OrqAprovacao?.atualizar(id, c);
 
-  if (status === 'esperando') avisar(c);
-  else jaAvisado.delete(id);
+  if (PRECISA_AVISO.has(status)) avisar(c);
+  else esquecerAvisos(id);
 
   // Sessao que saiu de 'rodando' pode ter aberto vaga para quem esta na fila.
   window.OrqFila?.reavaliar();
@@ -75,13 +103,49 @@ function definirStatus(id, status, motivo = '', desde = Date.now(), extra = {}) 
   redesenhar();
 }
 
-async function avisar(c) {
-  if (jaAvisado.has(c.id)) return;
-  jaAvisado.add(c.id);
-  // So incomoda se o app nao estiver na frente.
-  if (await window.orq.estaFocado()) return;
-  window.orq.notificar(`${c.feature} está esperando`, c.motivo || 'pedindo permissão');
+function textoDoAviso(c) {
+  if (c.status === 'terminou') {
+    return { titulo: `${c.feature} terminou`, corpo: 'pronto para revisar' };
+  }
+  return { titulo: `${c.feature} está esperando`, corpo: c.motivo || 'pedindo permissão' };
 }
+
+// O aviso so sai depois de a gente TER CERTEZA de que vai sair.
+//
+// Antes o `jaAvisado` era marcado na primeira linha, e o teste de foco vinha
+// depois: uma sessao que comecou a esperar com a janela na frente queimava ali
+// a unica chance de aviso, e ao trocar de janela um minuto depois nada mais
+// acontecia. Agora, com a janela em foco, o aviso fica PENDENTE e sai no blur.
+async function avisar(c) {
+  if (jaAvisado.get(c.id) === c.status) return;
+
+  const aviso = { ...textoDoAviso(c), status: c.status };
+  if (await window.orq.estaFocado()) {
+    avisoPendente.set(c.id, aviso);
+    return;
+  }
+  disparar(c.id, aviso);
+}
+
+function disparar(id, aviso) {
+  jaAvisado.set(id, aviso.status);
+  avisoPendente.delete(id);
+  window.orq.notificar(aviso.titulo, aviso.corpo);
+}
+
+// Voce saiu da janela: o que ficou pendente sai agora -- desde que ainda seja
+// verdade. Uma sessao que ja saiu do estado nao vira aviso atrasado.
+window.orq.aoMudarFoco((focada) => {
+  if (focada) return;
+  for (const [id, aviso] of [...avisoPendente]) {
+    const c = cards.get(id);
+    if (!c || c.status !== aviso.status || estaDormindo(id)) {
+      avisoPendente.delete(id);
+      continue;
+    }
+    disparar(id, aviso);
+  }
+});
 
 function estaDormindo(id) {
   return Boolean(window.OrqPainel.painelPorId.get(id)?.dormindo);
@@ -96,6 +160,9 @@ function pesoDe(c) {
 function rotuloDe(c) {
   if (estaDormindo(c.id)) return ROTULO_DORMINDO;
   if (c.status === 'esperando') return `esperando ${textoEspera(Date.now() - c.desde)}`;
+  // `parada` tambem conta o tempo -- e a informacao util dela ("faz quanto que
+  // esta ai?") --, so que sem a palavra "esperando" na frente.
+  if (c.status === 'parada') return `parada ${textoEspera(Date.now() - c.desde)}`;
   return ROTULO[c.status] || c.status;
 }
 
@@ -236,20 +303,38 @@ function redesenharFila() {
 // Sai na primeira linha quando ninguem espera -- que e o estado normal da tela.
 // Antes ele varria o DOM a cada segundo mesmo sem nada para atualizar.
 setInterval(() => {
-  const espera = filaAtencao();
-  if (!espera.length) return;
+  // `parada` tambem conta tempo na tela, entao entra no laco. Sessao parada e o
+  // estado mais comum de todos depois de um tempo de uso, entao a escrita e
+  // CONDICIONAL: acima de um minuto o texto so muda uma vez a cada 60 voltas, e
+  // reescrever a mesma string 59 vezes seria sujar o DOM por nada.
+  const cronometrando = [...filaAtencao(), ...cards.values()].filter(
+    (c, i, todos) => todos.indexOf(c) === i && (c.status === 'esperando' || c.status === 'parada'),
+  );
+  if (!cronometrando.length) return;
 
-  for (const c of espera) {
+  for (const c of cronometrando) {
     const rotulo = rotuloDe(c);
     const decorrido = textoEspera(Date.now() - c.desde);
 
     const sub = elLista.querySelector(`.card[data-id="${CSS.escape(c.id)}"] .card-sub`);
-    if (sub) sub.textContent = rotulo;
+    if (sub && sub.textContent !== rotulo) sub.textContent = rotulo;
 
     const naFila = elFilaLista.querySelector(`li[data-id="${CSS.escape(c.id)}"] .fila-espera`);
-    if (naFila) naFila.textContent = decorrido;
+    if (naFila && naFila.textContent !== decorrido) naFila.textContent = decorrido;
 
     window.OrqPainel.painelPorId.get(c.id)?.atualizarRotulo(rotulo);
+
+    // Insiste UMA vez. Sem isto, uma sessao travada quarenta minutos gerava um
+    // toast la no inicio e nunca mais nada -- e quem nao estava olhando naquele
+    // segundo nunca ficava sabendo.
+    if (c.status === 'esperando'
+        && jaAvisado.has(c.id)
+        && !jaLembrado.has(c.id)
+        && Date.now() - c.desde >= MS_LEMBRETE
+        && !estaDormindo(c.id)) {
+      jaLembrado.add(c.id);
+      window.orq.notificar(`${c.feature} ainda está esperando`, decorrido);
+    }
   }
 }, 1000);
 
@@ -288,13 +373,24 @@ btnHooks?.addEventListener('click', async () => {
 async function atualizarBotaoHooks() {
   if (!btnHooks) return;
   const s = await window.orq.hooksSituacao();
+
+  // Tres estados, e nao dois. `parcial` e o caso que a versao anterior chamava
+  // de "ligados": um hook nosso sobrevivendo em qualquer evento bastava. Se so
+  // as entradas de Notification sumirem, o verde e o azul seguem mudando e so
+  // o amarelo morre -- e a lateral dizia que estava tudo bem.
+  const rotulo = s.instalado ? 'ligados' : (s.parcial ? 'desatualizados' : 'desligados');
+
   // Escreve so no rotulo: mexer no textContent do botao apagaria o switch, que
   // e markup irmao. O estado visual do switch sai da classe.
-  if (elHooksRotulo) elHooksRotulo.textContent = s.instalado ? 'ligados' : 'desligados';
+  if (elHooksRotulo) elHooksRotulo.textContent = rotulo;
   btnHooks.classList.toggle('hooks-ok', Boolean(s.instalado));
+  btnHooks.classList.toggle('hooks-parcial', Boolean(s.parcial));
   btnHooks.title = s.instalado
     ? `Hooks registrados em ${s.arquivo} (clique para remover)`
-    : `Registrar hooks em ${s.arquivo} para as bolinhas mudarem sozinhas`;
+    : (s.parcial
+      ? `Faltam ${s.faltando} hook(s) em ${s.arquivo} — clique para registrar de novo. `
+        + 'Sem eles, parte das mudanças de status não chega.'
+      : `Registrar hooks em ${s.arquivo} para as bolinhas mudarem sozinhas`);
 }
 
 atualizarBotaoHooks();

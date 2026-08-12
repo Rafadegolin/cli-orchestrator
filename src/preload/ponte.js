@@ -2,11 +2,19 @@
 
 // Expoe para a janela so o que ela precisa. Nada de ipcRenderer cru, nada de
 // require: o node-pty vive inteiro no processo principal.
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('orq', {
   escolherPasta: () => ipcRenderer.invoke('app:escolherPasta'),
+  escolherPastas: () => ipcRenderer.invoke('app:escolherPastas'),
   pastaPadrao: () => ipcRenderer.invoke('app:pastaPadrao'),
+
+  // O caminho de um File solto na janela. `file.path` deixou de existir no
+  // Electron 32 e este app esta no 43, entao o unico jeito e o `webUtils` --
+  // que funciona em preload mesmo com `sandbox: true`, que e como a janela sobe.
+  caminhoDoArquivo: (file) => {
+    try { return webUtils.getPathForFile(file); } catch { return ''; }
+  },
 
   abrirTerminal: (opcoes) => ipcRenderer.invoke('terminal:abrir', opcoes),
   escrever: (id, texto) => ipcRenderer.send('terminal:escrever', { id, texto }),
@@ -24,6 +32,8 @@ contextBridge.exposeInMainWorld('orq', {
   estadoAtual: () => ipcRenderer.invoke('estado:todas'),
 
   projetosListar: () => ipcRenderer.invoke('projetos:listar'),
+  projetosConversas: (caminho) => ipcRenderer.invoke('projetos:conversas', caminho),
+  projetosAdicionarVarios: (caminhos) => ipcRenderer.invoke('projetos:adicionarVarios', caminhos),
   projetosAdicionar: (caminho, faixa) => ipcRenderer.invoke('projetos:adicionar', caminho, faixa),
   projetosRemover: (id, confirmar = true) => ipcRenderer.invoke('projetos:remover', { id, confirmar }),
 
@@ -70,4 +80,5 @@ contextBridge.exposeInMainWorld('orq', {
   notificar: (titulo, corpo) => ipcRenderer.send('app:notificar', { titulo, corpo }),
   estaFocado: () => ipcRenderer.invoke('app:estaFocado'),
   focarJanela: () => ipcRenderer.send('app:focar'),
+  aoMudarFoco: (fn) => ipcRenderer.on('app:foco', (_e, focada) => fn(focada)),
 });

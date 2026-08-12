@@ -95,6 +95,20 @@ function criarJanela() {
 
   janela.once('ready-to-show', () => janela.show());
 
+  // O aviso de sessao esperando so incomoda com a janela em segundo plano. Mas
+  // uma sessao que comecou a esperar ENQUANTO voce olhava tambem precisa ser
+  // avisada quando voce sai -- senao a unica chance de aviso e queimada, que era
+  // o defeito. A janela conta os dois lados para o renderer.
+  janela.on('blur', () => {
+    if (janela && !janela.isDestroyed()) janela.webContents.send('app:foco', false);
+  });
+  janela.on('focus', () => {
+    if (!janela || janela.isDestroyed()) return;
+    // Voce olhou: para de piscar na barra de tarefas.
+    janela.flashFrame(false);
+    janela.webContents.send('app:foco', true);
+  });
+
   // Fechar mata todas as sessoes em andamento. Um clique no X nao pode custar
   // uma tarde de trabalho sem nem avisar.
   janela.on('close', (ev) => {
@@ -194,6 +208,18 @@ app.on('before-quit', () => {
 
 // ---------------------------------------------------------------- IPC
 
+// Handler SEPARADO do `escolherPasta`, e nao um parametro nele: o "Painel
+// avulso" (grade.js) depende do contrato de string unica, e trocar o retorno
+// para array quebraria aquele caminho em silencio.
+ipcMain.handle('app:escolherPastas', async () => {
+  const r = await dialog.showOpenDialog(janela, {
+    title: 'Escolha as pastas dos projetos',
+    properties: ['openDirectory', 'multiSelections'],
+    defaultPath: os.homedir(),
+  });
+  return r.canceled ? [] : r.filePaths;
+});
+
 ipcMain.handle('app:escolherPasta', async () => {
   const r = await dialog.showOpenDialog(janela, {
     title: 'Escolha a pasta do projeto',
@@ -252,6 +278,12 @@ ipcMain.handle('sessao:rodando', () => estado.todas().filter((s) => s.status ===
 // -------------------------------------------------------------- projetos
 
 ipcMain.handle('projetos:listar', () => projetos.listar());
+ipcMain.handle('projetos:conversas', (_e, caminho) => projetos.conversas(caminho));
+
+ipcMain.handle('projetos:adicionarVarios', (_e, caminhos) => {
+  const r = projetos.adicionarVarios(caminhos);
+  return { ...r, projetos: projetos.listar() };
+});
 
 // Recebe o caminho ja escolhido, em vez de abrir o dialogo por dentro: separa
 // a escolha da gravacao e deixa o fluxo testavel (o CDP nao dirige dialogo
@@ -306,6 +338,14 @@ ipcMain.handle('worktrees:arquivar', async (_e, { projeto, caminho, confirmar = 
       detail:
         `Isto remove a pasta ${alvo.caminho}\n` +
         `e o branch ${alvo.branch}.\n\n` +
+        // Os ignorados NOMEADOS. O `git status` nao os enxerga, entao os
+        // portoes acima nao os cobrem -- e o `worktree remove` apaga assim
+        // mesmo. Nao bloqueia: so para de apagar em silencio.
+        (alvo.ignorados?.length
+          ? `Isto tambem apaga ${alvo.ignorados.length} ${alvo.ignorados.length === 1
+            ? 'arquivo que o git ignora' : 'arquivos que o git ignora'}, `
+            + `e que nenhum commit guarda:\n${alvo.ignorados.join(', ')}\n\n`
+          : '') +
         'Conferido agora: nao ha sessao aberta, nao ha alteracao sem commit e nao ha commit ' +
         'fora da base. Ainda assim, isto nao tem desfazer.',
     });
@@ -423,6 +463,12 @@ ipcMain.on('app:focar', () => {
 });
 
 ipcMain.on('app:notificar', (_e, { titulo, corpo }) => {
+  // Piscar na barra de tarefas ANTES do toast, e independente dele: o toast do
+  // Windows pode ser descartado em silencio (Foco Assistido, notificacoes do
+  // app desligadas, atalho sem o AppUserModelID), e ai o piscar e o unico sinal
+  // que sobra. Ele para sozinho quando a janela recebe foco.
+  if (janela && !janela.isDestroyed() && !janela.isFocused()) janela.flashFrame(true);
+
   if (!Notification.isSupported()) return;
   const n = new Notification({ title: titulo, body: corpo, silent: false });
   n.on('click', () => {
@@ -437,7 +483,7 @@ ipcMain.on('app:notificar', (_e, { titulo, corpo }) => {
 // --------------------------------------------------------- hooks do Claude
 
 ipcMain.handle('hooks:situacao', () => ({
-  instalado: instalarHooks.estaInstalado(),
+  ...instalarHooks.situacao(),
   arquivo: instalarHooks.ARQ_SETTINGS,
   porta: eventos.PORTA,
 }));

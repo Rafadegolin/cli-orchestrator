@@ -46,13 +46,32 @@ function entrada(evento, tipo = '', matcher = null) {
   return e;
 }
 
-// Um matcher por tipo de notificacao: assim o proprio Claude separa
-// permission_prompt de idle_prompt e o app nao precisa adivinhar pelo corpo.
+// Um matcher por tipo de notificacao: assim o proprio Claude separa os tipos e
+// o app nao precisa adivinhar pelo corpo.
+//
+// A LISTA COMPLETA de `notification_type` esta no binario do CLI 2.1.220
+// (`matcherMetadata:{fieldToMatch:"notification_type",values:[...]}`) e tem
+// OITO valores:
+//
+//   permission_prompt · idle_prompt · auth_success · elicitation_dialog
+//   elicitation_complete · elicitation_response · agent_needs_input · agent_completed
+//
+// O app registrava DOIS. E `elicitation_dialog` e literalmente
+// "Claude Code needs your input" -- sem matcher para ele, uma sessao travada
+// nessa pergunta nao gerava evento nenhum e o painel ficava verde para sempre.
+// Foi relatado como "estava esperando e nao apareceu o amarelo".
+//
+// Os que ficam de fora de proposito: `auth_success`, `elicitation_complete` e
+// `elicitation_response` nao sao espera -- sao o fim dela, e o evento seguinte
+// (PostToolUse/Stop) ja conta essa historia.
 function nossosHooks() {
   return {
     Notification: [
       entrada('Notification', 'permissao', 'permission_prompt'),
       entrada('Notification', 'ocioso', 'idle_prompt'),
+      entrada('Notification', 'elicitacao', 'elicitation_dialog'),
+      entrada('Notification', 'agente', 'agent_needs_input'),
+      entrada('Notification', 'concluido', 'agent_completed'),
     ],
     UserPromptSubmit: [entrada('UserPromptSubmit')],
     PostToolUse: [entrada('PostToolUse')],
@@ -60,6 +79,18 @@ function nossosHooks() {
     SessionStart: [entrada('SessionStart')],
     SessionEnd: [entrada('SessionEnd')],
   };
+}
+
+// Todas as rotas que o conjunto atual instala -- e por elas que `situacao()`
+// sabe dizer "desatualizados" em vez de um "ligados" que mente.
+function rotasEsperadas() {
+  const rotas = [];
+  for (const lista of Object.values(nossosHooks())) {
+    for (const e of lista) {
+      for (const h of e.hooks) rotas.push(String(h.command));
+    }
+  }
+  return rotas;
 }
 
 function lerSettings() {
@@ -75,10 +106,39 @@ function ehNosso(entradaHook) {
   return (entradaHook.hooks || []).some((h) => String(h.command || '').includes(MARCA));
 }
 
-function estaInstalado() {
+// Instalado = TODAS as rotas do conjunto atual estao la.
+//
+// Antes bastava UMA sobreviver em QUALQUER evento. O modo de falha que isso
+// escondia e exatamente o que foi relatado: sumindo so as entradas de
+// `Notification`, o verde e o azul continuam mudando sozinhos, o amarelo morre,
+// e a lateral segue dizendo "ligados" -- a interface afirmando ativamente que
+// esta tudo bem enquanto o unico sinal que importa nao chega mais.
+//
+// `parcial` cobre tambem quem instalou por uma versao anterior do app: o
+// conjunto cresceu, e sem isso ninguem seria avisado de que falta reinstalar.
+function situacao() {
   const s = lerSettings();
   const h = s.hooks || {};
-  return Object.values(h).some((lista) => (lista || []).some(ehNosso));
+  const instalados = new Set();
+  for (const lista of Object.values(h)) {
+    for (const e of lista || []) {
+      for (const c of e.hooks || []) instalados.add(String(c.command || ''));
+    }
+  }
+
+  const esperadas = rotasEsperadas();
+  const faltando = esperadas.filter((c) => !instalados.has(c));
+  const algum = [...instalados].some((c) => c.includes(MARCA));
+
+  return {
+    instalado: algum && faltando.length === 0,
+    parcial: algum && faltando.length > 0,
+    faltando: faltando.length,
+  };
+}
+
+function estaInstalado() {
+  return situacao().instalado;
 }
 
 function backup() {
@@ -129,6 +189,8 @@ module.exports = {
   nossosHooks,
   lerSettings,
   estaInstalado,
+  situacao,
+  rotasEsperadas,
   instalar,
   desinstalar,
 };

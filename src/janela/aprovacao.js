@@ -38,8 +38,15 @@
   // Duas marcas, e as duas precisam estar presentes: a pergunta sozinha pode
   // sobreviver no scrollback depois de respondida, e a lista de opcoes sozinha
   // apareceria em qualquer menu do CLI.
-  const MARCA_PERGUNTA = /^\s*(Do you want to .+\?)\s*$/m;
-  const MARCA_OPCAO = /^\s*[^\w\s]?\s*1\.\s+\S/m;
+  //
+  // As duas rodam sobre o texto ACHATADO (`OrqPainel.achatar`), e nao ancoradas
+  // em inicio/fim de linha como antes. Motivo medido: a largura do painel manda
+  // na quebra de linha do CLI, e num painel estreito a pergunta chega partida
+  // ao meio -- ancorar em `^...$` fazia a faixa de Aprovar simplesmente nunca
+  // aparecer ali, sem nada denunciando. Foi assim que a confirmacao do
+  // /add-dir passou despercebida por muito tempo.
+  const MARCA_PERGUNTA = /(Do you want to [^?]{1,240}\?)/;
+  const MARCA_OPCAO = /(?:^|\s)[^\w\s]?\s*1\.\s+\S/;
 
   // Quanto esperar o prompt aparecer no buffer depois de o hook avisar. O hook
   // dispara quando o Claude MOSTRA o pedido, entao a folga e pequena.
@@ -53,7 +60,7 @@
     const p = painel(id);
     if (!p || p.dormindo || p.encerrado) return null;
 
-    const texto = p.textoDoBuffer();
+    const texto = window.OrqPainel.achatar(p.textoDoBuffer());
     if (!MARCA_OPCAO.test(texto)) return null;
 
     const m = MARCA_PERGUNTA.exec(texto);
@@ -119,13 +126,71 @@
     }
   }
 
+  // ----------------------------------------------- o farejador dos 6 segundos
+
+  // MEDIDO no binario do CLI 2.1.220: o hook de `permission_prompt` nao pode
+  // chegar em menos de ~6 segundos.
+  //
+  //   function ADr(e, t) { useEffect(() => { UNr() }, []);            // zera o relogio
+  //     Rc(() => { if (nkS(Q3f)) dAe({ message: e, notificationType: t }) }, ...) }
+  //   var Q3f = 6000;  function nkS(e){ return Date.now() - MN() >= e }
+  //
+  // O `dAe` chama o `bz`, que E o disparo do hook. Ou seja: a bolinha amarela
+  // tem um buraco de seis segundos que nenhum ajuste do app fecha pelo Canal 2.
+  // (A tabela do CLAUDE.md media a perna hook -> bolinha, 71ms; a perna
+  // CLI -> hook nunca tinha sido medida.)
+  //
+  // ISTO DOBRA A INVARIANTE "nunca deduza status lendo o Canal 1", e por isso a
+  // excecao e estreita, e so tem UMA direcao:
+  //
+  //   - so ACENDE (`rodando` -> `esperando`), nunca apaga. Sair do amarelo
+  //     continua sendo exclusividade do Canal 2, que e a autoridade.
+  //   - so com as DUAS marcas na tela, as mesmas que ja autorizam escrever no
+  //     PTY -- se elas bastam para responder, bastam para acender uma bolinha.
+  //   - so em painel VISIVEL, e lendo so a tela (`textoDaTela`), sem flush:
+  //     painel fora da vista nao pode pagar o custo nem perder a economia da
+  //     Fase 6.1, e para ele o hook chega igual.
+  //
+  // De brinde, isto tambem cobre o `PostToolUse` atrasado que devolvia a sessao
+  // ao verde com o prompt ainda na tela: no proximo giro o farejador reacende.
+  const MS_FAREJAR = 1500;
+
+  function candidatos() {
+    return [...(window.OrqPainel?.painelPorId.values() || [])].filter(
+      (p) => p.visivel && !p.dormindo && !p.encerrado && p.status === 'rodando',
+    );
+  }
+
+  function farejar() {
+    for (const p of candidatos()) {
+      const texto = window.OrqPainel.achatar(p.textoDaTela());
+      if (!MARCA_OPCAO.test(texto)) continue;
+      const m = MARCA_PERGUNTA.exec(texto);
+      if (!m) continue;
+
+      // O hook, quando chegar, sobrescreve isto com a mesma coisa -- e traz o
+      // `desde` de verdade. Aqui o objetivo e so nao ficar seis segundos calado.
+      window.OrqLateral?.definirStatus(p.id, 'esperando', 'pedindo permissao',
+        Date.now(), { pergunta: m[1].trim(), tipo: 'permissao' });
+    }
+  }
+
+  const relogio = setInterval(() => {
+    // Sai na primeira linha quando nao ha painel trabalhando a vista, que e o
+    // estado normal da tela.
+    if (candidatos().length) farejar();
+  }, MS_FAREJAR);
+
   window.OrqAprovacao = {
     TECLA_APROVAR,
     MARCA_PERGUNTA,
     MARCA_OPCAO,
+    MS_FAREJAR,
     pedidoNaTela,
     esperarPedido,
     aprovar,
     atualizar,
+    farejar,
+    pararDeFarejar: () => clearInterval(relogio),
   };
 })();

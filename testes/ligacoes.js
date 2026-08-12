@@ -125,6 +125,79 @@ async function ateQue(cdp, expr, ms = 8000) {
   checar('e avisa que a sessao viva so perde o acesso ao reiniciar',
     desligou.r.precisaReiniciar === true, JSON.stringify(desligou.r));
 
+  // --- 5b. a aplicacao no CLI, com buffer FALSO ---------------------------
+  //
+  // Este era o buraco: `aplicarEmSessaoViva` nunca era exercitada por teste
+  // nenhum -- os dois `ligar()` acima passam `{ aplicar: false }`, e o unico
+  // teste que entrava ali e o `ligacoes-reais`, que leva ~3min e gasta token.
+  // Trocando o `textoDoBuffer` do painel por um roteiro, os quatro caminhos
+  // rodam em segundos e sem CLI nenhum.
+  const CONF = 'Add directory to workspace';
+  // A quebra E DE VERDADE (\n), e nao a sequencia literal: e ela que o
+  // `achatar` tem de colapsar. Com barra-n literal o teste passaria a testar
+  // outra coisa.
+  const OK_QUEBRADO = 'Added C:\\repos\\api as\na working directory for this session';
+
+  async function comBuffer(id, roteiro, chamada) {
+    await cdp.avaliar(`(() => {
+      const p = window.OrqPainel.painelPorId.get(${JSON.stringify(id)});
+      p.__real = p.textoDoBuffer;
+      let i = 0;
+      const passos = ${JSON.stringify(roteiro)};
+      p.textoDoBuffer = () => passos[Math.min(i++, passos.length - 1)];
+      return 'ok';
+    })()`);
+    const r = await cdp.avaliar(chamada);
+    await cdp.avaliar(`(() => {
+      const p = window.OrqPainel.painelPorId.get(${JSON.stringify(id)});
+      p.textoDoBuffer = p.__real; delete p.__real; return 'ok';
+    })()`);
+    return r;
+  }
+
+  const alvo = ids[0];
+  const CAMINHO = 'C:/repos/api';
+  const chamar = (ms = 1200) => `(async () => JSON.stringify(await window.OrqLigacoes.ligar(
+    ${JSON.stringify(alvo)}, ${JSON.stringify(CAMINHO)}, { ms: ${ms} })))()`;
+
+  // (a) caminho feliz -- e com a resposta QUEBRADA em duas linhas, que e como
+  // ela chega de verdade num painel estreito. Medido no CLI: era exatamente
+  // isso que fazia uma ligacao bem-sucedida parecer ter falhado.
+  const feliz = JSON.parse(await comBuffer(alvo, ['', CONF, CONF, `${CONF} ${OK_QUEBRADO}`], chamar()));
+  checar('confirmacao encontrada: a ligacao e dada como aplicada',
+    feliz.ok === true && feliz.aplicado === true, JSON.stringify(feliz));
+  checar('e a resposta quebrada em duas linhas ainda casa',
+    (await cdp.avaliar(`window.OrqLigacoes.pendenteEm(${JSON.stringify(alvo)}, ${JSON.stringify(CAMINHO)})`)) === false, '');
+
+  await cdp.avaliar(`window.OrqLigacoes.desligar(${JSON.stringify(alvo)}, ${JSON.stringify(CAMINHO)})`);
+
+  // (b) estouro de tempo: o CLI nunca pergunta nada.
+  const estourou = JSON.parse(await comBuffer(alvo, ['', '', ''], chamar(900)));
+  checar('sem confirmacao a tempo, ligar FALHA em vez de mentir',
+    estourou.ok === false && Boolean(estourou.motivo), JSON.stringify(estourou));
+  checar('e a ligacao fica PENDENTE, nao concluida',
+    (await cdp.avaliar(`window.OrqLigacoes.pendenteEm(${JSON.stringify(alvo)}, ${JSON.stringify(CAMINHO)})`)) === true, '');
+
+  // (c) O CONSERTO PRINCIPAL: tentar de novo depois de falhar tem de TENTAR.
+  // Antes o registro ja estava gravado, `novo === false` pulava tudo, e a
+  // segunda tentativa devolvia `ok: true` sem mandar coisa nenhuma.
+  const retry = JSON.parse(await comBuffer(alvo, ['', CONF, `${CONF} ${OK_QUEBRADO}`], chamar()));
+  checar('tentar de novo depois de falhar realmente tenta',
+    retry.ok === true && retry.aplicado === true, JSON.stringify(retry));
+  checar('e a pendencia some quando da certo',
+    (await cdp.avaliar(`window.OrqLigacoes.pendenteEm(${JSON.stringify(alvo)}, ${JSON.stringify(CAMINHO)})`)) === false, '');
+
+  await cdp.avaliar(`window.OrqLigacoes.desligar(${JSON.stringify(alvo)}, ${JSON.stringify(CAMINHO)})`);
+
+  // (d) marca VELHA no scrollback nao vale: sem o corte por frescor, uma
+  // confirmacao de dez minutos atras fazia o app disparar um Enter no que
+  // estivesse na tela e reportar sucesso.
+  const velho = JSON.parse(await comBuffer(alvo, [`${CONF} ${OK_QUEBRADO}`], chamar(900)));
+  checar('confirmacao velha no scrollback nao conta como resposta de agora',
+    velho.ok === false, JSON.stringify(velho));
+
+  await cdp.avaliar(`window.OrqLigacoes.desligar(${JSON.stringify(alvo)}, ${JSON.stringify(CAMINHO)})`);
+
   // --- 6. injecao em sessao viva: o texto chega ao terminal certo ---------
   await cdp.avaliar(`(async () => { await window.OrqLigacoes.enviarLinha(
     ${JSON.stringify(ids[0])}, 'echo ORQ_LINHA_ENVIADA'); return 'ok'; })()`);

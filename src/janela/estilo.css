@@ -7,6 +7,13 @@
  * O TERMINAL FICA ESCURO NOS DOIS TEMAS (--term / --termfg inalterados). Nao e
  * esquecimento: codigo monoespacado sobre fundo claro quebra a leitura. */
 :root {
+  /* A defesa SISTEMICA do caso acima. Sem `color-scheme`, o Chromium desenha
+     todo controle de formulario na versao CLARA nos dois temas -- foi assim que
+     um botao sem regra virou texto quase branco sobre cinza claro no tema
+     escuro. Com ele declarado, um botao esquecido nasce escuro no tema escuro:
+     feio, mas legivel. De quebra, as barras de rolagem acompanham o tema. */
+  color-scheme: dark;
+
   --bg0: #0a0c0f;
   --bg1: #0d1014;
   --bg2: #12161b;
@@ -44,6 +51,8 @@
 }
 
 html.claro {
+  color-scheme: light;
+
   --bg0: #eef0f3;
   --bg1: #ffffff;
   --bg2: #f6f7f9;
@@ -782,6 +791,15 @@ button:focus-visible, input:focus-visible {
 }
 #btn-hooks.hooks-ok #hooks-rotulo { color: var(--acc); }
 
+/* Registro incompleto: nem verde nem desligado. Ambar porque e exatamente o
+   caso em que parte dos avisos deixa de chegar sem nada denunciar. */
+#btn-hooks.hooks-parcial .switch { background: var(--warn); }
+#btn-hooks.hooks-parcial .switch-bolota {
+  background: var(--warn-texto);
+  transform: translateX(5px);
+}
+#btn-hooks.hooks-parcial #hooks-rotulo { color: var(--warn); }
+
 /* ============================================================== principal */
 
 #principal {
@@ -971,6 +989,13 @@ button.primario:hover {
 
 .painel-esperando { border-color: var(--warn-linha); }
 
+/* Painel sob o arquivo que voce esta arrastando. Precisa ser obvio QUAL vai
+   receber: com oito terminais na tela, soltar no vizinho e facil. */
+.painel-recebendo {
+  border-color: var(--acc);
+  box-shadow: 0 0 0 2px var(--acc), var(--shadow);
+}
+
 .painel-cab {
   display: flex;
   align-items: center;
@@ -1032,6 +1057,7 @@ button.primario:hover {
 .painel-status.status-rodando { color: var(--acc); }
 .painel-status.status-esperando { color: var(--warn); }
 .painel-status.status-terminou { color: var(--info); }
+.painel-status.status-parada { color: var(--fg3); }
 
 /* Grupo inegociavel: o botao fechar sempre alcancavel. */
 .painel-acoes {
@@ -1330,6 +1356,10 @@ button.primario:hover {
 }
 
 .bolinha-terminou { background: var(--info); }
+/* Parada: acabou e nao ha nada pendente. Cor apagada e SEM pulso -- pulsar e o
+   que chama atencao, e chamar atencao para uma sessao que nao pede nada foi
+   exatamente o falso alarme que fez esta cor existir. */
+.bolinha-parada { background: var(--fg3); opacity: .8; }
 .bolinha-iniciando { background: var(--fg3); }
 .bolinha-encerrada { background: var(--line2); }
 
@@ -1934,7 +1964,7 @@ button.primario:hover {
 #projeto-caminho:focus { border-color: var(--acc); outline: none; }
 #projeto-caminho::placeholder { color: var(--fg3); }
 
-#projeto-procurar {
+#projeto-procurar, #projeto-varias {
   flex: 0 0 auto;
   background: var(--bg3);
   border: 1px solid var(--line);
@@ -1944,7 +1974,7 @@ button.primario:hover {
   padding: 0 14px;
 }
 
-#projeto-procurar:hover { border-color: var(--line2); color: var(--fg); }
+#projeto-procurar:hover, #projeto-varias:hover { border-color: var(--line2); color: var(--fg); }
 
 .modal-faixas {
   display: flex;
@@ -2247,6 +2277,10 @@ button.primario:hover {
 
 .seletor-item:hover { border-color: var(--acc); }
 
+/* Registrada, mas o CLI ainda nao aceitou. Ambar porque e um estado que pede
+   acao sua -- e nao um erro nem um sucesso. */
+.seletor-pendente { border-color: var(--warn-linha); }
+
 .seletor-nome { font-size: 12.5px; font-weight: 600; }
 
 .seletor-tipo {
@@ -2273,6 +2307,39 @@ button.primario:hover {
   color: var(--fg3);
   line-height: 1.6;
 }
+
+/* O BOTAO DE CADA LINHA. Ele nao tinha regra nenhuma, e o efeito so aparecia no
+   tema ESCURO: sem `background` proprio ele caia no `buttonface` CLARO do
+   Chromium (#efefef) e herdava o `color: inherit` do `.seletor-item`, que no
+   escuro e quase branco (#e8ecf2) -- razao 1,03:1, texto invisivel. No tema
+   claro o mesmo `--fg` e escuro e dava 15,8:1, por isso ninguem via o defeito.
+
+   A regra da casa, que estes dois violavam: fundo e cor SEMPRE juntos. */
+.seletor-ligar, .seletor-desligar {
+  flex: 0 0 auto;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 14px;
+}
+
+.seletor-ligar {
+  background: var(--acc);
+  border: 1px solid var(--acc);
+  color: var(--acc-texto);
+}
+
+.seletor-ligar:hover { filter: brightness(1.08); }
+
+.seletor-desligar {
+  background: transparent;
+  border: 1px solid var(--line2);
+  color: var(--fg2);
+}
+
+.seletor-desligar:hover { border-color: var(--danger); color: var(--danger); }
+
+.seletor-ligar:disabled, .seletor-desligar:disabled { opacity: .6; }
 
 /* =========================================================== compressao */
 

@@ -85,6 +85,21 @@ async function arrastarAlca(cdp, id, dx, dy) {
   const frente = await aoFrente(cdp);
   checar('a janela esta em primeiro plano (layout depende disso)', frente, '');
 
+  // ESPERAR O `load` TERMINAR antes de zerar a grade.
+  //
+  // `restaurarSessao()` roda no evento `load` e cria um painel por entrada do
+  // sessao.json. Rodando a suite logo depois de subir o app, ela zerava a grade
+  // e os painéis restaurados apareciam DEPOIS -- pollindo as secoes que medem
+  // geometria. Custou cinco falhas que nao se repetiram na segunda rodada, que
+  // e o pior tipo de falha: some quando voce vai olhar.
+  await cdp.avaliar(`(async () => {
+    if (document.readyState !== 'complete') {
+      await new Promise((r) => window.addEventListener('load', r, { once: true }));
+    }
+    return 'ok';
+  })()`);
+  await esperar(600);
+
   await zerarGrade(cdp);
 
   // Estado conhecido ANTES de comecar, e nao so ao terminar: a suite roda depois
@@ -956,6 +971,128 @@ async function arrastarAlca(cdp, id, dx, dy) {
     checar(`contraste AA no tema ${tema}`, ruins.length === 0,
       ruins.map((r) => `${r.nome}=${r.razao}`).join(' ') || medido.map((r) => `${r.nome}=${r.razao}`).join(' '));
   }
+
+  // --- 14b. TODO botao de overlay, nos dois temas --------------------------
+  //
+  // A checagem de tokens acima nunca toca num elemento real, entao um botao que
+  // simplesmente NAO TEM regra de estilo passa por baixo dela -- foi assim que
+  // `.seletor-ligar` ficou com texto quase branco sobre o cinza claro padrao do
+  // Chromium, invisivel so no tema escuro, e chegou ate o usuario.
+  //
+  // Aqui a medicao e no elemento: cor computada contra o primeiro fundo opaco
+  // subindo a arvore. Overlay novo entra sozinho, sem ninguem lembrar de nada.
+  await cdp.avaliar(`(async () => {
+    const p = [...window.OrqPainel.painelPorId.values()][0];
+    if (p) await window.OrqSeletorLigacoes.abrir(p.id);
+    return 'ok';
+  })()`);
+  await esperar(500);
+
+  for (const tema of ['escuro', 'claro']) {
+    await cdp.avaliar(`window.OrqCasca.mudar({ tema: ${JSON.stringify(tema)} })`);
+    await esperar(400);
+
+    const botoes = JSON.parse(await cdp.avaliar(`(() => {
+      const nums = (s) => (String(s).match(/[\\d.]+/g) || []).map(Number);
+      const canal = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      const lum = ([r, g, b]) => 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b);
+      const razao = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+
+      // O fundo que o olho ve: o primeiro ancestral com cor opaca.
+      const fundo = (el) => {
+        let n = el;
+        while (n && n !== document.documentElement) {
+          const v = nums(getComputedStyle(n).backgroundColor);
+          if (v.length >= 3 && (v[3] === undefined || v[3] > 0.5)) return v.slice(0, 3);
+          n = n.parentElement;
+        }
+        return nums(getComputedStyle(document.body).backgroundColor).slice(0, 3);
+      };
+
+      const overlays = [...document.querySelectorAll('.overlay')];
+      const antes = overlays.map((o) => o.hidden);
+      overlays.forEach((o) => { o.hidden = false; });
+
+      const achados = [];
+      for (const b of document.querySelectorAll('.overlay button')) {
+        if (!b.textContent.trim() || b.offsetParent === null) continue;
+        const s = getComputedStyle(b);
+        const r = razao(nums(s.color).slice(0, 3), fundo(b));
+        achados.push({
+          txt: b.textContent.trim().slice(0, 16),
+          cls: b.className || '(sem classe)',
+          razao: Math.round(r * 100) / 100,
+        });
+      }
+
+      overlays.forEach((o, i) => { o.hidden = antes[i]; });
+      return JSON.stringify(achados);
+    })()`));
+
+    const ilegiveis = botoes.filter((b) => b.razao < 4.5);
+    checar(`todo botao de overlay e legivel no tema ${tema}`,
+      botoes.length >= 8 && ilegiveis.length === 0,
+      ilegiveis.map((b) => `${b.cls}="${b.txt}" ${b.razao}`).join(' · ') || `${botoes.length} botoes`);
+  }
+
+  await cdp.avaliar(`window.OrqSeletorLigacoes.fechar(); window.OrqCasca.mudar({ tema: 'escuro' })`);
+  await esperar(300);
+
+  // --- 14c. arrastar anexo para o terminal --------------------------------
+  //
+  // O arrasto de VERDADE nao da para simular: um File criado por script nao tem
+  // caminho no disco, e e justamente o caminho que o `webUtils` devolve. Entao
+  // o teste cobre as duas coisas que o codigo decide -- a regra da insercao, e
+  // o `preventDefault` da janela, sem o qual o Electron NAVEGA o renderer para
+  // o arquivo solto e o app vira a imagem que voce arrastou.
+  // Painel proprio: pegar "o primeiro do Map" faria o teste depender do que as
+  // secoes anteriores deixaram -- inclusive de um painel dormindo, que nao tem
+  // PTY para receber nada.
+  const idAnexo = await cdp.avaliar(`(async () => { const p = await window.OrqGrade.criarPainel(
+    { cwd: ${JSON.stringify(RAIZ)}, feature: 'ui-anexo' }); return p.id; })()`);
+  await esperar(2500);
+
+  // O `term.write` do xterm e ASSINCRONO: o que o flush do `textoDoBuffer()`
+  // entregou so aparece no passo seguinte do parser. Leitura unica logo depois
+  // le o passado -- por isso aqui, como em todo o resto do app, e laco.
+  const anexo = JSON.parse(await cdp.avaliar(`(async () => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(idAnexo)});
+    const antes = p.textoDoBuffer().length;
+    window.OrqAnexos.inserir(p, ['C:\\\\Users\\\\rafae\\\\Desktop\\\\captura.png']);
+
+    let apareceu = false;
+    let depois = '';
+    for (let i = 0; i < 30 && !apareceu; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      depois = p.textoDoBuffer();
+      apareceu = depois.includes('captura.png');
+    }
+    return JSON.stringify({
+      aspas: window.OrqAnexos.comoArgumento('C:/Program Files/x.png'),
+      // O caminho aparece na caixa de entrada...
+      apareceu,
+      // ...e NENHUMA linha nova foi submetida: o buffer nao ganhou resposta.
+      cresceuDemais: depois.length - antes > 400,
+    });
+  })()`));
+  checar('soltar um arquivo escreve o caminho entre aspas, com espaco no fim',
+    anexo.aspas === '"C:/Program Files/x.png" ', JSON.stringify(anexo.aspas));
+  checar('o caminho chega na caixa de entrada do painel', anexo.apareceu, JSON.stringify(anexo));
+  checar('e NADA e enviado: o Enter continua sendo do usuario',
+    !anexo.cresceuDemais, JSON.stringify(anexo));
+
+  const arrasto = JSON.parse(await cdp.avaliar(`(() => {
+    const ev = new DragEvent('dragover', { bubbles: true, cancelable: true });
+    window.dispatchEvent(ev);
+    const fora = new DragEvent('drop', { bubbles: true, cancelable: true });
+    window.dispatchEvent(fora);
+    return JSON.stringify({ dragover: ev.defaultPrevented, drop: fora.defaultPrevented });
+  })()`));
+  checar('a janela cancela dragover e drop (senao o Electron abre o arquivo no lugar do app)',
+    arrasto.dragover && arrasto.drop, JSON.stringify(arrasto));
+
+  await cdp.avaliar(`window.OrqPainel.painelPorId.get(${JSON.stringify(idAnexo)})?.destruir()`);
+  await esperar(400);
 
   // --- 15. historico e diff (Fase 9) --------------------------------------
   await cdp.avaliar(`(async () => { await window.OrqHistorico.abrir(); return 'ok'; })()`);
