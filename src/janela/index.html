@@ -297,6 +297,24 @@
   <!-- Nova sessao ou retomar uma anterior. So aparece quando ha conversa
        guardada para aquela pasta: perguntar sem alternativa e so um clique a
        mais. -->
+  <!-- Trocar a cor de um projeto. Com dez tons e sorteio pelo caminho, duas
+       pastas podem cair na mesma cor -- e a cor so serve se distinguir. -->
+  <div id="cor-projeto" class="overlay" hidden>
+    <div class="modal-caixa">
+      <h2 id="cor-titulo">Cor do projeto</h2>
+      <p class="modal-explica">Ela aparece na faixa do painel, na lista de sessões e aqui na
+        árvore. Worktrees usam um tom mais claro da mesma cor.</p>
+      <div class="cor-grade" id="cor-grade"></div>
+      <div class="modal-acoes">
+        <button id="cor-automatica">Automática</button>
+        <!-- `cor-pronto`, e nao `cor-fechar`: existe uma regra generica
+             `[id$="-fechar"]` para o × dos overlays (26x26 e margin-left:auto),
+             e um botao de TEXTO com esse sufixo sai deformado e fora da caixa. -->
+        <button id="cor-pronto">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="escolha-sessao" class="overlay" hidden>
     <div class="modal-caixa">
       <h2 id="escolha-titulo">Abrir sessão</h2>
@@ -348,4 +366,5 @@
 <script src="anexos.js"></script>
 <script src="escolha-sessao.js"></script>
 <script src="navegar.js"></script>
+<script src="cor-projeto.js"></script>
 <script src="paleta.js"></script>

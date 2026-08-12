@@ -52,9 +52,50 @@ function ehRepositorio(caminho) {
 function listar() {
   return ler().map((p) => ({
     ...p,
+    // Valor torto no JSON (editado a mao) nao pode pintar o painel de nada:
+    // sem cor valida, a janela volta a sortear pelo caminho.
+    cor: corValida(p.cor) ? Number(p.cor) : null,
     existe: fs.existsSync(p.caminho),
     git: ehRepositorio(p.caminho),
   }));
+}
+
+// A cor do projeto, 1..CORES, casando com `--proj-N` do estilo.css.
+//
+// Guardar o INDICE e nao o valor da cor: o token e quem decide o tom em cada
+// tema, e um `#a78bfa` gravado aqui ficaria errado no tema claro para sempre.
+const CORES = 10;
+
+function corValida(c) {
+  const n = Number(c);
+  return Number.isInteger(n) && n >= 1 && n <= CORES;
+}
+
+// A cor MENOS usada hoje. Projeto novo nasce com ela em vez de sorteada: com
+// dez tons e hash, duas pastas caindo na mesma cor e questao de tempo -- e foi
+// relatado. Isto nao mexe em quem ja esta cadastrado.
+function proximaCor(extras = []) {
+  const uso = new Array(CORES + 1).fill(0);
+  for (const p of [...ler(), ...extras]) {
+    if (corValida(p.cor)) uso[Number(p.cor)] += 1;
+  }
+  let melhor = 1;
+  for (let i = 2; i <= CORES; i++) if (uso[i] < uso[melhor]) melhor = i;
+  return melhor;
+}
+
+// `null` volta para a cor automatica (sorteada pelo caminho).
+function definirCor(id, cor) {
+  const projetos = ler();
+  const p = projetos.find((x) => x.id === id);
+  if (!p) return { ok: false, erro: 'projeto nao encontrado' };
+
+  if (cor === null || cor === undefined) delete p.cor;
+  else if (corValida(cor)) p.cor = Number(cor);
+  else return { ok: false, erro: `cor invalida: ${cor}` };
+
+  gravar(projetos);
+  return { ok: true, projeto: p };
 }
 
 // Faixa valida e um par de inteiros crescente com espaco para pelo menos um
@@ -81,6 +122,7 @@ function adicionar(caminho, faixa) {
     id: `pj-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`,
     caminho: resolvido,
     nome: nomeCurto(resolvido),
+    cor: proximaCor(),
     adicionadoEm: new Date().toISOString(),
   };
   if (faixaValida(faixa)) projeto.faixa = [faixa[0], faixa[1]];
@@ -143,6 +185,9 @@ function adicionarVarios(caminhos) {
       id: `pj-${Date.now().toString(36)}-${novos.length}-${Math.floor(Math.random() * 1e6).toString(36)}`,
       caminho: resolvido,
       nome: nomeCurto(resolvido),
+      // `novos` entra na conta: importar dez de uma vez tem de espalhar as
+      // cores entre eles, e nao dar a mesma para todos.
+      cor: proximaCor(novos),
       adicionadoEm: new Date().toISOString(),
     };
     if (faixa) projeto.faixa = faixa;
@@ -223,6 +268,10 @@ module.exports = {
   conversas,
   adicionarVarios,
   proximaFaixa,
+  CORES,
+  corValida,
+  proximaCor,
+  definirCor,
   ARQUIVO, PASTA, listar, adicionar, remover, renomear, nomeCurto, ehRepositorio,
   faixaDe, faixaValida, donoDe,
 };

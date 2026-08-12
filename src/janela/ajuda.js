@@ -261,7 +261,8 @@ const SECOES = [
         + 'o aviso de atualização mora lá dentro.'),
       p('Cada painel tem uma <b>faixa colorida no topo</b> com a cor do projeto — worktrees do mesmo '
         + 'projeto usam um tom mais claro da mesma cor, para se lerem como parentes. A mesma cor '
-        + 'aparece à esquerda de cada item na lista de sessões.'),
+        + 'aparece à esquerda de cada item na lista de sessões. Para trocar, <b>clique no quadradinho '
+        + 'de cor</b> ao lado do nome do projeto: os tons já usados por outro projeto vêm marcados.'),
       lista([
         'Com muitos painéis a grade <b>rola</b> em vez de espremer todo mundo.',
         '<b>Alt+setas</b> pulam para o terminal ao lado, acima ou abaixo — sem tirar a mão do teclado.',

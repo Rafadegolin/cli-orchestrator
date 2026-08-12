@@ -287,6 +287,11 @@ ipcMain.handle('sessao:rodando', () => estado.todas().filter((s) => s.status ===
 ipcMain.handle('projetos:listar', () => projetos.listar());
 ipcMain.handle('projetos:conversas', (_e, caminho) => projetos.conversas(caminho));
 
+ipcMain.handle('projetos:definirCor', (_e, { id, cor }) => ({
+  ...projetos.definirCor(id, cor),
+  projetos: projetos.listar(),
+}));
+
 ipcMain.handle('projetos:adicionarVarios', (_e, caminhos) => {
   const r = projetos.adicionarVarios(caminhos);
   return { ...r, projetos: projetos.listar() };

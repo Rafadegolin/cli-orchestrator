@@ -521,13 +521,52 @@ button:focus-visible, input:focus-visible {
   padding: 0;
 }
 
+/* Botao, e nao mais um `span`: e onde a cor esta, entao e onde se procura para
+   troca-la. Cresceu de 6 para 9px para virar alvo de clique de verdade. */
 .projeto-tinta {
-  width: 6px;
-  height: 6px;
-  border-radius: 2px;
-  flex: 0 0 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex: 0 0 9px;
+  padding: 0;
+  border: none;
   background: var(--acc);
 }
+
+.projeto-tinta:hover { box-shadow: 0 0 0 3px var(--bg3); }
+
+/* --------------------------------------------------- escolher a cor */
+
+.cor-grade {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.cor-opcao {
+  height: 34px;
+  border-radius: 9px;
+  border: 2px solid transparent;
+  padding: 0;
+}
+
+.cor-opcao:hover { border-color: var(--fg3); }
+.cor-opcao.ativa { border-color: var(--fg); }
+
+/* Ja usada por outro projeto: nao proibe, so avisa -- escolher a mesma cor de
+   proposito e uma coisa, escolher sem querer e outra. */
+.cor-opcao.cor-repetida::after {
+  content: '·';
+  display: block;
+  font-size: 26px;
+  line-height: 30px;
+  color: var(--bg0);
+}
+
+#cor-automatica.ativa { border-color: var(--acc); color: var(--acc); }
+/* Empurra o "Fechar" para a direita sem depender do sufixo do id. */
+#cor-pronto { margin-left: auto; }
 
 .projeto-nome {
   flex: 1 1 0;

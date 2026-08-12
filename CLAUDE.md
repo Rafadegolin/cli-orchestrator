@@ -896,6 +896,15 @@ lista era `['var(--acc)', 'var(--info)', 'var(--warn)', ...]`: um projeto podia 
 - **Worktree e a mesma cor mais clara** (`color-mix` contra `--bg1`, em `tintaDaPasta`), e nao uma
   cor diferente: `api` e `api/auth-refresh` tem de se ler como parentes. Quem distingue os dois e o
   `dentro` que `projetoDe()` passou a devolver.
+- **Sortear e estavel, mas nao distinto.** Com dez tons, duas pastas caem na mesma cor cedo ou tarde
+  — foi relatado. Duas respostas: projeto novo nasce com a cor **menos usada** (`proximaCor()`, no
+  processo principal, e o lote de importacao conta os que ele mesmo acabou de criar), e da para
+  escolher a mao clicando no quadradinho da arvore (`cor-projeto.js`). O que se guarda no
+  `projetos.json` e o **indice** 1..10, nunca o valor: o token e quem decide o tom em cada tema, e um
+  `#a78bfa` gravado ali ficaria errado no tema claro para sempre. Sem `cor` valida, volta ao sorteio.
+- Um botao de TEXTO nao pode ter id terminado em `-fechar`: existe uma regra generica
+  `[id$="-fechar"]` para o `×` dos overlays (26x26 e `margin-left: auto`), e o botao sai deformado e
+  fora da caixa. Aconteceu com o "Fechar" deste modal.
 - **O cartao da lateral ganhou a cor** — ele nao tinha identidade de projeto nenhuma, so status.
 - **`projetoDe()` passou a normalizar `\` e `/`.** Sem isso o mesmo caminho vindo por outra rota
   (o git imprime com barra normal; um dialogo devolve com barra invertida) deixava de casar, e o

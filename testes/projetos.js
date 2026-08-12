@@ -139,6 +139,61 @@ function lerArquivo() {
   })()`);
   fs.rmSync(LOTE, { recursive: true, force: true });
 
+  // --- cor do projeto ------------------------------------------------------
+  //
+  // Sortear pelo caminho e estavel, mas nao distinto: com dez tons, duas pastas
+  // caem na mesma cor cedo ou tarde -- foi relatado. Projeto novo passa a nascer
+  // com a cor MENOS usada, e da para trocar a mao.
+  const COR = path.join(os.tmpdir(), `orq-teste-cor-${Date.now()}`);
+  const pastasCor = ['um', 'dois', 'tres'].map((n) => {
+    const d = path.join(COR, n);
+    fs.mkdirSync(d, { recursive: true });
+    return d.replace(/\\/g, '/');
+  });
+
+  const cores = JSON.parse(await cdp.avaliar(`(async () => {
+    const r = await window.orq.projetosAdicionarVarios(${JSON.stringify(pastasCor)});
+    await window.OrqProjetos.carregarProjetos();
+    return JSON.stringify(r.novos.map((p) => p.cor));
+  })()`));
+  checar('projeto novo nasce com cor, e o lote nao repete nenhuma',
+    cores.length === 3 && new Set(cores).size === 3, JSON.stringify(cores));
+
+  const idCor = await cdp.avaliar(
+    `window.OrqProjetos.lista().find((p) => p.caminho.includes('orq-teste-cor-')).id`);
+
+  const trocou = JSON.parse(await cdp.avaliar(`(async () => {
+    const r = await window.orq.projetosDefinirCor(${JSON.stringify(idCor)}, 7);
+    await window.OrqProjetos.carregarProjetos();
+    const p = window.OrqProjetos.lista().find((x) => x.id === ${JSON.stringify(idCor)});
+    return JSON.stringify({ ok: r.ok, cor: p.cor, tinta: window.OrqProjetos.tintaDoProjeto(p) });
+  })()`));
+  checar('escolher a cor a mao vale mais que o sorteio',
+    trocou.ok && trocou.cor === 7 && trocou.tinta === 'var(--proj-7)', JSON.stringify(trocou));
+
+  const voltou = JSON.parse(await cdp.avaliar(`(async () => {
+    await window.orq.projetosDefinirCor(${JSON.stringify(idCor)}, null);
+    await window.OrqProjetos.carregarProjetos();
+    const p = window.OrqProjetos.lista().find((x) => x.id === ${JSON.stringify(idCor)});
+    return JSON.stringify({ cor: p.cor, tinta: window.OrqProjetos.tintaDoProjeto(p) });
+  })()`));
+  checar('"automatica" volta a sortear pelo caminho',
+    voltou.cor === null && /^var\(--proj-\d+\)$/.test(voltou.tinta), JSON.stringify(voltou));
+
+  const torta = JSON.parse(await cdp.avaliar(`(async () => JSON.stringify(
+    await window.orq.projetosDefinirCor(${JSON.stringify(idCor)}, 99)))()`));
+  checar('cor fora da paleta e recusada, sem gravar nada',
+    torta.ok === false && Boolean(torta.erro), JSON.stringify(torta));
+
+  await cdp.avaliar(`(async () => {
+    for (const p of await window.orq.projetosListar()) {
+      if (p.caminho.includes('orq-teste-cor-')) await window.orq.projetosRemover(p.id, false);
+    }
+    await window.OrqProjetos.carregarProjetos();
+    return 'ok';
+  })()`);
+  fs.rmSync(COR, { recursive: true, force: true });
+
   // --- abertura a partir do projeto -------------------------------------
   const id = await cdp.avaliar(`window.OrqProjetos.lista()[0].id`);
   const painel = JSON.parse(await cdp.avaliar(`(async () => {

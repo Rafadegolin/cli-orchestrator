@@ -42,6 +42,16 @@ function tintaDe(caminho) {
   return TINTAS[h % TINTAS.length];
 }
 
+// A cor de um PROJETO: a escolhida a mao, se houver; senao a sorteada.
+//
+// Sortear por hash e estavel, mas nao evita colisao: com dez tons, duas pastas
+// caindo na mesma cor e questao de tempo. Projeto novo ja nasce com a cor menos
+// usada (o principal cuida disso); esta funcao e o que faz a escolha manual
+// valer mais que o sorteio.
+function tintaDoProjeto(p) {
+  return p && p.cor ? `var(--proj-${p.cor})` : tintaDe(p?.caminho || '');
+}
+
 // A cor de uma PASTA: a do projeto quando e a raiz, e um tom mais claro da
 // mesma familia quando esta dentro dele (worktree, subpasta).
 //
@@ -115,7 +125,7 @@ function projetoDe(caminho) {
         base,
         nome: p.nome,
         caminho: p.caminho,
-        tinta: tintaDe(p.caminho),
+        tinta: tintaDoProjeto(p),
         // `dentro` distingue a raiz do projeto de uma pasta abaixo dela --
         // worktree, quase sempre. A informacao ja estava aqui e ninguem usava.
         dentro: alvo !== base,
@@ -201,9 +211,17 @@ function desenharProjetos() {
       if (expandidos.has(p.id)) carregarDetalhes(p.id);
     });
 
-    const tinta = document.createElement('span');
+    // O quadradinho de cor virou BOTAO: e onde a cor esta, entao e onde a gente
+    // procura para troca-la. `stopPropagation` porque a linha inteira abre
+    // sessao.
+    const tinta = document.createElement('button');
     tinta.className = 'projeto-tinta';
-    tinta.style.background = tintaDe(p.caminho);
+    tinta.style.background = tintaDoProjeto(p);
+    tinta.title = 'Trocar a cor deste projeto';
+    tinta.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      window.OrqCorProjeto?.abrir(p.id);
+    });
 
     const linha = document.createElement('div');
     linha.className = 'projeto-linha';
@@ -507,6 +525,7 @@ window.OrqProjetos = {
   carregarDetalhes,
   retomar,
   tintaDe,
+  tintaDoProjeto,
   tintaDaPasta,
   projetoDe,
   COMANDO_RETOMAR,

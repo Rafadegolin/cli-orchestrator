@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('orq', {
 
   projetosListar: () => ipcRenderer.invoke('projetos:listar'),
   projetosConversas: (caminho) => ipcRenderer.invoke('projetos:conversas', caminho),
+  projetosDefinirCor: (id, cor) => ipcRenderer.invoke('projetos:definirCor', { id, cor }),
   projetosAdicionarVarios: (caminhos) => ipcRenderer.invoke('projetos:adicionarVarios', caminhos),
   projetosAdicionar: (caminho, faixa) => ipcRenderer.invoke('projetos:adicionar', caminho, faixa),
   projetosRemover: (id, confirmar = true) => ipcRenderer.invoke('projetos:remover', { id, confirmar }),
