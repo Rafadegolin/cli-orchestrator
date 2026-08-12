@@ -7,32 +7,16 @@
 // download acontece sozinho, mas quem decide aplicar e sempre o usuario.
 
 const { app, dialog, Notification, shell } = require('electron');
-const fs = require('fs');
-const path = require('path');
-
 const terminais = require('./terminais');
-const { ehEmpacotado } = require('./empacotamento');
+const { ehEmpacotado, ehPortatil } = require('./empacotamento');
 
 const PAGINA_RELEASES = 'https://github.com/Rafadegolin/cli-orchestrator/releases/latest';
 
-// Instalado pelo NSIS ou rodando a partir do zip portatil?
-//
-// Importa porque o updater aplica a atualizacao rodando o INSTALADOR, e quem
-// esta no portatil nao tem instalador nenhum -- baixar um so para ele ser
+// `ehPortatil` mora em empacotamento.js porque decide mais de uma coisa. Aqui
+// ela importa porque o updater aplica a atualizacao rodando o INSTALADOR, e
+// quem esta no portatil nao tem instalador nenhum -- baixar um so para ele ser
 // recusado (ou, com o Smart App Control ligado, barrado como todo binario nao
 // assinado que vem da internet) seria mandar a pessoa para um beco sem saida.
-//
-// O NSIS deixa o desinstalador ao lado do executavel; o zip nao tem nenhum.
-function ehPortatil() {
-  try {
-    const pasta = path.dirname(process.execPath);
-    const temDesinstalador = fs.readdirSync(pasta)
-      .some((n) => /^Uninstall .*\.exe$/i.test(n));
-    return !temDesinstalador;
-  } catch {
-    return false;
-  }
-}
 
 // 4h entre checagens, com UM intervalo so. E raro sair versao nova, e acordar a
 // CPU para consultar o GitHub o tempo todo contraria a meta de consumo parado.

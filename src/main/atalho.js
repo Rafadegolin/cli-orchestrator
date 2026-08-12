@@ -21,7 +21,7 @@
 const fs = require('fs');
 const path = require('path');
 const { app, shell } = require('electron');
-const { ehEmpacotado } = require('./empacotamento');
+const { ehEmpacotado, ehPortatil } = require('./empacotamento');
 
 // Tem de ser igual ao `appId` do electron-builder, senao o app instalado pelo
 // NSIS passa a ter duas identidades: a do instalador e a nossa.
@@ -84,4 +84,21 @@ function existe() {
   try { return fs.existsSync(caminhoDoAtalho()); } catch { return false; }
 }
 
-module.exports = { AUMID, criar, existe, caminhoDoAtalho };
+// Chamado no arranque, e NAO e conveniencia: declarar um AppUserModelID sem um
+// atalho registrado com ele faz o Windows descartar as notificacoes em
+// SILENCIO. E este app avisa por notificacao quando uma sessao para pedindo
+// permissao com a janela em segundo plano -- perder isso calado seria trocar um
+// bug de icone por um bem pior.
+//
+// So no layout portatil (zip e pacote `-sac`), onde ninguem mais cria o atalho.
+// No instalado, quem criou foi o NSIS, com o mesmo id -- sobrescrever o dele
+// seria mexer no que o desinstalador vai querer remover depois.
+function garantir() {
+  if (!ehEmpacotado() || !ehPortatil() || existe()) return false;
+  const r = criar();
+  if (r.erro) console.error('[atalho] nao consegui criar no menu Iniciar:', r.erro);
+  else console.log('[atalho] criado em', r.caminho);
+  return !r.erro;
+}
+
+module.exports = { AUMID, criar, existe, garantir, caminhoDoAtalho };

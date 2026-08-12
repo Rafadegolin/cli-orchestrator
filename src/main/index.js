@@ -141,6 +141,10 @@ app.whenReady().then(async () => {
   // "electron.exe" -- que e literalmente outro programa aos olhos dele.
   app.setAppUserModelId(atalho.AUMID);
 
+  // E o atalho tem de EXISTIR com esse id, senao o Windows joga fora as
+  // notificacoes sem avisar. Ver o comentario em atalho.garantir().
+  atalho.garantir();
+
   // Corte do historico UMA VEZ por arranque, antes de a janela pedir o resumo.
   try {
     historico.podar();

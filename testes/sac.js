@@ -53,6 +53,12 @@ const hash = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).diges
     fs.existsSync(path.join(PACOTE, 'resources', 'app.asar.unpacked', 'node_modules', 'node-pty')),
     'app.asar.unpacked/node_modules/node-pty');
 
+  // Lido ANTES de subir o app, que cria o atalho sozinho -- e o que permite
+  // devolver o menu Iniciar ao estado anterior no fim.
+  const LNK = path.join(process.env.APPDATA,
+    'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Orquestrador.lnk');
+  const jaExistia = fs.existsSync(LNK);
+
   try {
     execSync('powershell -NoProfile -Command "Get-Process electron -ErrorAction SilentlyContinue | '
       + 'Where-Object { $_.Path -like \'*-sac*\' } | Stop-Process -Force"');
@@ -115,12 +121,13 @@ const hash = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).diges
   //
   // O teste devolve o menu Iniciar ao estado anterior: criar atalho e uma acao
   // do USUARIO, nao um efeito de rodar a suite.
-  const LNK = path.join(process.env.APPDATA,
-    'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Orquestrador.lnk');
-  const jaExistia = fs.existsSync(LNK);
+  // Ele nasce no arranque: sem um atalho registrado com o mesmo
+  // AppUserModelID, o Windows descarta as notificacoes do app em silencio.
+  checar('o atalho ja existe sem ninguem pedir', fs.existsSync(LNK), LNK);
 
   const r = JSON.parse(await cdp.avaliar('(async () => JSON.stringify(await window.orq.atalhoCriar()))()'));
-  checar('o app cria o atalho no menu Iniciar', r.ok === true, r.erro || r.caminho);
+  checar('e a paleta consegue refaze-lo (depois de mover a pasta)',
+    r.ok === true, r.erro || r.caminho);
 
   if (r.ok) {
     const props = execSync('powershell -NoProfile -Command "'

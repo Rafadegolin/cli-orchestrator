@@ -16,10 +16,27 @@
 // A pergunta certa e por onde o codigo esta sendo lido. Empacotado, o app mora
 // dentro de um .asar; em desenvolvimento, e uma pasta do disco.
 
+const fs = require('fs');
+const path = require('path');
 const { app } = require('electron');
 
 function ehEmpacotado() {
   return app.getAppPath().toLowerCase().endsWith('.asar');
 }
 
-module.exports = { ehEmpacotado };
+// Instalado pelo NSIS, ou rodando de uma pasta extraida (zip portatil e pacote
+// `-sac`)? O NSIS deixa um desinstalador ao lado do executavel; o zip nao.
+//
+// Decide duas coisas distantes uma da outra: se o updater pode APLICAR sozinho
+// (no portatil nao ha instalador para rodar) e se somos nos que precisamos
+// criar o atalho no menu Iniciar -- no instalado, o proprio NSIS ja criou.
+function ehPortatil() {
+  try {
+    return !fs.readdirSync(path.dirname(process.execPath))
+      .some((n) => /^Uninstall .*\.exe$/i.test(n));
+  } catch {
+    return false;
+  }
+}
+
+module.exports = { ehEmpacotado, ehPortatil };
