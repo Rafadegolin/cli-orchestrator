@@ -58,6 +58,17 @@ function dispararHook(evento, tipo, { orqId = '', cwd = '', message = '' } = {})
   const cdp = await conectar();
   await zerarGrade(cdp);
 
+  // FIXA o estado, e nao so limpa a grade no fim.
+  //
+  // Esta suite le a ORDEM da lista na lateral, entao ela depende de tres
+  // preferencias que outra suite pode ter deixado noutro valor: `ordem`
+  // (com 'projeto' a lista sai em ordem de projeto e toda checagem de urgencia
+  // falha), `densidade` (no slot 'p' os painéis mudam de tamanho) e `lateral`
+  // (recolhida, o `#lateral-lista` nem esta na tela). Ja custou uma rodada
+  // inteira culpando o app por sujeira de quem rodou antes.
+  await cdp.avaliar(`window.OrqCasca.mudar({ ordem: 'urgencia', densidade: 2, lateral: 'aberta' })`);
+  await esperar(300);
+
   checar('lateral carregou', await cdp.avaliar(`typeof window.OrqLateral?.ordenadas`) === 'function');
 
   const ids = [];

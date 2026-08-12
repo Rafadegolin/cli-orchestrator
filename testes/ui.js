@@ -1426,7 +1426,11 @@ async function arrastarAlca(cdp, id, dx, dy) {
     JSON.stringify({ x: voltou.guardouX, w: voltou.guardouW }));
 
   await zerarGrade(cdp);
-  await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 2, ordem: 'urgencia' })`);
+  // A lateral entra na devolucao explicitamente: ela terminou 'aberta' porque o
+  // Ctrl+B alternou de volta, e contar com isso e contar com a ordem dos testes.
+  // Suite que so limpa por acidente quebra a proxima quando alguem reordena.
+  await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 2, ordem: 'urgencia',
+    lateral: 'aberta' })`);
   // Limpa a sessao SALVA, e nao so a grade: sobrando painel no sessao.json, a
   // fase7 restaura os dela mais o nosso e conta a ordem errada. Suite que
   // deixa estado em disco quebra a proxima.
