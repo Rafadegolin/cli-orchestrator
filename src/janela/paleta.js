@@ -105,6 +105,25 @@
       correr: () => window.OrqCasca.mudar({ tema: escuro ? 'claro' : 'escuro' }),
     });
 
+    lista.push({
+      tag: 'tema',
+      rotulo: window.OrqCasca?.lateral() === 'fechada'
+        ? 'Mostrar a barra lateral'
+        : 'Ocultar a barra lateral',
+      dica: 'ctrl+b',
+      correr: () => window.OrqCasca.alternarLateral(),
+    });
+
+    // Com a lateral recolhida, o interruptor de hooks fica fora de alcance -- e
+    // sem hooks nao ha bolinha de status nenhuma. A paleta passa a ser o outro
+    // caminho para ele.
+    lista.push({
+      tag: 'app',
+      rotulo: 'Ligar ou desligar os hooks de status',
+      dica: '',
+      correr: () => document.getElementById('btn-hooks')?.click(),
+    });
+
     for (const l of window.OrqLayouts?.listar() || []) {
       lista.push({
         tag: 'layout',

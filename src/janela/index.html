@@ -12,6 +12,19 @@
   <!-- Os tres botoes de janela sao os do Windows, desenhados por cima pelo
        titleBarOverlay: e o que preserva o Snap Layouts. A faixa e nossa. -->
   <header id="titulo">
+    <!-- Recolher a lateral. Fica antes da marca porque e o canto que todo app
+         usa para isso, e porque o gesto e "abrir/fechar o que esta a esquerda".
+         A bolinha so acende quando ha atualizacao esperando la dentro: fechada,
+         a lateral esconderia o unico aviso de versao nova. -->
+    <button id="btn-lateral" title="Ocultar a barra lateral (Ctrl+B)">
+      <svg viewBox="0 0 20 20" aria-hidden="true">
+        <rect x="2.5" y="3.5" width="15" height="13" rx="2.5"
+              fill="none" stroke="currentColor" stroke-width="1.4"/>
+        <line x1="8" y1="3.5" x2="8" y2="16.5" stroke="currentColor" stroke-width="1.4"/>
+      </svg>
+      <span class="btn-lateral-aviso"></span>
+    </button>
+
     <div class="marca">
       <!-- A MESMA marca do icone do app: quatro painéis, cada um com a bolinha
            do seu status. Ela e desenhada aqui em vez de vir do icone.png porque

@@ -334,6 +334,12 @@ btnRetomarTodas?.addEventListener('click', async () => {
 function mostrarAtualizacao(s) {
   if (!btnAtualizar) return;
 
+  // Com a lateral recolhida este botao e invisivel, e ele e o UNICO aviso de
+  // versao nova que o app da -- atualizacao nunca vira dialogo aqui. A marca no
+  // botao de recolher e o que impede "some a lateral, some o aviso, para
+  // sempre". Fica no #app porque quem a desenha e a barra de titulo.
+  document.getElementById('app').dataset.atualizacao = s.disponivel ? 'sim' : 'nao';
+
   // No portatil nao ha instalador, mas quase sempre da para trocar so o
   // app.asar -- e ai o botao e o mesmo do instalado. So quando NAO da (mudou o
   // Electron, ou a pasta nao e gravavel) ele volta a mandar para o site, e

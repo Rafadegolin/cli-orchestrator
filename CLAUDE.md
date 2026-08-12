@@ -233,6 +233,8 @@ subconjunto dos 5 que os hooks entregam — `terminou` (evento `Stop`) fica, com
 - **Preferencias em `ui.json`** (`preferencias.js`), separado do `sessao.json`: arranjo muda o tempo
   todo e e regravado com debounce, preferencia muda por clique. Juntar faria toda troca de tema
   reescrever a lista de painéis.
+- **A lateral recolhe** (`#btn-lateral` no canto esquerdo da barra de titulo, ou **Ctrl+B**), e a
+  escolha fica no `ui.json` — ver a secao propria abaixo.
 - **Placar de CPU** (`metricas.js`): `app.getAppMetrics()` a cada 2s, **so com a janela visivel**, e
   emitindo **so quando o valor arredondado muda**. Soma dividida pelos nucleos, para falar a mesma
   lingua das medidas deste projeto (13,3% da maquina, e nao 160% de um nucleo).
@@ -487,6 +489,26 @@ havia sessao aberta com a grade vazia.
 
 Ambos agora contam PAINEIS (`porId`), nunca filhos do elemento. **Nao presuma que todo filho do
 `#grade` e um painel.**
+
+## Recolher a barra lateral
+
+`#btn-lateral` no canto esquerdo da barra de titulo, **Ctrl+B**, ou pela paleta. A escolha vai para o
+`ui.json` (`lateral: 'aberta' | 'fechada'`), com padrao **aberta**: um app que nasce escondendo a
+fila de atencao parece quebrado para quem abre pela primeira vez.
+
+- **E `display: none`, nao largura animada.** Animar a largura reflui a grade a cada quadro, e cada
+  reflow arrasta junto o `fit()` de todo terminal a vista. Recolher e instantaneo, e nada aqui chama
+  `fit()`: o `ResizeObserver` de cada painel ja pega a largura nova com o debounce dele — o mesmo
+  caminho da troca de densidade.
+- **O Ctrl+B e registrado na fase de CAPTURA, com `stopPropagation`.** O xterm escuta no proprio
+  textarea, que e mais fundo que a `window`: em captura o ouvinte roda ANTES dele e o terminal nunca
+  recebe o `\x02`. Em fase de bolha (que e como o Ctrl+K da paleta esta) a tecla chegaria ao PTY
+  **alem** de alternar a lateral. O teste cobra isso comparando o buffer do terminal antes e depois.
+- **Recolher nao pode esconder o unico caminho para nada.** Dois pontos ficavam so ali: o
+  interruptor de hooks, que virou item da paleta, e o **aviso de versao nova** — atualizacao nunca
+  vira dialogo neste app, entao o botao no rodape da lateral era o unico canal. Dai o
+  `data-atualizacao` que o `mostrarAtualizacao()` escreve no `#app`: com a lateral fechada e uma
+  versao disponivel, acende uma bolinha no proprio botao de recolher.
 
 ## O slot personalizado da grade (a quarta densidade)
 

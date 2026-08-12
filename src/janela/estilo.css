@@ -163,6 +163,41 @@ button:focus-visible, input:focus-visible {
 
 #titulo button, #titulo input { -webkit-app-region: no-drag; }
 
+#btn-lateral {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: none;
+  color: var(--fg3);
+}
+
+#btn-lateral svg { width: 16px; height: 16px; }
+#btn-lateral:hover { color: var(--fg2); border-color: var(--line2); background: var(--bg2); }
+#app[data-lateral="fechada"] #btn-lateral { color: var(--fg2); background: var(--bg3); }
+
+/* So acende com atualizacao esperando E a lateral fechada: com ela aberta, o
+   aviso de verdade ja esta la no rodape, e dois avisos para a mesma coisa e um
+   a mais. */
+.btn-lateral-aviso { display: none; }
+
+#app[data-lateral="fechada"][data-atualizacao="sim"] .btn-lateral-aviso {
+  display: block;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--acc);
+}
+
 .marca {
   display: flex;
   align-items: center;
@@ -259,6 +294,12 @@ button:focus-visible, input:focus-visible {
   min-width: 0;
   overflow-x: hidden;
 }
+
+/* Recolher e `display: none`, e nao uma largura animada.
+   Animar a largura reflui a grade inteira a cada quadro, e cada reflow arrasta
+   junto o `fit()` de todo terminal a vista -- caro pelo que entrega. Instantaneo
+   tambem e mais honesto: a lateral esta la ou nao esta. */
+#app[data-lateral="fechada"] #lateral { display: none; }
 
 #placar {
   padding: 14px 14px 12px 14px;

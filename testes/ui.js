@@ -318,6 +318,61 @@ async function arrastarAlca(cdp, id, dx, dy) {
   checar('sair do personalizado limpa os spans inline',
     limpou.every(([r, c]) => !r && !c), JSON.stringify(limpou));
 
+  // --- 4c. recolher a barra lateral ---------------------------------------
+  const larguraAntes = await cdp.avaliar(
+    `Math.round(document.getElementById('conteudo').getBoundingClientRect().width)`);
+
+  await cdp.avaliar(`window.OrqCasca.mudar({ lateral: 'fechada' })`);
+  await esperar(700);
+  const fechada = JSON.parse(await cdp.avaliar(`(async () => {
+    const ui = await window.orq.uiCarregar();
+    return JSON.stringify({
+      display: getComputedStyle(document.getElementById('lateral')).display,
+      largura: Math.round(document.getElementById('conteudo').getBoundingClientRect().width),
+      salvo: ui.lateral,
+      marcado: document.getElementById('app').dataset.lateral,
+      // Nada de scroll horizontal por causa da grade mais larga.
+      scrollDoc: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    });
+  })()`));
+  checar('recolher esconde a lateral e devolve o espaco para a grade',
+    fechada.display === 'none' && fechada.largura > larguraAntes, JSON.stringify(fechada));
+  checar('e a escolha vai para o ui.json', fechada.salvo === 'fechada', fechada.salvo);
+  checar('sem criar scroll horizontal', fechada.scrollDoc === 0, String(fechada.scrollDoc));
+
+  // O terminal tem de REFLUIR com o espaco novo -- e sem ninguem chamar fit() a
+  // mao: quem entrega isso e o ResizeObserver de cada painel.
+  const colsLateral = JSON.parse(await cdp.avaliar(`JSON.stringify(
+    [...window.OrqGrade.painelPorId.values()].map((p) => p.term.cols))`));
+  checar('os terminais refluem sozinhos com a lateral recolhida',
+    colsLateral.every((c) => c > 0), JSON.stringify(colsLateral));
+
+  // Ctrl+B com o cursor DENTRO de um terminal nao pode mandar \x02 para a
+  // sessao: o ouvinte e de captura e para o evento antes do xterm.
+  const antesBuffer = await cdp.avaliar(`(async () => {
+    const p = [...window.OrqPainel.painelPorId.values()][0];
+    p.focar();
+    return (await p.textoDoBuffer()).length;
+  })()`);
+  await cdp.avaliar(`(() => {
+    const p = [...window.OrqPainel.painelPorId.values()][0];
+    p.term.textarea.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'b', ctrlKey: true, bubbles: true, cancelable: true }));
+    return 'ok';
+  })()`);
+  await esperar(700);
+  const porTecla = JSON.parse(await cdp.avaliar(`(async () => {
+    const p = [...window.OrqPainel.painelPorId.values()][0];
+    return JSON.stringify({
+      lateral: window.OrqCasca.lateral(),
+      cresceu: (await p.textoDoBuffer()).length - ${antesBuffer},
+    });
+  })()`));
+  checar('Ctrl+B dentro de um terminal alterna a lateral',
+    porTecla.lateral === 'aberta', porTecla.lateral);
+  checar('e NAO vaza caractere de controle para a sessao',
+    porTecla.cresceu === 0, String(porTecla.cresceu));
+
   // Tecla so vale fora de campo de texto: digitar "3" no nome da feature nao
   // pode reorganizar a grade.
   await cdp.avaliar(`window.OrqCasca.mudar({ densidade: 2 })`);

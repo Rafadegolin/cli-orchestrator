@@ -12,6 +12,7 @@
   const btnTema = document.getElementById('btn-tema');
   const elOrdenacao = document.getElementById('ordenacao');
   const elDensidade = document.getElementById('densidade');
+  const btnLateral = document.getElementById('btn-lateral');
   const elCampo = document.getElementById('nome-feature');
   const elDica = document.getElementById('barra-dica');
   const elNum = document.getElementById('placar-num');
@@ -31,6 +32,7 @@
     tema: 'escuro',
     densidade: 2,
     ordem: 'urgencia',
+    lateral: 'aberta',
     personalizado: { cols: 3, alturaLinha: 160, celulas: [] },
   };
   const ouvintes = [];
@@ -66,6 +68,19 @@
     // unica situacao em que alguem esta trocando densidade.
   }
 
+  // Recolher a lateral alarga a grade, entao TODO terminal precisa refluir. Nada
+  // e chamado aqui: o ResizeObserver de cada painel ja pega a mudanca de largura
+  // com o debounce dele, que e exatamente o mesmo caminho da troca de densidade.
+  function aplicarLateral() {
+    const fechada = ui.lateral === 'fechada';
+    elApp.dataset.lateral = fechada ? 'fechada' : 'aberta';
+    if (!btnLateral) return;
+    btnLateral.title = fechada
+      ? 'Mostrar a barra lateral (Ctrl+B)'
+      : 'Ocultar a barra lateral (Ctrl+B)';
+    btnLateral.setAttribute('aria-pressed', String(fechada));
+  }
+
   function aplicarOrdem() {
     for (const b of elOrdenacao.querySelectorAll('button')) {
       b.classList.toggle('ativa', b.dataset.ordem === ui.ordem);
@@ -88,6 +103,7 @@
     aplicarTema();
     aplicarDensidade();
     aplicarOrdem();
+    aplicarLateral();
     avisar();
     window.orq.uiSalvar(parcial);
   }
@@ -215,6 +231,28 @@
 
   btnTema.addEventListener('click', () => mudar({ tema: ui.tema === 'claro' ? 'escuro' : 'claro' }));
 
+  function alternarLateral() {
+    mudar({ lateral: ui.lateral === 'fechada' ? 'aberta' : 'fechada' });
+    return ui.lateral;
+  }
+
+  btnLateral?.addEventListener('click', alternarLateral);
+
+  // Ctrl+B na fase de CAPTURA, e com stopPropagation.
+  //
+  // O xterm escuta no proprio textarea, que e mais fundo que a window: em fase
+  // de captura este ouvinte roda ANTES dele, entao o terminal nunca recebe o
+  // \x02. Sem isso, recolher a lateral com o cursor num terminal mandaria um
+  // caractere de controle para a sessao -- justamente o que este app existe
+  // para nao fazer. (E o mesmo caminho do Esc dos overlays, logo acima.)
+  window.addEventListener('keydown', (ev) => {
+    if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
+    if (ev.key.toLowerCase() !== 'b') return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    alternarLateral();
+  }, true);
+
   elDensidade.addEventListener('click', (ev) => {
     const b = ev.target.closest('button[data-cols]');
     if (b) mudar({ densidade: b.dataset.cols === 'p' ? 'p' : Number(b.dataset.cols) });
@@ -249,7 +287,9 @@
     ordem: () => ui.ordem,
     densidade: () => ui.densidade,
     tema: () => ui.tema,
+    lateral: () => ui.lateral,
     mudar,
+    alternarLateral,
     definirVivas,
     atualizarDica,
     aoMudar: (fn) => ouvintes.push(fn),
@@ -265,6 +305,7 @@
   aplicarTema();
   aplicarDensidade();
   aplicarOrdem();
+  aplicarLateral();
   atualizarDica();
   desenharCarga(0);
 
@@ -274,6 +315,7 @@
     aplicarTema();
     aplicarDensidade();
     aplicarOrdem();
+    aplicarLateral();
     avisar();
 
     const m = await window.orq.metricas();

@@ -44,6 +44,13 @@ const gravarBruto = (ui) => fs.writeFileSync(
   checar('densidade que nao existe cai no padrao',
     preferencias.salvar({ densidade: 9 }).densidade === 2, '');
 
+  // --- a lateral recolhida -------------------------------------------------
+  checar('a lateral nasce ABERTA', padrao.lateral === 'aberta', padrao.lateral);
+  checar('recolher sobrevive ao salvar e reler',
+    preferencias.salvar({ lateral: 'fechada' }).lateral === 'fechada', '');
+  checar('valor torto de lateral volta para aberta',
+    preferencias.salvar({ lateral: 'talvez' }).lateral === 'aberta', '');
+
   // --- o molde entra pela porta da normalizacao ---------------------------
   const salvo = preferencias.salvar({
     personalizado: { cols: 3, alturaLinha: 200, celulas: [{ c: 1, r: 2 }, { c: 2, r: 1 }] },

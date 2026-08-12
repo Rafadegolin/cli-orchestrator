@@ -232,6 +232,11 @@ const SECOES = [
         + 'status mudam. Para redefinir, procure <b>layout</b> na paleta.'),
       p('O botão de tema fica na barra de título, ao lado da busca. O <b>terminal continua escuro '
         + 'nos dois temas</b>: código monoespaçado sobre fundo claro atrapalha a leitura.'),
+      p('No canto esquerdo da barra de título, o primeiro botão <b>recolhe a barra lateral</b> '
+        + '(<b>Ctrl+B</b>), e a grade ocupa o espaço dela — os terminais refluem sozinhos. A escolha '
+        + 'é lembrada. Com ela recolhida, a fila de atenção continua alcançável por <b>Ctrl+Enter</b> '
+        + 'e o resto pela paleta; se sair versão nova, uma bolinha acende no próprio botão, porque '
+        + 'o aviso de atualização mora lá dentro.'),
       lista([
         'Com muitos painéis a grade <b>rola</b> em vez de espremer todo mundo.',
         'Painel fora da área visível <b>para de desenhar</b> e guarda a saída, escrevendo tudo de uma vez quando volta. Nada se perde.',
@@ -309,6 +314,7 @@ const SECOES = [
       teclas([
         ['Ctrl+Enter', 'Pula para a sessão que espera há mais tempo'],
         ['Ctrl+K', 'Abre a paleta de comandos'],
+        ['Ctrl+B', 'Recolhe ou mostra a barra lateral'],
         ['F1', 'Abre esta ajuda'],
         ['Esc', 'Fecha o que estiver aberto por cima'],
         ['1 2 3', 'Densidade da grade: 1, 2 ou 3 colunas'],

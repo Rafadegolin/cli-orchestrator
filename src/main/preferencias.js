@@ -32,6 +32,7 @@ const PADRAO = {
   tema: 'escuro',
   densidade: 2,
   ordem: 'urgencia',
+  lateral: 'aberta',
   personalizado: MOLDE_PADRAO,
 };
 
@@ -64,6 +65,10 @@ function normalizar(bruto) {
       ? 'p'
       : ([1, 2, 3].includes(Number(b.densidade)) ? Number(b.densidade) : PADRAO.densidade),
     ordem: b.ordem === 'projeto' ? 'projeto' : 'urgencia',
+    // A lateral recolhida. O padrao e ABERTA: ela e onde ficam a fila de
+    // atencao e o aviso de versao nova, e um app que nasce escondendo isso
+    // parece quebrado para quem abre pela primeira vez.
+    lateral: b.lateral === 'fechada' ? 'fechada' : 'aberta',
     personalizado: normalizarMolde(b.personalizado),
   };
 }
