@@ -24,27 +24,29 @@ projeto não brigam pelos arquivos nem pela porta 3000.
 
 ## Instalar
 
-> **Baixe o ZIP, não o `.exe`.** O instalador não é assinado, e o Controle Inteligente de Aplicativos
-> do Windows 11 bloqueia instaladores sem assinatura — sem opção de contornar. O ZIP não passa por
-> isso. Detalhes em [docs/instalacao-e-assinatura.md](docs/instalacao-e-assinatura.md).
+Na [página de releases](https://github.com/Rafadegolin/cli-orchestrator/releases/latest) há mais de um
+arquivo, e **qual baixar depende do Controle Inteligente de Aplicativos (SAC)** — o recurso do
+Windows 11 que bloqueia programa sem assinatura de uma CA reconhecida. Este app não é assinado.
 
-1. Baixe o **`Orquestrador-X.Y.Z-portatil.zip`** na
-   [página de releases](https://github.com/Rafadegolin/cli-orchestrator/releases/latest).
+| Se o SAC estiver... | Baixe | Como abrir |
+|---|---|---|
+| **ligado** | `Orquestrador-X.Y.Z-**sac**.zip` | Extraia e rode **`Orquestrador.cmd`** |
+| desligado | `...-instalador.exe` | Um clique, com atalho no menu Iniciar e auto-atualização |
 
-2. **Antes de extrair, desbloqueie o arquivo:** botão direito no ZIP → Propriedades → marque
-   **Desbloquear** → OK.
+Para saber qual é o seu caso: **Segurança do Windows → Controle de aplicativo e navegador → Controle
+inteligente de aplicativos**.
 
-   Este passo é o que importa. Extrair sem desbloquear marca os arquivos como vindos da internet, e
-   aí o Windows implica com eles.
-
-3. Extraia para onde quiser, por exemplo `C:\Ferramentas\Orquestrador`.
-
-4. Rode **`Orquestrador.exe`**. Se quiser atalho no menu iniciar, crie um manualmente.
+> **Por que existe um pacote só para isso.** Com o SAC ligado, o instalador e o zip portátil são os
+> dois bloqueados — e não há conserto pelo lado do arquivo: desbloquear não adianta, e **nem
+> compilar na sua própria máquina** (medido: o binário sai novo no mundo, e é a identidade dele que
+> o SAC julga). O pacote `-sac` roda sobre o `electron.exe` **original**, que o Windows já conhece.
+> Em troca, o processo aparece como `electron.exe` e não há atalho no menu Iniciar. Detalhes e as
+> medições em [docs/instalacao-e-assinatura.md](docs/instalacao-e-assinatura.md).
 
 Na primeira vez, **F1** abre o manual completo dentro do próprio app.
 
 Requisitos: Windows 10 ou 11, e o [Claude Code](https://claude.com/claude-code) instalado e
-autenticado. O app não precisa de Node.
+autenticado. Nenhum dos pacotes precisa de Node — ele só é necessário para rodar do código-fonte.
 
 ### Ligue os hooks na primeira vez
 
@@ -119,8 +121,8 @@ detecta essa situação, oferece criar um `.worktreeinclude` listando o que copi
 
 ## Atualizar
 
-O app avisa quando sai versão nova. Na versão portátil ele não aplica sozinho — o botão abre a página
-da release. Baixe o ZIP novo, desbloqueie, extraia por cima.
+O app avisa quando sai versão nova. **Só o instalador aplica sozinho**; nos pacotes em zip (`-sac` e
+portátil) o botão abre a página da release — baixe o zip novo e extraia por cima.
 
 Seus dados não ficam na pasta do app: projetos, sessão e configuração moram em `~/.orquestrador`, e
 não se perdem ao substituir a pasta.
@@ -134,7 +136,8 @@ npm install
 npx install-electron        # o Electron 43 nao baixa o binario sozinho
 npm start                   # roda o app
 npm run dev                 # roda com a porta de depuracao, para os testes
-npm run empacotar           # gera instalador e zip em dist/
+npm run empacotar           # gera instalador e zip portatil em dist/
+npm run empacotar:sac       # o pacote que abre com o Smart App Control ligado
 ```
 
 Os testes dirigem o app de fora via CDP, sem instrumentar o código de produção. Suba com
@@ -151,6 +154,7 @@ npm run teste:portas        # dois servidores no ar ao mesmo tempo
 npm run teste:worktrees     # listar, recusar e arquivar
 npm run teste:ajuda         # a ajuda, e se os numeros dela batem com o codigo
 npm run teste:ligacoes      # mecanica das ligacoes
+npm run teste:sac           # o pacote -sac abre e o terminal funciona
 npm run diagnostico         # por que o Windows bloqueou o instalador
 npm run perfil              # CPU e RAM por processo
 ```

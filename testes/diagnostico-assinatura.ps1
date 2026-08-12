@@ -55,10 +55,13 @@ Write-Output '=== 3. Mark of the Web (veio da internet?) ==='
 $z = Get-Content $Arquivo -Stream Zone.Identifier -ErrorAction SilentlyContinue
 if ($z) {
   Write-Output '   TEM MOTW (baixado). Remover com: Unblock-File'
-  Write-Output '   Mas se o bloqueio for por nivel de assinatura, remover o MOTW nao resolve.'
 } else {
-  Write-Output '   sem MOTW (compilado localmente)'
+  # Ausencia de MOTW nao prova origem local: o Expand-Archive nao propaga a
+  # marca, entao exe extraido de zip baixado tambem cai aqui.
+  Write-Output '   sem MOTW (compilado localmente, ou extraido de um zip)'
 }
+Write-Output '   MEDIDO: com o SAC ligado o bloqueio acontece MESMO SEM MOTW --'
+Write-Output '   quem decide e o nivel de assinatura, nao a marca de origem.'
 
 Write-Output ''
 Write-Output '=== 4. o que o Code Integrity registrou ==='
@@ -76,6 +79,23 @@ try {
   }
 } catch {
   Write-Output "   nao consegui ler o log: $($_.Exception.Message)"
+}
+
+Write-Output ''
+Write-Output '=== o que fazer ==='
+if ($v -eq 1 -and -not $sig.SignerCertificate) {
+  Write-Output '   SAC ligado + binario sem assinatura: nada BAIXADO deste repositorio abre,'
+  Write-Output '   nem o instalador nem o zip portatil. Nao ha passo do lado do arquivo.'
+  Write-Output '   Caminhos gratuitos, nesta ordem:'
+  Write-Output '     1. compilar aqui:  npm install && npm run empacotar'
+  Write-Output '        e rodar         dist\win-unpacked\Orquestrador.exe'
+  Write-Output '     2. rodar do codigo: npm install && npm start'
+  Write-Output '     3. desligar o SAC (IRREVERSIVEL: religar exige reinstalar o Windows)'
+} elseif ($v -eq 1) {
+  Write-Output '   SAC ligado, mas o binario esta assinado -- se ainda bloquear, veja o item 4.'
+} else {
+  Write-Output '   O SAC nao esta bloqueando. Se aparecer aviso, e o SmartScreen,'
+  Write-Output '   que tem o botao "Mais informacoes" -> "Executar assim mesmo".'
 }
 
 Write-Output ''

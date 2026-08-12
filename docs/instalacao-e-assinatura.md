@@ -36,27 +36,65 @@ SAC, Mark of the Web e o evento do log.
   [só atende organizações dos EUA, Canadá, UE e Reino Unido](https://learn.microsoft.com/en-us/azure/artifact-signing/faq).
   Brasil não está na lista e não há previsão.
 
-## A saída grátis: versão portátil em ZIP
+## O que o SAC julga é a IDENTIDADE do binário — medido em 11/08/2026
 
-**É o caminho recomendado enquanto não houver certificado.** Cada release traz, além do instalador,
-um `Orquestrador-X.Y.Z-portatil.zip`.
+Esta seção dizia que o zip portátil era a saída grátis. **Estava errada**, e o erro tinha uma causa
+clara: a medição fora feita com o executável compilado na própria máquina, que já rodara dezenas de
+vezes ali. Testar o binário que a gente mesmo acabou de compilar não responde "o que acontece com
+quem baixa".
 
-Medido nesta máquina, com o SAC ligado: o bloqueio atingiu o **instalador NSIS**, e não o executável
-do Electron — o mesmo binário do app, com Mark of the Web aplicado, abriu sem nenhum bloqueio no
-Code Integrity.
+Refeito, com o SAC em estado 1 (forçado):
 
-E há um detalhe que torna isso robusto: **desbloquear o zip antes de extrair** faz os arquivos
-saírem sem Mark of the Web nenhum.
+| o que se testou | resultado |
+|---|---|
+| release baixada do GitHub, extraída, executada | **bloqueada** — evento 3077 |
+| o exe extraído tinha Mark of the Web? | **não** (`Expand-Archive` não propaga) — e foi barrado assim mesmo |
+| o app **recém-compilado aqui** (`dist\win-unpacked`) | **bloqueado** |
+| o mesmo exe copiado para fora do OneDrive | **bloqueado** |
+| `node_modules\electron\dist\electron.exe` (também **sem assinatura**) | **roda** |
 
-### Como instalar
+As três primeiras linhas matam qualquer conserto pelo lado do arquivo: nem desbloquear, nem mudar de
+pasta, nem compilar localmente. **Compilar na máquina também não resolve** — o binário sai novo no
+mundo e a nuvem não o conhece.
 
-1. Baixe o `...-portatil.zip` da [página de releases](https://github.com/Rafadegolin/cli-orchestrator/releases/latest).
-2. **Antes de extrair**, desbloqueie: botão direito no zip → Propriedades → marque **Desbloquear** → OK.
-   (Ou no PowerShell: `Unblock-File caminho\do\arquivo.zip`)
-3. Extraia para onde quiser, por exemplo `C:\Ferramentas\Orquestrador`.
-4. Rode `Orquestrador.exe`. Se quiser atalho, crie um manualmente.
+A última linha é a que abre a saída. O `electron.exe` não é assinado e mesmo assim passa, porque é
+**byte a byte o mesmo** para todo mundo que instala o Electron 43: a nuvem da Microsoft já sabe o que
+ele é. Quem destrói essa reputação é o electron-builder, que renomeia o executável e reescreve ícone
+e metadados — aquele hash passa a ser único, e único é o mesmo que desconhecido.
 
-O passo 2 é o que importa. Extrair sem desbloquear propaga o Mark of the Web para os arquivos.
+## A saída grátis de verdade: o pacote `-sac`
+
+`npm run empacotar:sac` (`recursos/empacotar-sac.js`) monta um pacote que **não renomeia nada**: o
+`electron.exe` original, intocado, com o nosso `resources/app.asar` ao lado — que é exatamente como o
+Electron espera receber um app.
+
+**Medido de ponta a ponta com o SAC ligado**, simulando o caminho real (zip com Mark of the Web da
+zona internet, extraído sem desbloquear): abre, o xterm carrega de dentro do asar e o `node-pty` sobe
+terminal de verdade. `npm run teste:sac` refaz essa prova.
+
+O preço é cosmético, e está no `LEIA-ME.txt` do pacote:
+
+- o processo aparece como **electron.exe** no Gerenciador de Tarefas;
+- não há atalho no menu Iniciar — abre-se pelo `Orquestrador.cmd` que vai junto;
+- a atualização não se aplica sozinha (o aviso abre a página da release), como já acontecia no
+  portátil.
+
+A barra de tarefas continua com o ícone certo: como não há executável nosso para carregá-lo, quem o
+veste é o `icon` da `BrowserWindow`, e por isso o `recursos/icone.ico` entra no asar.
+
+**A garantia do pacote inteiro é uma linha:** o script compara o SHA-256 do `electron.exe` copiado
+com o do npm e aborta se diferirem. Se algum passo tocar no executável, ele volta a ser bloqueado — e
+o sintoma seria apenas alguém dizendo que não abre.
+
+### Qual baixar
+
+| Se o SAC estiver... | Baixe |
+|---|---|
+| **ligado** | `Orquestrador-X.Y.Z-sac.zip` → extrair → `Orquestrador.cmd` |
+| desligado | `...-instalador.exe` (com atalho e auto-atualização) ou `...-portatil.zip` |
+
+Com o SAC desligado, desbloquear o zip antes de extrair continua valendo — não pelo SAC, mas para
+evitar o aviso do SmartScreen, que é outra coisa e essa sim tem "Executar assim mesmo".
 
 ### O que se perde
 
@@ -125,8 +163,16 @@ assinatura for ECC.
 
 ## Recomendação
 
-**Use o zip portátil.** Custa zero, não exige mexer na segurança da máquina e não tem volta atrás
-como desligar o SAC teria. O preço é atualizar à mão, que são três passos a cada versão.
+**Comece perguntando pelo SAC** (`npm run diagnostico` responde).
 
-Certificado OV só se um dia o app for distribuído para fora da equipe, ou se atualizar à mão passar
-a incomodar.
+- **SAC ligado** — o pacote `-sac`. Custa zero, funciona para quem baixa (não só para quem tem o
+  repositório) e não exige mexer na segurança da máquina. O preço são as três diferenças cosméticas
+  da seção acima.
+- **SAC desligado** — o instalador, que dá atalho no menu Iniciar e auto-atualização.
+
+Desligar o SAC também resolve e é grátis, mas **não tem volta sem reinstalar o Windows**. Com o
+pacote `-sac` no ar não há mais motivo para pedir isso a ninguém.
+
+Certificado OV continua sendo a única solução completa — ela devolve o instalador e a
+auto-atualização para todo mundo. Só vale se o app sair da equipe, ou se as diferenças cosméticas do
+pacote `-sac` passarem a incomodar.

@@ -10,6 +10,10 @@ directories:
 files:
   - src/**/*
   - package.json
+  # O icone entra no asar por causa do pacote "sac" (recursos/empacotar-sac.js),
+  # onde o executavel e o electron.exe original e nao carrega icone nosso: ali
+  # quem veste a barra de tarefas e o `icon` da BrowserWindow.
+  - recursos/icone.ico
   - '!**/*.map'
 
 asar: true
@@ -32,12 +36,14 @@ asarUnpack:
 win:
   # Dois formatos de proposito:
   #
-  #   nsis -- o instalador de verdade, com atalho e auto-atualizacao. E o que o
-  #           Smart App Control BLOQUEIA enquanto o app nao for assinado.
-  #   zip  -- a saida gratuita: baixar, DESBLOQUEAR o zip, extrair e rodar.
-  #           Desbloquear antes de extrair faz os arquivos saírem sem Mark of
-  #           the Web, e o executavel do app roda normalmente (medido: o SAC
-  #           barrou o instalador, nao o exe do Electron).
+  #   nsis -- o instalador de verdade, com atalho e auto-atualizacao.
+  #   zip  -- sem instalar: extrair e rodar, para quem nao quer instalador.
+  #
+  # ENQUANTO O APP NAO FOR ASSINADO, com o Smart App Control ligado NENHUM DOS
+  # DOIS abre -- medido em 11/08/2026 baixando a release de verdade: o exe
+  # extraido do zip foi barrado mesmo SEM Mark of the Web. Quem julga e o nivel
+  # de assinatura, nao a marca de origem, entao nao ha arranjo de empacotamento
+  # que resolva. Com o SAC desligado os dois funcionam.
   #
   # Ver docs/instalacao-e-assinatura.md.
   target:

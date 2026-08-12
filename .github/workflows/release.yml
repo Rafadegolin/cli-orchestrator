@@ -61,7 +61,21 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "release $TAG ja existe"
           else
-            gh release create "$TAG" --title "$TAG" --notes "Instalador para Windows. Baixe o .exe abaixo."
+            gh release create "$TAG" --title "$TAG" --notes "$(cat <<'NOTAS'
+Windows. Escolha pelo estado do **Controle Inteligente de Aplicativos (SAC)**:
+
+| Se o SAC estiver... | Baixe |
+|---|---|
+| **ligado** | `Orquestrador-*-sac.zip` — extrair e abrir `Orquestrador.cmd` |
+| desligado | `Orquestrador-*-instalador.exe`, ou o `-portatil.zip` |
+
+O app nao e assinado. Com o SAC ligado, **o instalador e o zip portatil sao os dois
+bloqueados** e nao ha como contornar pelo lado do arquivo. O pacote `-sac` roda sobre o
+`electron.exe` original, que o Windows ja conhece.
+
+Detalhes: docs/instalacao-e-assinatura.md
+NOTAS
+)"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -79,6 +93,21 @@ jobs:
           # plugado, e nesse caso a assinatura tem de ser feita localmente.
           CSC_LINK: ${{ secrets.WINDOWS_CERT_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+
+      # O pacote que abre com o Smart App Control ligado: o electron.exe
+      # ORIGINAL mais o nosso app.asar. Depende do `win-unpacked` que o passo
+      # acima deixou em dist/, entao vem depois dele.
+      #
+      # Sobe pelo `gh` e nao pelo electron-builder: para o publisher dele isto
+      # nao e um alvo de build, e um arquivo que montamos por fora.
+      - name: Empacotar a versao compativel com o SAC
+        run: npm run empacotar:sac
+
+      - name: Publicar o pacote SAC na release
+        shell: bash
+        run: gh release upload "${GITHUB_REF_NAME}" dist/*-sac.zip --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Sem esta conferencia, uma release quebrada passa despercebida: o build
       # fica verde e so o usuario descobre, quando a atualizacao nunca chega.

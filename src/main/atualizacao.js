@@ -16,10 +16,10 @@ const PAGINA_RELEASES = 'https://github.com/Rafadegolin/cli-orchestrator/release
 
 // Instalado pelo NSIS ou rodando a partir do zip portatil?
 //
-// Importa porque o updater aplica a atualizacao rodando o INSTALADOR, e e
-// exatamente o instalador que o Smart App Control bloqueia enquanto o app nao
-// for assinado. Para quem usa o portatil, oferecer "atualizar e reiniciar"
-// seria mandar a pessoa para um beco sem saida.
+// Importa porque o updater aplica a atualizacao rodando o INSTALADOR, e quem
+// esta no portatil nao tem instalador nenhum -- baixar um so para ele ser
+// recusado (ou, com o Smart App Control ligado, barrado como todo binario nao
+// assinado que vem da internet) seria mandar a pessoa para um beco sem saida.
 //
 // O NSIS deixa o desinstalador ao lado do executavel; o zip nao tem nenhum.
 function ehPortatil() {

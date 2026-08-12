@@ -30,12 +30,40 @@ const UDATA = path.join(RAIZ, '.dev-udata', 'empacotado');
   await esperar(1000);
 
   fs.mkdirSync(UDATA, { recursive: true });
-  const app = spawn(EXE, [`--remote-debugging-port=9222`, `--user-data-dir=${UDATA}`], {
-    detached: true,
-    stdio: 'ignore',
-    // Sem isto o app empacotado gravaria na lista de projetos REAL do usuario.
-    env: { ...process.env, ORQ_DADOS: path.join(UDATA, 'dados') },
-  });
+  // Com o Smart App Control ligado, ESTE executavel e bloqueado -- o Windows
+  // recusa o CreateProcess e o Node relata `spawn UNKNOWN`, sem uma palavra
+  // sobre politica de aplicativo. Perder meia hora atras de um defeito de
+  // empacotamento que nao existe e caro; a mensagem abaixo aponta o culpado.
+  const sac = (() => {
+    try {
+      return Number(execSync('powershell -NoProfile -Command "(Get-ItemProperty '
+        + '\'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\CI\\Policy\' -Name '
+        + 'VerifiedAndReputablePolicyState -ErrorAction SilentlyContinue)'
+        + '.VerifiedAndReputablePolicyState"', { encoding: 'utf8' }).trim());
+    } catch { return 0; }
+  })();
+
+  // O bloqueio do SAC chega como excecao SINCRONA do spawn, e nao pelo evento
+  // 'error' -- um handler assincrono aqui nunca chegaria a rodar.
+  let app;
+  try {
+    app = spawn(EXE, [`--remote-debugging-port=9222`, `--user-data-dir=${UDATA}`], {
+      detached: true,
+      stdio: 'ignore',
+      // Sem isto o app empacotado gravaria na lista de projetos REAL do usuario.
+      env: { ...process.env, ORQ_DADOS: path.join(UDATA, 'dados') },
+    });
+  } catch (e) {
+    if (e.code === 'UNKNOWN' && sac === 1) {
+      console.error('\nO Smart App Control BLOQUEOU o app empacotado -- nao e defeito do build.');
+      console.error('Ele barra todo binario sem assinatura de CA reconhecida, e o exe que o');
+      console.error('electron-builder produz e unico no mundo: a nuvem nao o conhece.');
+      console.error('\nPara testar o pacote que abre assim mesmo:');
+      console.error('  npm run empacotar:sac && npm run teste:sac');
+      process.exit(4);
+    }
+    throw e;
+  }
   app.unref();
 
   const cdp = await conectar();

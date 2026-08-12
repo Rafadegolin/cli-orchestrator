@@ -13,6 +13,8 @@
     "start": "electron .",
     "icone": "node recursos/gerar-icone.js",
     "empacotar": "electron-builder --win --publish never",
+    "empacotar:sac": "node recursos/empacotar-sac.js",
+    "teste:sac": "node testes/sac.js",
     "publicar": "electron-builder --win --publish always",
     "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File testes/subir.ps1",
     "teste:fase1": "node testes/fase1.js",

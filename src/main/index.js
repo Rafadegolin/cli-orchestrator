@@ -72,6 +72,11 @@ function criarJanela() {
     backgroundColor: cores.color,
     show: false,
     title: 'Orquestrador',
+    // No instalador e no zip portatil o icone vem do proprio executavel, e esta
+    // linha nao muda nada. Ela existe pelo pacote "sac", onde o executavel e o
+    // electron.exe ORIGINAL e intocado -- sem ela a barra de tarefas mostraria
+    // o icone do Electron.
+    icon: path.join(__dirname, '..', '..', 'recursos', 'icone.ico'),
     // A faixa de 38px e desenhada por nos; os TRES BOTOES continuam sendo os do
     // Windows, pintados por cima pelo overlay. E o que preserva o Snap Layouts
     // (arrastar para a borda, o menu que aparece ao pairar no maximizar) --

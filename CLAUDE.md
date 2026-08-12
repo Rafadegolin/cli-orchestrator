@@ -47,7 +47,9 @@ npm run perfil            # CPU/RAM POR PROCESSO (use -Json para consumir em scr
 npm run teste:metas       # latencia de tecla e CPU sob carga (leva ~90s)
 node testes/arvore.js     # fechar painel mata a arvore de processos
 
-npm run empacotar         # instalador em dist/, sem publicar
+npm run empacotar         # instalador e zip portatil em dist/, sem publicar
+npm run empacotar:sac     # o pacote que abre com o Smart App Control ligado
+npm run teste:sac         # o pacote -sac: exe intocado, e o terminal funciona
 npm run teste:empacotado  # roda o app EMPACOTADO (nao precisa do npm run dev)
 npm run teste:atualizacao # app empacotado antigo detecta e baixa a release nova
 npm run icone             # regenera recursos/icone.ico
@@ -107,14 +109,43 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
   binario do `node-pty` e Node-API.
 - **`verifyUpdateCodeSignature: false`.** O padrao e `true` e, sem certificado, rejeitaria toda
   atualizacao baixada.
-- **O app NAO e assinado, e no Windows 11 com Smart App Control ligado o INSTALADOR e bloqueado** —
-  sem botao de contornar. Nao e o SmartScreen: o log do Code Integrity acusa
+- **O app NAO e assinado, e no Windows 11 com Smart App Control ligado TODO BINARIO BAIXADO daqui e
+  bloqueado** — sem botao de contornar. Nao e o SmartScreen: o log do Code Integrity acusa
   `did not meet the Enterprise signing level requirements`. Certificado autoassinado **nao** resolve
   (o SAC so aceita CA do Microsoft Trusted Root Program, e so RSA), e o Azure Trusted Signing nao
   atende o Brasil.
-- **Por isso a release traz tambem um zip portatil**, que e o caminho gratuito. Medido: o SAC barrou
-  o instalador NSIS, **nao** o executavel do Electron. E desbloquear o zip antes de extrair faz os
-  arquivos saírem sem Mark of the Web nenhum.
+- **O SAC julga a IDENTIDADE do binario, e nada mais.** Medido em 11/08/2026 com o SAC em estado 1,
+  depois de a afirmacao antiga ("ele barrou o instalador, nao o executavel") ter sido falsificada:
+
+  | testado | resultado |
+  |---|---|
+  | release baixada, extraida, executada | bloqueada (evento 3077) |
+  | ...e o exe extraido estava **sem MOTW** (`Expand-Archive` nao propaga) | barrado assim mesmo |
+  | app **recem-compilado aqui** (`dist\win-unpacked`) | **bloqueado** |
+  | o mesmo exe copiado para fora do OneDrive | bloqueado |
+  | `node_modules/electron/dist/electron.exe`, tambem **sem assinatura** | **roda** |
+
+  Ou seja: nem desbloquear, nem mudar de pasta, nem compilar localmente. A medicao antiga enganava
+  porque fora feita sobre um binario ja rodado dezenas de vezes na propria maquina — o teste errado.
+  E a ultima linha e a saida: o `electron.exe` passa **sem assinatura** porque e byte a byte o mesmo
+  para todo mundo. Quem destroi essa reputacao e o electron-builder ao renomear o executavel e
+  reescrever icone e metadados.
+- **`npm run empacotar:sac` e o pacote que abre com o SAC ligado** (`recursos/empacotar-sac.js`): o
+  `electron.exe` ORIGINAL mais o nosso `app.asar` ao lado, sem renomear nada. Provado de ponta a
+  ponta em `npm run teste:sac`, inclusive pelo caminho real (zip com MOTW, extraido sem desbloquear).
+  - **Tocar no executavel e o unico jeito de quebrar isso**, e o sintoma seria so alguem dizendo que
+    nao abre — por isso o script compara o SHA-256 com o do npm e aborta se diferir. Renomear para
+    `Orquestrador.exe` e a "melhoria" tentadora que reintroduz o bug.
+  - O icone da barra de tarefas passou a vir do `icon` da `BrowserWindow` (e `recursos/icone.ico`
+    entrou no `files:` do asar): aqui nao ha executavel nosso para carrega-lo.
+  - O zip sai pelo **bsdtar do Windows** (`%SystemRoot%\System32\tar.exe`), e cada detalhe custou uma
+    tentativa: o `Compress-Archive` morre no meio porque o Electron distribui arquivos com data fora
+    da faixa do formato zip; `tar` solto no PATH acha o GNU tar do Git, que nao escreve zip;
+    `--options zip:compression=deflate` e obrigatorio (sem ele o pacote sai com 359 MB em vez de 142);
+    e o caminho tem de ir relativo, porque o bsdtar le `C:\...` depois do `-f` como `maquina:caminho`.
+- **`npm run teste:empacotado` nao roda mais nesta maquina** — o exe do electron-builder e bloqueado.
+  O teste detecta o SAC e diz isso, em vez de morrer com `spawn UNKNOWN`, que e como o Windows relata
+  a recusa (o erro e **sincrono** no `spawn`, entao um handler de `'error'` nunca rodaria).
 - **No portatil o updater muda de comportamento**: aplicar exigiria rodar o instalador bloqueado,
   entao ele nem baixa — o aviso vira "Baixar a versao X" e abre a pagina da release. A deteccao e a
   ausencia do desinstalador ao lado do executavel (o NSIS deixa um; o zip nao).
