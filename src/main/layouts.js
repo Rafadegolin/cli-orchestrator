@@ -30,7 +30,12 @@ function limpar(l, i) {
   return {
     nome: String(l.nome || `layout ${i + 1}`).trim().slice(0, 60),
     tema: l.tema === 'claro' ? 'claro' : 'escuro',
-    densidade: [1, 2, 3].includes(Number(l.densidade)) ? Number(l.densidade) : 2,
+    // 'p' e o slot personalizado. Sem ele aqui, aplicar um layout salvo tirava o
+    // usuario do modo personalizado em silencio -- caindo na densidade 2 sem
+    // nada na tela explicando por que.
+    densidade: l.densidade === 'p'
+      ? 'p'
+      : ([1, 2, 3].includes(Number(l.densidade)) ? Number(l.densidade) : 2),
     ordem: l.ordem === 'projeto' ? 'projeto' : 'urgencia',
     paineis: (Array.isArray(l.paineis) ? l.paineis : []).filter((p) => p && p.cwd).map(limparPainel),
     salvoEm: l.salvoEm || new Date().toISOString(),

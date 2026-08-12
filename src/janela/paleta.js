@@ -125,6 +125,13 @@
     });
 
     lista.push({
+      tag: 'layout',
+      rotulo: 'Redefinir o layout personalizado',
+      dica: 'todos do mesmo tamanho',
+      correr: () => window.OrqPersonalizado?.redefinir(),
+    });
+
+    lista.push({
       tag: 'nova',
       rotulo: 'Cadastrar projeto',
       dica: '',

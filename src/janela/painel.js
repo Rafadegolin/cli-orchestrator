@@ -179,7 +179,17 @@ class Painel {
     this.elRodape = document.createElement('div');
     this.elRodape.className = 'painel-rodape';
 
-    raiz.append(cab, this.elTerm, this.elRodape);
+    // A alca de redimensionar. Existe SEMPRE, e quem decide se aparece e o CSS
+    // (mapa em 1:1, ou a densidade personalizada): criar e destruir conforme o
+    // modo seria mais um lugar de onde o painel pode voltar diferente.
+    //
+    // Quem escuta o arrasto e o modulo dono do modo -- mapa.js encaixa na malha
+    // de 20px, personalizado.js encaixa em celulas da grade. Aqui so o elemento.
+    this.elAlca = document.createElement('div');
+    this.elAlca.className = 'painel-alca';
+    this.elAlca.title = 'Arraste para redimensionar';
+
+    raiz.append(cab, this.elTerm, this.elRodape, this.elAlca);
 
     // Clicar em qualquer lugar do painel da foco ao terminal. So o painel
     // focado recebe teclado -- quem cuida disso e o proprio xterm.

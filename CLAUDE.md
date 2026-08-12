@@ -228,6 +228,8 @@ subconjunto dos 5 que os hooks entregam — `terminou` (evento `Stop`) fica, com
 - **Densidade 1/2/3** (`--cols` e `--altura-painel` vindos de `#app[data-densidade]`) com altura
   FIXA por densidade. As colunas nao dependem mais da contagem de painéis: numero que muda sozinho a
   cada painel aberto e o oposto de uma grade previsivel.
+- **Mais o slot `P`** (`src/janela/personalizado.js`), onde a altura deixa de ser fixa e vira **span
+  de linhas** — ver a secao propria abaixo.
 - **Preferencias em `ui.json`** (`preferencias.js`), separado do `sessao.json`: arranjo muda o tempo
   todo e e regravado com debounce, preferencia muda por clique. Juntar faria toda troca de tema
   reescrever a lista de painéis.
@@ -432,10 +434,49 @@ encolhido. Nada se perde: painel sem area visivel ja acumula a saida num buffer 
 
 - **Trocar de modo nao recria painel nenhum**: os painéis continuam no mesmo pai e so mudam de
   posicionamento. Recriar destruiria os terminais.
-- Posicoes vao para o `sessao.json`, com `x`/`y` normalizados como os outros campos.
+- Posicoes e tamanhos vao para o `sessao.json`, com `x`/`y`/`w`/`h` normalizados como os outros
+  campos.
 - **No mapa, densidade e ordenacao somem da toolbar**: `--cols` nao se aplica a elemento posicionado
   e `style.order` idem. Controle que existe e nao faz nada e pior que controle ausente.
 - Arrastar e pelo CABECALHO. Pelo corpo roubaria a selecao de texto do terminal.
+
+### O tamanho do painel e MODELO, e o CSS e so o valor de partida
+
+`p.w`/`p.h` moram no objeto do painel, como `x`/`y` ja moravam, e `aplicarPosicoes()` os escreve
+inline. O `width: 420px; height: 300px` do `estilo.css` ficou sendo apenas o que vale antes de o
+`redesenhar()` rodar. Antes os mesmos 420x300 estavam escritos nos dois lugares, sem nada mantendo
+os dois em sincronia.
+
+- **Arrastar e redimensionar encaixam numa malha de 20px** — a MESMA do `background-size` das
+  bolinhas do fundo, e por isso os painéis ficam alinhados entre si sem ninguem mirar. A
+  auto-arrumacao ja caia na malha por acidente feliz: `FOLGA` (40), `LARGURA+FOLGA` (460) e
+  `ALTURA+FOLGA` (340) sao todos multiplos de 20.
+- **Piso de 280x180.** Os 280 nao sao redondos por gosto: abaixo de 260px o `@container` do painel
+  esconde a pill do projeto, e encolher ao maximo nao pode custar informacao do cabecalho.
+- **Na visao geral o inline TEM de ser limpo.** Estilo inline vence folha de estilo, entao sem
+  `p.el.style.width = ''` o cartao continuaria com o tamanho do painel — e o `width: 260px` do CSS
+  nunca chegaria a valer.
+- **As pontas da linha de ligacao saem do centro REAL.** Com 420x300 escrito no codigo, um painel
+  redimensionado deixava a linha apontando para o vazio; e o mesmo defeito ja acontecia, calado,
+  com os cartoes de 260px da visao geral. No 1:1 o tamanho vem do modelo (de graca); na visao geral,
+  onde a altura e automatica e nao ha modelo, sai de uma leitura de `offset*` **por redesenho**,
+  nunca por linha desenhada.
+- **O redesenho das linhas passou a ser por `requestAnimationFrame`.** Arrastar e redimensionar sao
+  continuos, e reconstruir o SVG inteiro a cada `mousemove` punha um rebuild dentro do laco de
+  eventos.
+- O `fit()` depois de redimensionar sai do `ResizeObserver` do painel, com o debounce de 100ms dele:
+  quem arrasta por dois segundos paga um reflow, nao duzentos.
+
+### O fundo de bolinhas vai no `#grade`, nao no `#conteudo`
+
+Quem rola e o `#conteudo`, mas quem **contem** os painéis e o `#grade`. Pondo o padrao no `#grade`,
+as bolinhas rolam junto com os painéis — e e isso que faz o mapa parecer uma superficie em vez de
+caixas flutuando. De quebra a origem do padrao vira a mesma origem de `left/top`, entao a malha de
+20px do encaixe cai exatamente sobre as bolinhas.
+
+O `#conteudo` perde os 14px de `padding` no modo mapa: com eles, sobrava uma faixa lisa em volta do
+quadro. Token proprio (`--ponto`) nos dois temas; ele nao carrega texto, entao nao entra na conta de
+contraste AA do `teste:ui`.
 
 ### O `<svg>` dentro do `#grade` quebrou a ordem dos painéis
 
@@ -446,6 +487,40 @@ havia sessao aberta com a grade vazia.
 
 Ambos agora contam PAINEIS (`porId`), nunca filhos do elemento. **Nao presuma que todo filho do
 `#grade` e um painel.**
+
+## O slot personalizado da grade (a quarta densidade)
+
+`src/janela/personalizado.js`. A quarta pilula ao lado de 1/2/3 (tecla **4**), onde cada painel pode
+ter um tamanho diferente: dois terminais grandes lado a lado e dois pequenos dividindo a terceira
+coluna, por exemplo.
+
+- **A altura deixa de ser fixa e vira span de LINHAS.** `#app[data-densidade="p"]` troca
+  `.painel { height: var(--altura-painel) }` por `height: auto` e poe `grid-auto-rows` no `#grade`;
+  cada painel ganha `grid-column: span C` / `grid-row: span R` inline. O posicionamento automatico
+  do CSS Grid acomoda o resto — **nenhuma coordenada explicita**, nenhuma biblioteca.
+- **Sem `grid-auto-flow: dense`.** Empacotamento denso reordena itens visualmente e brigaria com o
+  `style.order` que `ordenarGrade()` escreve.
+- **O molde e por POSICAO, nao por sessao.** Ele guarda "o primeiro painel e grande, o terceiro e
+  pequeno". Tamanho preso a uma feature morreria junto com ela; um molde vale para o proximo
+  conjunto de sessoes. A consequencia honesta, e que esta escrita na ajuda: com ordenacao por
+  **Urgencia** a FORMA da tela fica parada e quem ocupa o slot grande muda conforme os status mudam.
+- **Aplicar pendura no fim de `ordenarGrade()`**, que e o unico ponto por onde toda reordenacao
+  passa. Pendurar em outro lugar seria pendurar em varios.
+- **`densidade` deixou de ser sempre numero.** `'p'` teve de entrar em tres listas brancas
+  (`preferencias.js`, `layouts.js` e a comparacao do `casca.js`) — e a do `casca.js` e a traicoeira:
+  `Number('p')` e `NaN`, que nao casa nem consigo mesmo, entao a pilula nunca ficaria marcada.
+- A conversao de pixels para celulas soma o `gap` dos dois lados (`(px + 12) / (celula + 12)`):
+  N celulas ocupam `N*celula + (N-1)*gap`, e sem isso um painel de exatamente 2 celulas arredondava
+  para 1.
+- Redefinir e um item da paleta (`tag: layout`). Nao ha botao proprio: o molde se desenha arrastando.
+- O molde mora no `ui.json` (`{ cols, alturaLinha, celulas }`), com `normalizar` limitando tudo —
+  `npm run teste:preferencias` cobra isso, porque `ui.json` e do usuario e pode ser editado a mao.
+
+**A alca de redimensionar e UMA so, compartilhada com o mapa** (`.painel-alca`, criada sempre no
+`_montarDom`). Quem escuta o arrasto e o modulo dono do modo — o mapa encaixa na malha de 20px, este
+encaixa em celulas. A cor dela e `--termfg`, e nao `--fg3`: ela cai sempre sobre a faixa de rodape,
+que usa o fundo do TERMINAL (escuro nos dois temas), e com `--fg3` ela sumia no tema claro. O rodape
+ganhou `padding-right` nos dois modos, senao a alca cobriria o canto do botao **Aprovar**.
 
 ## Layouts salvos
 

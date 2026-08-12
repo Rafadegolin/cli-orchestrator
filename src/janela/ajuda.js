@@ -222,7 +222,14 @@ const SECOES = [
           + 'vem primeiro; em <b>Projeto</b>, agrupa por repositório.'],
         ['1 · 2 · 3', 'Quantas colunas. Cada densidade tem uma altura fixa de painel, para a grade '
           + 'ficar previsível. Na 3 o rótulo de status some e a bolinha assume.'],
+        ['P', 'O slot personalizado: aqui cada painel pode ter um tamanho diferente. Arraste a '
+          + '<b>alça do canto inferior direito</b> e ele cresce em colunas e linhas da grade — por '
+          + 'exemplo dois terminais grandes lado a lado e dois pequenos dividindo a terceira coluna.'],
       ]),
+      aviso('O personalizado é um <b>molde por posição</b>, e não um tamanho preso a uma sessão: ele '
+        + 'guarda "o primeiro painel é grande, o terceiro é pequeno". Com a ordenação por '
+        + '<b>Urgência</b> a forma da tela fica parada, mas quem ocupa o slot grande muda conforme os '
+        + 'status mudam. Para redefinir, procure <b>layout</b> na paleta.'),
       p('O botão de tema fica na barra de título, ao lado da busca. O <b>terminal continua escuro '
         + 'nos dois temas</b>: código monoespaçado sobre fundo claro atrapalha a leitura.'),
       lista([
@@ -230,6 +237,28 @@ const SECOES = [
         'Painel fora da área visível <b>para de desenhar</b> e guarda a saída, escrevendo tudo de uma vez quando volta. Nada se perde.',
         'Clicar num painel dá foco; só o painel focado recebe o teclado. O <b>×</b> fecha e mata o processo de verdade.',
       ]),
+    ],
+  },
+  {
+    id: 'mapa',
+    titulo: 'O mapa: painéis onde você quiser',
+    blocos: [
+      p('<b>Mapa</b>, ao lado de <b>Grade</b> na barra de cima, troca a grade por uma superfície onde '
+        + 'cada painel tem lugar e tamanho próprios — e as <b>ligações entre sessões viram linhas</b> '
+        + 'desenhadas entre elas. São os mesmos painéis: trocar de modo não reinicia nada.'),
+      tabela(['Gesto', 'O que faz'], [
+        ['Arrastar o cabeçalho', 'Move o painel. O corpo não move nada: ali é o terminal, e arrastar '
+          + 'dali roubaria a seleção de texto.'],
+        ['Arrastar a alça do canto', 'Redimensiona, como uma janela. O terminal <b>reflui</b> — ganha '
+          + 'ou perde colunas de verdade, em vez de esticar a imagem.'],
+        ['Visão geral', 'Troca os painéis por cartões para você ver o conjunto. O terminal não é '
+          + 'encolhido, é trocado: escalar borraria o texto.'],
+      ]),
+      p('Posição e tamanho <b>encaixam de 20 em 20 pixels</b>, na mesma malha das bolinhas do fundo — '
+        + 'por isso os painéis ficam alinhados entre si sem você mirar. Tudo é lembrado junto com o '
+        + 'arranjo: fechar e reabrir o app devolve o mapa como você deixou.'),
+      p('No mapa somem a densidade e a ordenação: nenhuma das duas tem efeito sobre painel posicionado '
+        + 'à mão, e controle que não faz nada é pior que controle ausente.'),
     ],
   },
   {
@@ -283,9 +312,10 @@ const SECOES = [
         ['F1', 'Abre esta ajuda'],
         ['Esc', 'Fecha o que estiver aberto por cima'],
         ['1 2 3', 'Densidade da grade: 1, 2 ou 3 colunas'],
+        ['4', 'O slot personalizado (a quarta pílula da barra)'],
         ['Enter', 'No campo de feature, o mesmo que <b>Nova sessão</b>'],
       ]),
-      p('As teclas <b>1</b>, <b>2</b> e <b>3</b> são ignoradas enquanto você digita num campo de '
+      p('As teclas <b>1</b> a <b>4</b> são ignoradas enquanto você digita num campo de '
         + 'texto ou dentro de um terminal — só valem quando o teclado não está em uso.'),
     ],
   },

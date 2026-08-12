@@ -24,7 +24,15 @@
   // antes de encher, senao so avisa quando ja e tarde.
   const SEGMENTOS_QUENTES = 3;
 
-  let ui = { tema: 'escuro', densidade: 2, ordem: 'urgencia' };
+  // O molde do slot personalizado vem junto das outras preferencias, e nao do
+  // sessao.json: ele e o FORMATO da tela, que sobrevive a qualquer conjunto de
+  // sessoes. Quem normaliza de verdade e o processo principal.
+  let ui = {
+    tema: 'escuro',
+    densidade: 2,
+    ordem: 'urgencia',
+    personalizado: { cols: 3, alturaLinha: 160, celulas: [] },
+  };
   const ouvintes = [];
 
   // ------------------------------------------------------------- aplicar
@@ -39,9 +47,20 @@
 
   function aplicarDensidade() {
     elApp.dataset.densidade = String(ui.densidade);
+    // Comparacao por STRING: o slot personalizado e 'p', e `Number('p')` e NaN
+    // -- que nunca casa com nada, nem consigo mesmo.
     for (const b of elDensidade.querySelectorAll('button')) {
-      b.classList.toggle('ativa', Number(b.dataset.cols) === ui.densidade);
+      b.classList.toggle('ativa', b.dataset.cols === String(ui.densidade));
     }
+
+    // As duas medidas do molde saem daqui para o CSS. Fora do slot 'p' elas nao
+    // sao lidas por regra nenhuma, mas escrever sempre evita que um retorno ao
+    // 'p' pegue o valor do molde anterior.
+    const molde = ui.personalizado || {};
+    elApp.style.setProperty('--pcols', String(molde.cols || 3));
+    elApp.style.setProperty('--altura-linha', `${molde.alturaLinha || 160}px`);
+    window.OrqPersonalizado?.aplicar();
+
     // Mudar a altura do painel muda cols/rows do terminal. O ResizeObserver de
     // cada painel ja pega isso -- com a janela em primeiro plano, que e a
     // unica situacao em que alguem esta trocando densidade.
@@ -198,7 +217,7 @@
 
   elDensidade.addEventListener('click', (ev) => {
     const b = ev.target.closest('button[data-cols]');
-    if (b) mudar({ densidade: Number(b.dataset.cols) });
+    if (b) mudar({ densidade: b.dataset.cols === 'p' ? 'p' : Number(b.dataset.cols) });
   });
 
   elOrdenacao.addEventListener('click', (ev) => {
@@ -210,14 +229,16 @@
 
   window.addEventListener('keydown', (ev) => {
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
-    if (!['1', '2', '3'].includes(ev.key)) return;
+    if (!['1', '2', '3', '4'].includes(ev.key)) return;
     // Digitar "3" no nome da feature nao pode reorganizar a grade.
     const alvo = document.activeElement;
     if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.isContentEditable)) return;
     // O xterm captura o teclado no proprio textarea, entao digitar dentro de um
     // terminal ja nao chega aqui.
     ev.preventDefault();
-    mudar({ densidade: Number(ev.key) });
+    // O 4 segue a POSICAO do botao na barra, e nao um numero de colunas: o slot
+    // personalizado e a quarta pilula.
+    mudar({ densidade: ev.key === '4' ? 'p' : Number(ev.key) });
   });
 
   window.orq.aoMedir(definirCpu);

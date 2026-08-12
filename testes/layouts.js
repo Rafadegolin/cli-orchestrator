@@ -80,6 +80,13 @@ const painel = (feature, cwd) => ({ feature, cwd, comandoInicial: 'cls && claude
   checar('painel sem cwd e descartado, com cwd sobrevive',
     layouts.obter('ok').paineis.length === 1, String(layouts.obter('ok').paineis.length));
 
+  // --- a densidade personalizada nao e um numero -------------------------
+  // Sem 'p' na lista branca, aplicar um layout salvo no slot personalizado
+  // devolvia o usuario para a densidade 2 sem nada explicando por que.
+  layouts.salvar({ nome: 'custom', tema: 'escuro', densidade: 'p', ordem: 'urgencia', paineis: [painel('d', 'C:/k')] });
+  checar('o slot personalizado sobrevive ao salvar e reler',
+    layouts.obter('custom').densidade === 'p', String(layouts.obter('custom').densidade));
+
   // --- remover ------------------------------------------------------------
   checar('remover tira da lista', layouts.remover('torto').removido === true, '');
   checar('e nome que nao existe nao finge que removeu',

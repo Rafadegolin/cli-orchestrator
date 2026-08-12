@@ -55,6 +55,31 @@ async function soltar(cdp) {
   await esperar(700);
 }
 
+// Arrasta a alca de redimensionar com eventos de mouse DE VERDADE.
+//
+// Chamar `definirTamanho()` ou `definirCelula()` prova o efeito, nao o gesto --
+// e o gesto e a feature inteira. Vai em passos, como um arrasto real: um salto
+// unico esconderia erro no calculo do delta.
+async function arrastarAlca(cdp, id, dx, dy) {
+  const mouse = (type, x, y) => cdp.enviar('Input.dispatchMouseEvent', {
+    type, x, y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1,
+  });
+
+  const p = JSON.parse(await cdp.avaliar(`(() => {
+    const el = window.OrqPainel.painelPorId.get(${JSON.stringify(id)}).el;
+    const a = el.querySelector('.painel-alca').getBoundingClientRect();
+    return JSON.stringify({ x: a.x + a.width / 2, y: a.y + a.height / 2 });
+  })()`));
+
+  await mouse('mousePressed', p.x, p.y);
+  for (let i = 1; i <= 4; i += 1) {
+    await mouse('mouseMoved', p.x + (dx * i) / 4, p.y + (dy * i) / 4);
+    await esperar(40);
+  }
+  await mouse('mouseReleased', p.x + dx, p.y + dy);
+  await esperar(500);
+}
+
 (async () => {
   const cdp = await conectar();
   const frente = await aoFrente(cdp);
@@ -208,6 +233,90 @@ async function soltar(cdp) {
     checar(`densidade ${d}: rotulo de status ${d === 3 ? 'oculto' : 'visivel'}`,
       r.rotuloVisivel === (d !== 3), String(r.rotuloVisivel));
   }
+
+  // --- 4b. o slot personalizado -------------------------------------------
+  // A quarta pilula nao e "mais uma contagem de colunas": ela troca a altura
+  // fixa por span de LINHAS, que e o unico jeito de um painel ser maior que o
+  // vizinho sem sair do alinhamento da grade.
+  await cdp.avaliar(`window.OrqCasca.mudar({ densidade: 'p', personalizado: {
+    cols: 3, alturaLinha: 160, celulas: [{ c: 1, r: 2 }, { c: 1, r: 1 }] } })`);
+  await esperar(600);
+
+  const custom = JSON.parse(await cdp.avaliar(`(() => {
+    const grade = getComputedStyle(document.getElementById('grade'));
+    const ordenados = window.OrqPersonalizado.naOrdemDaTela();
+    return JSON.stringify({
+      colunasReais: grade.gridTemplateColumns.split(' ').length,
+      linha: grade.gridAutoRows,
+      spans: ordenados.map((p) => p.el.style.gridRow),
+      alturas: ordenados.map((p) => Math.round(p.el.getBoundingClientRect().height)),
+      ativa: document.querySelector('#densidade button.ativa')?.dataset.cols,
+    });
+  })()`));
+  checar('o personalizado usa as colunas do molde', custom.colunasReais === 3,
+    JSON.stringify(custom));
+  checar('e a altura passa a vir da linha da grade, nao de --altura-painel',
+    custom.linha === '160px', custom.linha);
+  checar('o primeiro painel ocupa duas linhas e o segundo uma',
+    custom.spans[0] === 'span 2' && custom.spans[1] === 'span 1', JSON.stringify(custom.spans));
+  // 2 linhas de 160 mais o gap de 12 = 332. Se o span nao virasse altura de
+  // verdade, os dois mediriam igual e nada na tela mudaria.
+  checar('e o span vira altura de verdade na tela',
+    custom.alturas[0] === 332 && custom.alturas[1] === 160, JSON.stringify(custom.alturas));
+  checar('a quarta pilula fica marcada (comparacao por string, nao por Number)',
+    custom.ativa === 'p', String(custom.ativa));
+
+  // Mexer numa posicao grava o molde -- e o molde e por POSICAO, entao a chave
+  // e o indice na tela e nao o id do painel.
+  await cdp.avaliar(`window.OrqPersonalizado.definirCelula(1, 1, 2)`);
+  await esperar(500);
+  const molde = JSON.parse(await cdp.avaliar(`(async () => {
+    const ui = await window.orq.uiCarregar();
+    return JSON.stringify({
+      celulas: ui.personalizado.celulas,
+      densidade: ui.densidade,
+      naTela: window.OrqPersonalizado.naOrdemDaTela().map((p) => p.el.style.gridRow),
+    });
+  })()`));
+  checar('mexer numa posicao grava o molde no ui.json',
+    molde.celulas[1] && molde.celulas[1].r === 2 && molde.densidade === 'p',
+    JSON.stringify(molde));
+  checar('e a tela passa a seguir o molde salvo',
+    molde.naTela[1] === 'span 2', JSON.stringify(molde.naTela));
+
+  // E o gesto: arrastar a alca no slot personalizado cresce em CELULAS, nao em
+  // pixels -- e o que mantem a grade alinhada enquanto os painéis mudam de
+  // tamanho.
+  await cdp.avaliar(`window.OrqCasca.mudar({ personalizado: {
+    cols: 3, alturaLinha: 160, celulas: [] } })`);
+  await esperar(500);
+  const alvoP = JSON.parse(await cdp.avaliar(
+    `JSON.stringify(window.OrqPersonalizado.naOrdemDaTela().map((p) => p.id))`))[0];
+  await arrastarAlca(cdp, alvoP, 300, 200);
+
+  const arrastadoP = JSON.parse(await cdp.avaliar(`(async () => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(alvoP)});
+    const ui = await window.orq.uiCarregar();
+    return JSON.stringify({
+      col: p.el.style.gridColumn, row: p.el.style.gridRow,
+      altura: Math.round(p.el.getBoundingClientRect().height),
+      salvo: ui.personalizado.celulas[0],
+    });
+  })()`));
+  checar('arrastar a alca no personalizado cresce em celulas da grade',
+    arrastadoP.col === 'span 2' && arrastadoP.row === 'span 2', JSON.stringify(arrastadoP));
+  checar('e o molde vai para o ui.json na hora de soltar',
+    arrastadoP.salvo && arrastadoP.salvo.c === 2 && arrastadoP.salvo.r === 2,
+    JSON.stringify(arrastadoP.salvo));
+
+  // Sair do slot tem de LIMPAR os spans: sobrando inline, a densidade 2 herdaria
+  // um painel com o dobro da altura e ninguem entenderia de onde veio.
+  await cdp.avaliar(`window.OrqCasca.mudar({ densidade: 2 })`);
+  await esperar(500);
+  const limpou = JSON.parse(await cdp.avaliar(`JSON.stringify(
+    [...window.OrqGrade.painelPorId.values()].map((p) => [p.el.style.gridRow, p.el.style.gridColumn]))`));
+  checar('sair do personalizado limpa os spans inline',
+    limpou.every(([r, c]) => !r && !c), JSON.stringify(limpou));
 
   // Tecla so vale fora de campo de texto: digitar "3" no nome da feature nao
   // pode reorganizar a grade.
@@ -1082,6 +1191,64 @@ async function soltar(cdp) {
     noMapa.posicionados && !noMapa.naMesmaPosicao, JSON.stringify(noMapa));
   checar('os painéis passam a ser posicionados', noMapa.absoluto === 'absolute', noMapa.absoluto);
 
+  // O fundo de bolinhas so existe no mapa: na grade ele seria ruido atras de
+  // painéis encostados uns nos outros.
+  checar('o mapa ganha o padrao de bolinhas atras dos painéis',
+    (await cdp.avaliar(`getComputedStyle(document.getElementById('grade')).backgroundImage`))
+      .includes('radial-gradient'), '');
+
+  // Redimensionar. O tamanho e MODELO (p.w / p.h) e encaixa na malha de 20px --
+  // a mesma do padrao de bolinhas, e e por isso que os painéis ficam alinhados
+  // entre si sem ninguem mirar.
+  const colsAntes = await cdp.avaliar(
+    `window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])}).term.cols`);
+
+  const tamanho = JSON.parse(await cdp.avaliar(`(() => {
+    const r = window.OrqMapa.definirTamanho(${JSON.stringify(mapa['mapa-a'])}, 613, 447);
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])});
+    const cx = p.el.getBoundingClientRect();
+    return JSON.stringify({ r, l: Math.round(cx.width), a: Math.round(cx.height) });
+  })()`));
+  checar('redimensionar encaixa na malha de 20px',
+    tamanho.r.w === 620 && tamanho.r.h === 440, JSON.stringify(tamanho.r));
+  checar('e o painel na tela fica exatamente desse tamanho',
+    tamanho.l === 620 && tamanho.a === 440, JSON.stringify(tamanho));
+
+  // Sem piso, arrastar a alca para cima esconderia o terminal inteiro.
+  const minimo = JSON.parse(await cdp.avaliar(
+    `JSON.stringify(window.OrqMapa.definirTamanho(${JSON.stringify(mapa['mapa-a'])}, 40, 40))`));
+  checar('e nao encolhe abaixo do minimo util',
+    minimo.w === 280 && minimo.h === 180, JSON.stringify(minimo));
+
+  // O gesto de verdade: arrastar a alca com o mouse. Sem isto, o que esta
+  // provado e a funcao, e nao a alca.
+  await cdp.avaliar(`window.OrqMapa.definirTamanho(${JSON.stringify(mapa['mapa-a'])}, 420, 300)`);
+  await esperar(300);
+  await arrastarAlca(cdp, mapa['mapa-a'], 170, 90);
+  const arrastado = JSON.parse(await cdp.avaliar(`(() => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])});
+    return JSON.stringify({ w: p.w, h: p.h, classe: p.el.className,
+      caixa: Math.round(p.el.getBoundingClientRect().width) });
+  })()`));
+  // 420+170 = 590 e 300+90 = 390, encaixados na malha: 600 e 400.
+  checar('arrastar a alca com o mouse redimensiona, encaixando na malha',
+    arrastado.w === 600 && arrastado.h === 400, JSON.stringify(arrastado));
+  checar('e a caixa na tela acompanha o modelo',
+    arrastado.caixa === 600, String(arrastado.caixa));
+  checar('soltar limpa a marca de arrasto',
+    !arrastado.classe.includes('redimensionando'), arrastado.classe);
+
+  await cdp.avaliar(`window.OrqMapa.definirTamanho(${JSON.stringify(mapa['mapa-a'])}, 620, 440)`);
+  // Espera o ResizeObserver mais o debounce de 100ms do painel -- o fit() nao e
+  // sincrono com o redimensionar, de proposito.
+  await esperar(700);
+
+  // Redimensionar reflui o terminal DE VERDADE, em vez de esticar a imagem.
+  const colsDepois = await cdp.avaliar(
+    `window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])}).term.cols`);
+  checar('o terminal reflui: 620px de painel dao mais colunas que os 420 do padrao',
+    colsDepois > colsAntes, `${colsAntes} -> ${colsDepois}`);
+
   // Ligacao vira linha. Ligadas pelas PASTAS, como manda o modelo de ligacoes.
   await cdp.avaliar(`(() => {
     const a = window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])});
@@ -1093,6 +1260,23 @@ async function soltar(cdp) {
   await esperar(400);
   checar('duas sessoes ligadas viram uma linha (uma so, nao duas)',
     await cdp.avaliar(`window.OrqMapa.linhas().length`) === 1, '');
+
+  // A ponta da linha sai do centro REAL do painel. Enquanto o tamanho era fixo
+  // em 420x300 no codigo, um painel redimensionado deixava a linha apontando
+  // para o vazio -- e o mesmo defeito ja acontecia com os cartoes da visao
+  // geral, que sao 260 de largura.
+  const ponta = JSON.parse(await cdp.avaliar(`(() => {
+    const l = window.OrqMapa.linhas()[0];
+    const de = window.OrqPainel.painelPorId.get(l.dataset.de);
+    return JSON.stringify({
+      x1: Number(l.getAttribute('x1')),
+      y1: Number(l.getAttribute('y1')),
+      esperadoX: (de.x || 0) + de.w / 2,
+      esperadoY: (de.y || 0) + de.h / 2,
+    });
+  })()`));
+  checar('a linha sai do centro real do painel, e nao de um tamanho presumido',
+    ponta.x1 === ponta.esperadoX && ponta.y1 === ponta.esperadoY, JSON.stringify(ponta));
 
   await cdp.avaliar(`(() => {
     for (const p of window.OrqPainel.painelPorId.values()) p.ligacoes = [];
@@ -1113,10 +1297,12 @@ async function soltar(cdp) {
   const salvoMapa = JSON.parse(await cdp.avaliar(`(async () => {
     const s = await window.orq.sessaoCarregar();
     const a = s.find(p => p.feature === 'mapa-a');
-    return JSON.stringify(a ? { x: a.x, y: a.y } : null);
+    return JSON.stringify(a ? { x: a.x, y: a.y, w: a.w, h: a.h } : null);
   })()`));
   checar('a posicao no mapa vai para o sessao.json',
     salvoMapa && salvoMapa.x === 777 && salvoMapa.y === 333, JSON.stringify(salvoMapa));
+  checar('e o tamanho vai junto', salvoMapa && salvoMapa.w === 620 && salvoMapa.h === 440,
+    JSON.stringify(salvoMapa));
 
   // Visao geral: o terminal e TROCADO por cartao, nunca encolhido.
   await cdp.avaliar(`window.OrqMapa.definirVisao(true)`);
@@ -1124,6 +1310,11 @@ async function soltar(cdp) {
   const geral = JSON.parse(await cdp.avaliar(`JSON.stringify({
     termosVisiveis: [...document.querySelectorAll('.painel-term')].filter(e => e.offsetParent !== null).length,
     cabecalhos: document.querySelectorAll('.painel-cab').length,
+    // O cartao so pode medir 260px se o tamanho inline TIVER SAIDO: estilo
+    // inline vence folha de estilo, e o painel vinha de 620px de largura.
+    inline: [...document.querySelectorAll('.painel')].map(e => e.style.width || ''),
+    largurasCartao: [...document.querySelectorAll('.painel')]
+      .map(e => Math.round(e.getBoundingClientRect().width)),
     // Nenhum SCALE em lugar nenhum: e o que garante que o xterm nao borra.
     // Comparar com a string "none" nao serve: a animacao de entrada usa
     // fill-mode both, o quadro final fica aplicado e o Chromium reporta a
@@ -1139,6 +1330,9 @@ async function soltar(cdp) {
     geral.termosVisiveis === 0 && geral.cabecalhos === 2, JSON.stringify(geral));
   checar('e nada e ESCALADO — o terminal e trocado por cartao, nao encolhido',
     geral.escalas.every(([x, y]) => x === 1 && y === 1), JSON.stringify(geral.escalas));
+  checar('o cartao volta ao tamanho de cartao, mesmo vindo de um painel redimensionado',
+    geral.inline.every((v) => v === '') && geral.largurasCartao.every((l) => l === 260),
+    JSON.stringify({ i: geral.inline, l: geral.largurasCartao }));
 
   // Densidade e ordenacao nao fazem nada no mapa, entao nao ficam na tela.
   const controles = JSON.parse(await cdp.avaliar(`JSON.stringify({
@@ -1160,13 +1354,21 @@ async function soltar(cdp) {
     rows: window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])}).term.rows,
     posicao: getComputedStyle(document.querySelector('.painel')).position,
     guardouX: window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])}).x,
+    guardouW: window.OrqPainel.painelPorId.get(${JSON.stringify(mapa['mapa-a'])}).w,
+    inline: [...document.querySelectorAll('.painel')].map(e => e.style.width + '|' + e.style.height),
+    fundo: getComputedStyle(document.getElementById('grade')).backgroundImage,
   })`));
   checar('voltar para a grade preserva os painéis',
     voltou.modo === 'grade' && voltou.mesmos && voltou.posicao !== 'absolute', JSON.stringify(voltou));
+  checar('e o tamanho do mapa nao vaza para a grade',
+    voltou.inline.every((v) => v === '|'), JSON.stringify(voltou.inline));
+  checar('as bolinhas ficam no mapa: a grade nao herda o fundo',
+    voltou.fundo === 'none', voltou.fundo);
   checar('o terminal volta ao tamanho que tinha na grade',
     voltou.rows === rowsGrade, `${rowsGrade} -> ${voltou.rows}`);
-  checar('e a posicao do mapa fica guardada para a proxima vez',
-    voltou.guardouX === 777, String(voltou.guardouX));
+  checar('e a posicao e o tamanho do mapa ficam guardados para a proxima vez',
+    voltou.guardouX === 777 && voltou.guardouW === 620,
+    JSON.stringify({ x: voltou.guardouX, w: voltou.guardouW }));
 
   await zerarGrade(cdp);
   await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 2, ordem: 'urgencia' })`);

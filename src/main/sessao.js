@@ -36,6 +36,11 @@ function carregar() {
       // arruma sozinho, em vez de empilhar tudo no canto superior esquerdo.
       x: Number.isFinite(p.x) ? p.x : null,
       y: Number.isFinite(p.y) ? p.y : null,
+      // Tamanho no mapa, na mesma logica: `null` e "nunca foi redimensionado",
+      // e o mapa aplica o tamanho padrao. E o que faz um sessao.json gravado
+      // por uma versao anterior abrir sem nenhum tratamento especial.
+      w: Number.isFinite(p.w) ? p.w : null,
+      h: Number.isFinite(p.h) ? p.h : null,
       // A pasta pode ter sumido enquanto o app estava fechado (worktree
       // arquivado, projeto movido). Abrir PTY ali so produz erro cru de spawn,
       // entao a janela precisa saber disso antes de tentar.
@@ -55,6 +60,8 @@ function salvar(paineis) {
       ordem: Number.isFinite(p.ordem) ? p.ordem : i,
       x: Number.isFinite(p.x) ? Math.round(p.x) : null,
       y: Number.isFinite(p.y) ? Math.round(p.y) : null,
+      w: Number.isFinite(p.w) ? Math.round(p.w) : null,
+      h: Number.isFinite(p.h) ? Math.round(p.h) : null,
     }));
 
   arquivo.gravarJson(NOME, {

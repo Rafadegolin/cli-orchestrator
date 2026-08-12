@@ -33,7 +33,9 @@ function atualizarVazio() {
   window.OrqLateral?.atualizarRetomarTodas?.();
 }
 
-async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponivel, ligacoes, x, y }) {
+async function criarPainel({
+  cwd, feature, comandoInicial, dormindo, indisponivel, ligacoes, x, y, w, h,
+}) {
   const id = novoId();
 
   const painel = new OrqP.Painel({
@@ -55,6 +57,10 @@ async function criarPainel({ cwd, feature, comandoInicial, dormindo, indisponive
   painel.ligacoes = Array.isArray(ligacoes) ? [...ligacoes] : [];
   painel.x = Number.isFinite(x) ? x : null;
   painel.y = Number.isFinite(y) ? y : null;
+  // Tamanho no mapa. Separado de x/y porque um sessao.json gravado antes do
+  // redimensionar existir tem posicao e nao tem tamanho -- o mapa preenche.
+  painel.w = Number.isFinite(w) ? w : null;
+  painel.h = Number.isFinite(h) ? h : null;
 
   elGrade.append(painel.el);
   atualizarVazio();
@@ -136,9 +142,11 @@ function retratoSessao() {
       // sobrevive ao fechar e reabrir.
       ligacoes: p.ligacoes || [],
       ordem,
-      // Posicao no mapa, quando o painel ja foi arrastado alguma vez.
+      // Posicao e tamanho no mapa, quando o painel ja passou por la.
       x: Number.isFinite(p.x) ? p.x : null,
       y: Number.isFinite(p.y) ? p.y : null,
+      w: Number.isFinite(p.w) ? p.w : null,
+      h: Number.isFinite(p.h) ? p.h : null,
     }));
 }
 
@@ -205,6 +213,8 @@ async function restaurarSessao() {
       ligacoes: s.ligacoes,
       x: s.x,
       y: s.y,
+      w: s.w,
+      h: s.h,
       dormindo: true,
       indisponivel: !s.existe,
     });
@@ -238,6 +248,10 @@ function ordenarGrade(lista) {
     const p = porId.get(c.id);
     if (p) p.el.style.order = String(i);
   });
+  // O molde da densidade personalizada e por POSICAO, entao ele so pode ser
+  // aplicado depois que as posicoes existem. Aqui e o unico ponto por onde toda
+  // reordenacao passa -- pendurar em outro lugar seria pendurar em varios.
+  window.OrqPersonalizado?.aplicar();
 }
 
 function marcarFocado() {
