@@ -50,6 +50,7 @@ node testes/arvore.js     # fechar painel mata a arvore de processos
 npm run empacotar         # instalador e zip portatil em dist/, sem publicar
 npm run empacotar:sac     # o pacote que abre com o Smart App Control ligado
 npm run teste:sac         # o pacote -sac: exe intocado, e o terminal funciona
+npm run teste:atualizacao-leve # baixa, confere o sha, troca o asar e reabre (sem GitHub)
 npm run teste:empacotado  # roda o app EMPACOTADO (nao precisa do npm run dev)
 npm run teste:atualizacao # app empacotado antigo detecta e baixa a release nova
 npm run icone             # regenera recursos/icone.ico
@@ -158,9 +159,27 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
 - **`npm run teste:empacotado` nao roda mais nesta maquina** — o exe do electron-builder e bloqueado.
   O teste detecta o SAC e diz isso, em vez de morrer com `spawn UNKNOWN`, que e como o Windows relata
   a recusa (o erro e **sincrono** no `spawn`, entao um handler de `'error'` nunca rodaria).
-- **No portatil o updater muda de comportamento**: aplicar exigiria rodar o instalador bloqueado,
-  entao ele nem baixa — o aviso vira "Baixar a versao X" e abre a pagina da release. A deteccao e a
-  ausencia do desinstalador ao lado do executavel (o NSIS deixa um; o zip nao).
+- **Nos layouts em pasta a atualizacao troca SO o `app.asar`** (`src/main/atualizacao-asar.js`), e o
+  electron-updater nem entra: tudo que ele sabe fazer com o resultado e rodar o instalador. Entre
+  duas versoes nossas quase sempre so o asar muda — 4 MB contra 142.
+  - **O `runtime` do `sac.json` e o que impede a troca burra.** Se o Electron ou o node-pty mudarem
+    de versao, o asar novo nao casa com o que esta no disco: nao ha troca leve, e o aviso volta a ser
+    "Baixar a versao X" **com o motivo escrito**. Ao subir qualquer um dos dois, e isso que faz todo
+    mundo receber o pacote inteiro em vez de um app quebrado.
+  - **A troca e um `.bat`**, porque este processo nao consegue sobrescrever o proprio `app.asar` —
+    ele fica mapeado em memoria enquanto o app vive. A espera dele NAO e pelo PID sumir do
+    `tasklist` (saida traduzida, PID reaproveitado): e tentar o `move` ate ele parar de falhar, que e
+    a condicao real. Ele renomeia o antigo para `.bak` antes de por o novo, e devolve se algo der
+    errado: o pior caso e continuar na versao velha, nunca ficar sem app. Deixa um `troca.log` ao
+    lado — depois que o app morre nao ha console para ver, e essa e a unica pista que sobra.
+  - **O relancamento repete os argumentos** com que o app tinha sido aberto.
+  - No teste, o app que volta **nao aparece no CDP**: ele reabre cerca de um segundo depois do
+    anterior morrer, e o socket da 9222 ainda esta preso — o Chromium sobe sem depuracao. Por isso
+    `testes/atualizacao-leve.js` prova o retorno por fatos (processo vivo, atalho recriado pelo nosso
+    main, sha do asar no lugar), e nao pelo depurador. Em uso real ninguem passa porta de depuracao.
+  - O teste e HERMETICO: `ORQ_META_ATUALIZACAO` reaponta a origem para um servidor local, como o
+    `ORQ_DADOS` faz com a pasta de dados. Testar troca de codigo contra o GitHub seria testar o
+    GitHub.
 - `npm run diagnostico` responde assinatura, estado do SAC, MOTW e o evento do Code Integrity de uma
   vez. Opcoes e passo a passo em `docs/instalacao-e-assinatura.md`. O build ja aceita
   `CSC_LINK`/`CSC_KEY_PASSWORD` se um dia houver certificado.

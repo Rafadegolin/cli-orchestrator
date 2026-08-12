@@ -125,8 +125,12 @@ detecta essa situação, oferece criar um `.worktreeinclude` listando o que copi
 
 ## Atualizar
 
-O app avisa quando sai versão nova. **Só o instalador aplica sozinho**; nos pacotes em zip (`-sac` e
-portátil) o botão abre a página da release — baixe o zip novo e extraia por cima.
+O app avisa quando sai versão nova, e o botão na lateral **aplica e reinicia** — inclusive nos
+pacotes em zip, que não têm instalador. Ali ele baixa só o próprio código (~4 MB, não os 142 do
+pacote), confere o SHA-256 e troca ao reiniciar. Você não precisa voltar ao GitHub.
+
+A exceção é quando a versão nova muda algo além do nosso código — o Electron, por exemplo. Aí a troca
+leve não serve, e o botão leva à página da release dizendo por quê.
 
 Seus dados não ficam na pasta do app: projetos, sessão e configuração moram em `~/.orquestrador`, e
 não se perdem ao substituir a pasta.

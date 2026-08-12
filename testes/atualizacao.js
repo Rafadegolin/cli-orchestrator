@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn, execSync } = require('child_process');
-const { conectar, checar, encerrar, esperar } = require('./cdp');
+const { conectar, checar, encerrar, esperar, exigirPortaLivre } = require('./cdp');
 
 const RAIZ = path.resolve(__dirname, '..');
 const EXE = path.join(RAIZ, 'dist', 'win-unpacked', 'Orquestrador.exe');
@@ -31,13 +31,34 @@ function matarApp() {
 
   matarApp();
   await esperar(1200);
+
+  // Esta suite sobe o proprio app: com a porta ocupada ela testaria a instancia
+  // que ja estava la (o `npm run dev`), e reprovaria por comparar o app errado.
+  await exigirPortaLivre();
+
   fs.mkdirSync(UDATA, { recursive: true });
 
-  const app = spawn(EXE, ['--remote-debugging-port=9222', `--user-data-dir=${UDATA}`], {
-    detached: true,
-    stdio: 'ignore',
-    env: { ...process.env, ORQ_DADOS: path.join(UDATA, 'dados') },
-  });
+  // Com o Smart App Control ligado este executavel e bloqueado, e o Windows
+  // recusa o CreateProcess de forma SINCRONA -- `spawn UNKNOWN`, sem uma
+  // palavra sobre politica de aplicativo. Ver a mesma armadilha em
+  // testes/empacotado.js.
+  let app;
+  try {
+    app = spawn(EXE, ['--remote-debugging-port=9222', `--user-data-dir=${UDATA}`], {
+      detached: true,
+      stdio: 'ignore',
+      env: { ...process.env, ORQ_DADOS: path.join(UDATA, 'dados') },
+    });
+  } catch (e) {
+    if (e.code === 'UNKNOWN') {
+      console.error('\nO Smart App Control bloqueou o app do electron-builder -- nao e defeito.');
+      console.error('Este ciclo so pode ser testado onde o SAC esteja desligado.');
+      console.error('A atualizacao dos pacotes em pasta tem suite propria e roda aqui:');
+      console.error('  npm run teste:atualizacao-leve');
+      process.exit(4);
+    }
+    throw e;
+  }
   app.unref();
 
   const cdp = await conectar();
@@ -51,8 +72,17 @@ function matarApp() {
   const versaoRemota = (remoto?.tag_name || '').replace(/^v/, '');
   console.log(`versao publicada no GitHub: ${versaoRemota}`);
 
-  checar('a versao publicada e mais nova que a local',
-    versaoRemota && versaoRemota !== versaoLocal, `${versaoLocal} -> ${versaoRemota}`);
+  // PRE-REQUISITO, e nao resultado: so ha o que detectar se a release
+  // publicada for mais nova que este build. Logo depois de publicar, as duas
+  // sao iguais -- e ai a suite reprovava CINCO vezes em cascata, parecendo
+  // regressao quando so faltava a condicao para rodar.
+  if (!versaoRemota || versaoRemota === versaoLocal) {
+    console.log(`\nnada a testar: o build local (${versaoLocal}) nao e mais antigo que o `
+      + `publicado (${versaoRemota || 'nenhum'}).`);
+    console.log('Empacote numa versao MENOR que a publicada e rode de novo.');
+    matarApp();
+    process.exit(0);
+  }
 
   checar('updater ativo',
     JSON.parse(await cdp.avaliar(`(async () => JSON.stringify(await window.orq.atualizacaoSituacao()))()`)).ativo === true);

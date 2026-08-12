@@ -8,6 +8,7 @@
 
 const { app, dialog, Notification, shell } = require('electron');
 const terminais = require('./terminais');
+const leve = require('./atualizacao-asar');
 const { ehEmpacotado, ehPortatil } = require('./empacotamento');
 
 const PAGINA_RELEASES = 'https://github.com/Rafadegolin/cli-orchestrator/releases/latest';
@@ -37,6 +38,12 @@ const situacao = {
   baixada: false,
   percentual: 0,
   portatil: false,
+  // Nos layouts em pasta, da para trocar so o app.asar em vez de repor a pasta
+  // inteira -- ver atualizacao-asar.js. `motivoPesado` diz por que NAO deu,
+  // quando nao deu: mandar para o site sem explicar e aviso que se aprende a
+  // ignorar.
+  leve: false,
+  motivoPesado: null,
 };
 
 function avisarJanela() {
@@ -57,6 +64,17 @@ function iniciar(j) {
     return;
   }
 
+  // Layout em pasta: o electron-updater nao entra nem para checar. Tudo que ele
+  // sabe fazer com o resultado e rodar o instalador, e aqui nao ha instalador
+  // -- a checagem e a troca sao do atualizacao-asar.js, que baixa 4 MB em vez
+  // de 142 e nao depende de nada assinado.
+  if (situacao.portatil) {
+    situacao.ativo = true;
+    setTimeout(verificar, MS_PRIMEIRA_CHECAGEM);
+    timer = setInterval(verificar, MS_ENTRE_CHECAGENS);
+    return;
+  }
+
   try {
     atualizador = require('electron-updater').autoUpdater;
   } catch (err) {
@@ -71,25 +89,10 @@ function iniciar(j) {
     debug: () => {},
   };
 
-  // No portatil, baixar o instalador nao serve para nada: aplicar exigiria
-  // roda-lo, e e ele que o Smart App Control bloqueia. Melhor so avisar e
-  // mandar para a pagina da release, onde esta o zip novo.
-  atualizador.autoDownload = !situacao.portatil;
-  atualizador.autoInstallOnAppQuit = !situacao.portatil;
-
-  // O pacote compativel com o SAC roda sobre o electron.exe original, e por
-  // causa do NOME dele o proprio electron-updater se acha em desenvolvimento e
-  // recusa a checagem ("application is not packed"). Nada estoura -- o aviso de
-  // versao nova simplesmente nunca chegava.
-  //
-  // As duas linhas resolvem sem tocar no caminho de instalacao: a primeira
-  // libera a checagem, e a segunda dispensa a leitura do app-update.yml,
-  // apontando o repositorio direto. Aplicar continua desligado aqui, porque
-  // este layout e sempre `portatil`.
-  if (!app.isPackaged) {
-    atualizador.forceDevUpdateConfig = true;
-    atualizador.setFeedURL({ provider: 'github', owner: 'Rafadegolin', repo: 'cli-orchestrator' });
-  }
+  // Daqui para baixo e so o app INSTALADO pelo NSIS, onde existe instalador
+  // para rodar. Baixar sozinho e aplicar na saida sao seguros nesse caso.
+  atualizador.autoDownload = true;
+  atualizador.autoInstallOnAppQuit = true;
 
   atualizador.on('update-available', (info) => {
     situacao.disponivel = info?.version || null;
@@ -128,10 +131,42 @@ function iniciar(j) {
 }
 
 function verificar() {
+  if (situacao.portatil) return verificarLeve();
   if (!atualizador) return;
   atualizador.checkForUpdates().catch((err) => {
     console.error('[atualizacao] checagem falhou:', err?.message || err);
   });
+}
+
+// O caminho dos layouts em pasta. Nao passa pelo electron-updater: ele so sabe
+// aplicar rodando o instalador, e aqui nao ha instalador nenhum.
+//
+// Baixa ja na checagem, como o updater faz no instalado -- sao ~4 MB, e ter o
+// arquivo pronto e o que torna "atualizar e reiniciar" instantaneo em vez de
+// uma espera depois do clique.
+async function verificarLeve() {
+  try {
+    const info = await leve.verificar();
+    situacao.disponivel = info.disponivel ? info.versao : null;
+    situacao.leve = info.leve;
+    situacao.motivoPesado = info.motivo;
+    avisarJanela();
+
+    if (!info.leve || situacao.baixada) return;
+
+    const r = await leve.preparar(info);
+    situacao.baixada = true;
+    situacao.percentual = 100;
+    console.log(`[atualizacao] asar ${info.versao} pronto (${Math.round(r.bytes / 1024)} KB)`);
+    avisarJanela();
+    notificar();
+  } catch (err) {
+    // Mesma regra de sempre: sem internet ou release malformada nao vira
+    // dialogo, so log. E a atualizacao leve cai para o caminho do site.
+    console.error('[atualizacao] checagem leve falhou:', err?.message || err);
+    situacao.leve = false;
+    avisarJanela();
+  }
 }
 
 function notificar() {
@@ -155,32 +190,52 @@ function notificar() {
 // Chamado pela janela depois que o usuario clica em atualizar. O dialogo diz
 // quantos painéis vao morrer -- reiniciar com seis sessoes do Claude no meio de
 // uma tarefa e exatamente o que nao pode acontecer sem aviso.
-async function aplicar() {
-  // Portatil: nao ha instalador para rodar. Abre a pagina da release para
-  // baixar o zip novo, que e o caminho que de fato funciona.
-  if (situacao.portatil) {
+// `confirmar: false` segue a mesma convencao de `worktrees:arquivar` e
+// `projetos:remover`: o CDP nao dirige dialogo nativo, e o caminho executado e
+// exatamente o mesmo, so sem a pergunta na frente.
+async function aplicar({ confirmar = true } = {}) {
+  // Portatil sem atualizacao leve possivel (mudou o Electron, ou a pasta nao e
+  // gravavel): so resta o download completo, e o botao leva ate ele.
+  if (situacao.portatil && !(situacao.leve && situacao.baixada)) {
     await shell.openExternal(PAGINA_RELEASES);
     return { aplicado: false, portatil: true, abriu: PAGINA_RELEASES };
   }
 
-  if (!atualizador || !situacao.baixada) return { aplicado: false };
+  if (!situacao.portatil && (!atualizador || !situacao.baixada)) return { aplicado: false };
 
   const abertos = terminais.idsAbertos().length;
   const detalhe = abertos
     ? `${abertos} ${abertos === 1 ? 'painel aberto sera fechado' : 'painéis abertos serao fechados'} e ${abertos === 1 ? 'seu processo sera encerrado' : 'seus processos serao encerrados'}.\n\nSessoes do Claude em andamento serao interrompidas.`
     : 'Nenhum painel aberto no momento.';
 
-  const { response } = await dialog.showMessageBox(janela, {
-    type: 'question',
-    buttons: ['Reiniciar e atualizar', 'Agora nao'],
-    defaultId: 1,
-    cancelId: 1,
-    title: 'Aplicar atualizacao',
-    message: `Instalar a versao ${situacao.disponivel} e reiniciar?`,
-    detail: `${detalhe}\n\nSe preferir, e so fechar o app normalmente depois: a atualizacao se aplica sozinha na saida.`,
-  });
+  // No leve nao ha instalador nem "aplica sozinho na saida": a troca so
+  // acontece por este caminho, entao a frase de conforto do instalado seria
+  // mentira aqui.
+  const rodape = situacao.portatil
+    ? '\n\nO app fecha, troca o arquivo e reabre sozinho. Leva um instante.'
+    : '\n\nSe preferir, e so fechar o app normalmente depois: a atualizacao se aplica sozinha na saida.';
 
-  if (response !== 0) return { aplicado: false };
+  if (confirmar) {
+    const { response } = await dialog.showMessageBox(janela, {
+      type: 'question',
+      buttons: ['Reiniciar e atualizar', 'Agora nao'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Aplicar atualizacao',
+      message: `Instalar a versao ${situacao.disponivel} e reiniciar?`,
+      detail: `${detalhe}${rodape}`,
+    });
+    if (response !== 0) return { aplicado: false };
+  }
+
+  if (situacao.portatil) {
+    // O .bat espera este processo morrer para poder mexer no app.asar, que
+    // esta mapeado em memoria enquanto o app vive. Por isso dispara ANTES e sai
+    // logo em seguida.
+    leve.aplicar();
+    app.quit();
+    return { aplicado: true, leve: true };
+  }
 
   // isSilent=false mostra o progresso do instalador; isForceRunAfter=true
   // reabre o app depois.

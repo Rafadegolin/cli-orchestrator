@@ -106,9 +106,15 @@ fs.writeFileSync(path.join(SAIDA, 'LEIA-ME.txt'), [
   '  Se voce mover esta pasta, refaca o atalho pelo Ctrl+K -> "Criar atalho no',
   '  menu Iniciar".',
   '',
+  'Atualizacao',
+  '  Voce nao precisa voltar aqui. Quando sair versao nova, o app baixa so o',
+  '  proprio codigo (alguns MB) e troca ao reiniciar, pelo botao na lateral.',
+  '  So quando o Electron mudar de versao e que sera preciso baixar o pacote',
+  '  de novo -- e o app avisa dizendo isso.',
+  '',
   'O que muda em relacao ao instalador',
   '  - o processo aparece como electron.exe no Gerenciador de Tarefas;',
-  '  - a atualizacao nao se aplica sozinha: o aviso abre a pagina da release.',
+  '  - nao ha desinstalador: apagar a pasta remove o app.',
   '',
   'Seus dados ficam em %USERPROFILE%\\.orquestrador, fora desta pasta.',
   'Trocar a pasta por uma versao nova nao perde nada.',
@@ -133,6 +139,34 @@ if (fs.existsSync(ZIP)) fs.rmSync(ZIP);
 execFileSync(TAR, ['-a', '-c', '--options', 'zip:compression=deflate',
   '-f', `${NOME}.zip`, NOME], { cwd: path.dirname(SAIDA), stdio: 'inherit' });
 
+// O QUE PERMITE ATUALIZAR SEM BAIXAR TUDO DE NOVO.
+//
+// Entre duas versoes nossas, quase sempre so o app.asar muda -- 4 MB contra os
+// 142 do pacote. Entao a release leva tambem o asar sozinho e um sac.json que
+// diz o hash dele e contra qual runtime ele foi construido.
+//
+// O `runtime` e o que impede a troca burra: se o Electron ou o node-pty
+// mudarem, o asar novo nao casa com o que esta no disco, e o app cai de volta
+// no download completo em vez de se quebrar sozinho.
+const ASAR = path.join(RAIZ, 'dist', 'app.asar');
+fs.cpSync(path.join(EMPACOTADO, 'app.asar'), ASAR);
+
+const versaoDe = (mod) => require(path.join(RAIZ, 'node_modules', mod, 'package.json')).version;
+fs.writeFileSync(path.join(RAIZ, 'dist', 'sac.json'), `${JSON.stringify({
+  versao: VERSAO,
+  asar: {
+    url: `https://github.com/Rafadegolin/cli-orchestrator/releases/download/v${VERSAO}/app.asar`,
+    sha256: hash(ASAR),
+    bytes: fs.statSync(ASAR).size,
+  },
+  runtime: {
+    electron: versaoDe('electron'),
+    nodePty: versaoDe('node-pty'),
+  },
+}, null, 2)}\n`);
+
 const mb = (fs.statSync(ZIP).size / 1024 / 1024).toFixed(1);
 console.log(`\npronto: dist/${NOME}.zip (${mb} MB)`);
 console.log(`pasta:  dist/${NOME}/  -- abre com Orquestrador.cmd`);
+console.log(`leve:   dist/app.asar + dist/sac.json  (${(fs.statSync(ASAR).size / 1024 / 1024).toFixed(1)} MB`
+  + ' -- e o que a atualizacao de dentro do app baixa)');

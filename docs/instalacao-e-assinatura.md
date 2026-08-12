@@ -75,8 +75,15 @@ terminal de verdade. `npm run teste:sac` refaz essa prova.
 O preço é cosmético, e está no `LEIA-ME.txt` do pacote:
 
 - o processo aparece como **electron.exe** no Gerenciador de Tarefas;
-- a atualização não se aplica sozinha (o aviso abre a página da release), como já acontecia no
-  portátil.
+- não há desinstalador: apagar a pasta remove o app.
+
+**Atualizar não exige voltar aqui.** Entre duas versões nossas, quase sempre só o `app.asar` muda — 4
+MB contra os 142 do pacote. Então o app baixa esse arquivo, confere o SHA-256 publicado e troca ao
+reiniciar; a troca em si é um `.bat` que espera o `app.asar` ser solto (ele fica mapeado em memória
+enquanto o app roda), renomeia o antigo para `.bak`, põe o novo e reabre. O pior caso é continuar na
+versão velha — nunca ficar sem app. Quando o Electron ou o node-pty mudam de versão, o asar novo não
+casa com o runtime no disco: aí não há troca leve, e o aviso manda baixar o pacote inteiro dizendo
+por quê.
 
 **O ícone precisou de duas coisas, não uma.** A janela aberta veste o `icon` da `BrowserWindow` — por
 isso o `recursos/icone.ico` entra no asar. Mas **fixar na barra de tarefas não guarda a janela**:

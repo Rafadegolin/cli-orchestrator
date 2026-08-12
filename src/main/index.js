@@ -413,7 +413,7 @@ ipcMain.handle('atalho:existe', () => atalho.existe());
 
 ipcMain.handle('atualizacao:situacao', () => ({ ...atualizacao.situacao }));
 ipcMain.handle('atualizacao:verificar', () => { atualizacao.verificar(); return true; });
-ipcMain.handle('atualizacao:aplicar', () => atualizacao.aplicar());
+ipcMain.handle('atualizacao:aplicar', (_e, opcoes) => atualizacao.aplicar(opcoes));
 
 ipcMain.on('app:focar', () => {
   if (!janela) return;

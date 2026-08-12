@@ -64,7 +64,7 @@ contextBridge.exposeInMainWorld('orq', {
 
   atualizacaoSituacao: () => ipcRenderer.invoke('atualizacao:situacao'),
   atualizacaoVerificar: () => ipcRenderer.invoke('atualizacao:verificar'),
-  atualizacaoAplicar: () => ipcRenderer.invoke('atualizacao:aplicar'),
+  atualizacaoAplicar: (opcoes) => ipcRenderer.invoke('atualizacao:aplicar', opcoes),
   aoMudarAtualizacao: (fn) => ipcRenderer.on('atualizacao:estado', (_e, s) => fn(s)),
 
   notificar: (titulo, corpo) => ipcRenderer.send('app:notificar', { titulo, corpo }),

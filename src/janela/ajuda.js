@@ -263,8 +263,12 @@ const SECOES = [
       p('O arranjo de painéis é salvo. Ao reabrir, eles voltam <b>adormecidos</b>, com um botão de '
         + 'retomar em cada um e um <b>Retomar todas</b> na lateral — nada sobe sozinho sem você pedir.'),
       p('Fechar o app com sessão rodando pede confirmação, dizendo quantas serão interrompidas.'),
-      p('Quando sai versão nova, o aviso aparece no rodapé da lateral. Na versão portátil o botão abre a '
-        + 'página da release para você baixar o zip novo; na instalada, ele aplica e reinicia.'),
+      p('Quando sai versão nova, o aviso aparece no rodapé da lateral, e o botão <b>aplica e '
+        + 'reinicia</b> — inclusive nos pacotes em pasta, que não têm instalador: ali o app baixa '
+        + 'só o próprio código (alguns MB, não o pacote inteiro), confere a integridade e troca ao '
+        + 'reiniciar.'),
+      p('Quando a versão nova muda algo além do nosso código — o Electron, por exemplo —, a troca '
+        + 'leve não serve, e aí o botão volta a levar você para a página da release dizendo por quê.'),
       p('Seus dados ficam em <code>{pastaDados}</code>, fora da pasta do app: projetos, arranjo de '
         + 'painéis e a porta do servidor de eventos. Trocar a pasta do app não perde nada.'),
     ],

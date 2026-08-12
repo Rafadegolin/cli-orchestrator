@@ -93,9 +93,12 @@ jobs:
       - name: Empacotar a versao compativel com o SAC
         run: npm run empacotar:sac
 
+      # Junto do zip vao o app.asar sozinho e o sac.json com o hash dele: e o
+      # que permite o app se atualizar baixando 4 MB em vez de 142, sem passar
+      # por nenhum instalador. Ver src/main/atualizacao-asar.js.
       - name: Publicar o pacote SAC na release
         shell: bash
-        run: gh release upload "${GITHUB_REF_NAME}" dist/*-sac.zip --clobber
+        run: gh release upload "${GITHUB_REF_NAME}" dist/*-sac.zip dist/app.asar dist/sac.json --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

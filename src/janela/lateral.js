@@ -334,14 +334,16 @@ btnRetomarTodas?.addEventListener('click', async () => {
 function mostrarAtualizacao(s) {
   if (!btnAtualizar) return;
 
-  // No portatil nao ha instalador para aplicar: o botao vira "baixar", e leva
-  // para a pagina da release onde esta o zip novo.
-  if (s.portatil && s.disponivel) {
+  // No portatil nao ha instalador, mas quase sempre da para trocar so o
+  // app.asar -- e ai o botao e o mesmo do instalado. So quando NAO da (mudou o
+  // Electron, ou a pasta nao e gravavel) ele volta a mandar para o site, e
+  // dizendo por que.
+  if (s.portatil && s.disponivel && !s.leve) {
     btnAtualizar.hidden = false;
     btnAtualizar.disabled = false;
-    btnAtualizar.textContent = `Baixar a versao ${s.disponivel}`;
-    btnAtualizar.title = 'Abre a página da release. Baixe o zip, desbloqueie antes de extrair, '
-      + 'e substitua a pasta atual.';
+    btnAtualizar.textContent = `Baixar a versão ${s.disponivel}`;
+    btnAtualizar.title = `Desta vez não dá para atualizar de dentro do app: ${s.motivoPesado || 'a release não traz o pacote leve'}. `
+      + 'Abre a página da release para você baixar o zip novo.';
     btnAtualizar.className = 'atualizar-pronta';
     return;
   }
@@ -350,12 +352,18 @@ function mostrarAtualizacao(s) {
     btnAtualizar.hidden = false;
     btnAtualizar.disabled = false;
     btnAtualizar.textContent = `Atualizar para ${s.disponivel} e reiniciar`;
-    btnAtualizar.title = 'Fecha os painéis abertos e reinicia o app na versão nova';
+    btnAtualizar.title = s.leve
+      ? 'Já está baixada. Fecha os painéis, troca o app e reabre sozinho.'
+      : 'Fecha os painéis abertos e reinicia o app na versão nova';
     btnAtualizar.className = 'atualizar-pronta';
   } else if (s.disponivel) {
     btnAtualizar.hidden = false;
     btnAtualizar.disabled = true;
-    btnAtualizar.textContent = `Baixando ${s.disponivel}... ${s.percentual || 0}%`;
+    // O caminho leve baixa um arquivo so e nao reporta progresso: mostrar
+    // "0%" ali seria inventar um numero que nunca vai andar.
+    btnAtualizar.textContent = s.leve
+      ? `Baixando ${s.disponivel}...`
+      : `Baixando ${s.disponivel}... ${s.percentual || 0}%`;
     btnAtualizar.title = 'A atualização está sendo baixada em segundo plano';
     btnAtualizar.className = '';
   } else {
