@@ -27,12 +27,32 @@ let ultimoProjetoId = null;
 // Identidade visual do projeto, estavel entre execucoes: a mesma pasta tem
 // sempre a mesma cor. Hash simples do caminho -- nao precisa ser criptografia,
 // precisa ser reproduzivel.
-const TINTAS = ['var(--acc)', 'var(--info)', 'var(--warn)', '#c678dd', '#56b6c2', '#e5c07b'];
+// Paleta PROPRIA (estilo.css, `--proj-1..10`), e nao mais os tokens de status.
+// Antes esta lista era ['var(--acc)', 'var(--info)', 'var(--warn)', ...]: um
+// projeto podia nascer com a cor de "rodando" e outro com a de "esperando", e
+// cor que significa duas coisas nao significa nenhuma.
+const TINTAS = Array.from({ length: 10 }, (_, i) => `var(--proj-${i + 1})`);
 
+// O hash e sobre o caminho em minusculas: `projetoDe` ja casa sem diferenciar
+// caixa, e sem isto a MESMA pasta cadastrada com outra grafia mudava de cor.
 function tintaDe(caminho) {
+  const chave = String(caminho || '').toLowerCase();
   let h = 0;
-  for (let i = 0; i < caminho.length; i++) h = (h * 31 + caminho.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < chave.length; i++) h = (h * 31 + chave.charCodeAt(i)) >>> 0;
   return TINTAS[h % TINTAS.length];
+}
+
+// A cor de uma PASTA: a do projeto quando e a raiz, e um tom mais claro da
+// mesma familia quando esta dentro dele (worktree, subpasta).
+//
+// Mesma familia de proposito: `api` e `api/auth-refresh` tem de se ler como
+// parentes, e nao como dois projetos diferentes. O `color-mix` faz isso sem
+// precisar de uma segunda paleta -- e clareia contra o fundo do painel, entao
+// funciona nos dois temas com uma linha so.
+function tintaDaPasta(caminho) {
+  const p = projetoDe(caminho);
+  if (!p) return '';
+  return p.dentro ? `color-mix(in srgb, ${p.tinta} 55%, var(--bg1))` : p.tinta;
 }
 
 // Declarados aqui em cima, junto do resto do estado: desenharProjetos() os usa
@@ -69,19 +89,37 @@ function montarComando(feature, ehGit) {
   return `cls && claude -w ${slug}`;
 }
 
+// Caminho comparavel: separador unico, sem barra no fim, minusculo.
+//
+// Sem normalizar `\` e `/` a comparacao vira loteria -- o mesmo caminho vindo
+// por outra rota (o git imprime com barra normal, um dialogo devolve com barra
+// invertida) deixava de casar, e o projeto sumia sem erro nenhum. O
+// `OrqLigacoes.normalizar` ja fazia isso; aqui faltava.
+function achatarCaminho(p) {
+  return String(p || '').replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
+}
+
 // A qual projeto uma pasta pertence. Casa pelo prefixo MAIS ESPECIFICO: um
 // worktree vive em <projeto>/.claude/worktrees/<feat>, e com dois projetos
 // aninhados o de dentro tem de ganhar.
 function projetoDe(caminho) {
-  const alvo = String(caminho || '').replace(/[\\/]+$/, '').toLowerCase();
+  const alvo = achatarCaminho(caminho);
   if (!alvo) return null;
 
   let melhor = null;
   for (const p of projetosCache) {
-    const base = String(p.caminho).replace(/[\\/]+$/, '').toLowerCase();
-    const dentro = alvo === base || alvo.startsWith(`${base}\\`) || alvo.startsWith(`${base}/`);
+    const base = achatarCaminho(p.caminho);
+    const dentro = alvo === base || alvo.startsWith(`${base}/`);
     if (dentro && (!melhor || base.length > melhor.base.length)) {
-      melhor = { base, nome: p.nome, caminho: p.caminho, tinta: tintaDe(p.caminho) };
+      melhor = {
+        base,
+        nome: p.nome,
+        caminho: p.caminho,
+        tinta: tintaDe(p.caminho),
+        // `dentro` distingue a raiz do projeto de uma pasta abaixo dela --
+        // worktree, quase sempre. A informacao ja estava aqui e ninguem usava.
+        dentro: alvo !== base,
+      };
     }
   }
   return melhor;
@@ -229,6 +267,44 @@ function desenharDetalhe(p) {
     frag.append(aviso);
   }
 
+  // O checkout principal ficou para tras do servidor.
+  //
+  // Este e o caso que motivou a feature: o merge acontece no servidor enquanto a
+  // sessao trabalha isolada numa worktree, e a base local envelhece sem nada
+  // avisar -- ate uma sessao reclamar que a main esta atrasada. Mesma faixa
+  // ambar do .worktreeinclude, que ja e a forma "avisa e oferece o conserto"
+  // desta tela.
+  if (d.git && d.git.atras > 0) {
+    const aviso = document.createElement('div');
+    aviso.className = 'wt-aviso';
+
+    const txt = document.createElement('span');
+    txt.textContent = `${d.git.base} está ${d.git.atras} commit${d.git.atras === 1 ? '' : 's'} `
+      + `atrás de ${d.git.upstream}`;
+    txt.title = 'O checkout principal ficou para trás do servidor. As worktrees nascem a partir '
+      + 'dele, então elas herdam o atraso.';
+
+    const btn = document.createElement('button');
+    btn.textContent = 'atualizar';
+    btn.title = 'Faz fast-forward do checkout principal. Se não for fast-forward, recusa em vez '
+      + 'de criar merge ou conflito.';
+    btn.addEventListener('click', async (ev) => {
+      ev.stopPropagation();
+      btn.disabled = true;
+      btn.textContent = 'atualizando…';
+      const r = await window.orq.gitAtualizar(p.caminho);
+      window.OrqToast?.mostrar(r.ok
+        ? `${d.git.base} avançou ${r.avancou || 0} commit${r.avancou === 1 ? '' : 's'}`
+        : r.texto);
+      // Mover a base muda o `naoMesclados` e o `atrasDaBase` de TODA worktree, e
+      // com eles o portao do arquivar.
+      carregarDetalhes(p.id);
+    });
+
+    aviso.append(txt, btn);
+    frag.append(aviso);
+  }
+
   if (!d.worktrees.length) {
     const vazio = document.createElement('p');
     vazio.className = 'wt-vazio';
@@ -308,17 +384,47 @@ async function carregarDetalhes(id) {
   const p = projetosCache.find((x) => x.id === id);
   if (!p) return;
 
-  detalhes.set(id, { carregando: true, worktrees: [], include: null });
+  detalhes.set(id, { carregando: true, worktrees: [], include: null, git: null });
   desenharProjetos();
 
-  const [worktrees, include] = await Promise.all([
+  // `gitSituacao` e leitura pura: le o que o ultimo fetch ja trouxe, sem tocar a
+  // rede. Quem busca e a rotina de fundo -- expandir um projeto nao pode
+  // depender de internet para desenhar.
+  const [worktrees, include, git] = await Promise.all([
     window.orq.worktreesListar(p.caminho),
     window.orq.includeSituacao(p.caminho),
+    window.orq.gitSituacao(p.caminho),
   ]);
 
-  detalhes.set(id, { carregando: false, worktrees, include });
+  detalhes.set(id, { carregando: false, worktrees, include, git });
   desenharProjetos();
 }
+
+// A BUSCA periodica.
+//
+// Segue o padrao do updater (intervalo longo, primeira checagem atrasada) e nao
+// o do medidor de CPU: rede de fundo a cada poucos segundos contraria a meta de
+// consumo parado, e versao nova de repositorio nao aparece a cada 2s.
+//
+// Nada aqui bloqueia nem interrompe: se der erro, se nao houver credencial ou
+// se nao houver rede, o app simplesmente continua mostrando o que sabia.
+const MS_ENTRE_BUSCAS = 10 * 60 * 1000;
+const MS_PRIMEIRA_BUSCA = 20_000;
+
+async function buscarDeTodos() {
+  if (document.hidden) return;
+  for (const p of projetosCache) {
+    if (!p.existe || !p.git) continue;
+    await window.orq.gitBuscar(p.caminho);
+    // Redesenha so o que ja esta aberto: projeto fechado nao mostra isto.
+    if (expandidos.has(p.id)) await carregarDetalhes(p.id);
+  }
+}
+
+setTimeout(() => {
+  buscarDeTodos();
+  setInterval(buscarDeTodos, MS_ENTRE_BUSCAS);
+}, MS_PRIMEIRA_BUSCA);
 
 // Retomar o trabalho de ontem: painel na pasta do worktree, continuando a
 // ultima conversa dali. `claude -c` sem conversa anterior nao falha -- ele
@@ -401,6 +507,7 @@ window.OrqProjetos = {
   carregarDetalhes,
   retomar,
   tintaDe,
+  tintaDaPasta,
   projetoDe,
   COMANDO_RETOMAR,
   expandidos,

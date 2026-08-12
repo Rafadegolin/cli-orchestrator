@@ -14,7 +14,7 @@
 // sessao que morreu" -- a primeira nunca pode ser arquivada, a segunda e
 // exatamente o lixo que se quer limpar.
 
-const { execFileSync } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -48,6 +48,41 @@ function gitSilencioso(cwd, args) {
   } catch (err) {
     return { ok: false, saida: '', erro: (err.stderr || err.message || '').toString().trim() };
   }
+}
+
+// Git que TOCA A REDE. Caminho proprio, e por dois motivos que o `git()` acima
+// nao cobre:
+//
+//  1. ele e `execFileSync` e BLOQUEIA o processo principal -- com um remoto
+//     lento ou fora do ar, a janela inteira congelaria junto;
+//  2. sem desligar o prompt, o Git Credential Manager abre uma JANELA pedindo
+//     senha. Num repositorio privado sem credencial valida, uma busca de fundo
+//     viraria um dialogo do nada, ou pior, uma espera infinita.
+//
+// Entao: assincrono, com prazo, e proibido de perguntar qualquer coisa. Sem
+// credencial ele falha calado -- a mesma politica do updater, que tambem nunca
+// vira dialogo por erro de rede.
+const MS_REDE = 20_000;
+
+function gitDeRede(cwd, args) {
+  return new Promise((resolve) => {
+    execFile('git', args, {
+      cwd,
+      encoding: 'utf8',
+      windowsHide: true,
+      timeout: MS_REDE,
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: '0',
+        GCM_INTERACTIVE: 'never',
+        GIT_ASKPASS: '',
+        SSH_ASKPASS: '',
+      },
+    }, (err, saida) => {
+      if (err) resolve({ ok: false, saida: '', erro: (err.stderr || err.message || '').toString().trim() });
+      else resolve({ ok: true, saida: String(saida) });
+    });
+  });
 }
 
 function processoVivo(pid) {
@@ -109,9 +144,16 @@ function listar(projeto) {
     const sujos = st.ok ? st.saida.split(/\r?\n/).filter((l) => l.trim()).length : 0;
 
     let naoMesclados = 0;
+    // O outro lado da mesma conta: quanto a worktree esta ATRAS da base. E
+    // literalmente o caso do aviso que motivou isto -- a base andou e a worktree
+    // continuou onde estava.
+    let atrasDaBase = 0;
     if (branch && baseBranch && branch !== baseBranch) {
-      const log = gitSilencioso(projeto, ['log', '--oneline', `${baseBranch}..${branch}`]);
-      if (log.ok) naoMesclados = log.saida.split(/\r?\n/).filter((l) => l.trim()).length;
+      const c = contar(projeto, `${branch}...${baseBranch}`);
+      if (c) {
+        naoMesclados = c.frente;
+        atrasDaBase = c.atras;
+      }
     }
 
     return {
@@ -127,12 +169,88 @@ function listar(projeto) {
       limpo: existe && st.ok && sujos === 0,
       sujos,
       naoMesclados,
+      atrasDaBase,
       // O que o `limpo` NAO enxerga, e o `git worktree remove` apaga assim
       // mesmo. Ver `ignorados()`.
       ignorados: existe ? ignorados(caminho) : [],
       prunable: 'prunable' in p,
     };
   });
+}
+
+// ------------------------------------------------- ficar em dia com o remoto
+
+// O caso que motivou isto: o merge foi feito NO SERVIDOR, a sessao estava
+// isolada numa worktree, e o checkout principal ficou para tras sem ninguem
+// perceber. Como nenhum comando deste app tocava a rede, esse estado era
+// invisivel por construcao -- `baseBranch` e sempre a ref LOCAL.
+function contar(cwd, intervalo) {
+  const r = gitSilencioso(cwd, ['rev-list', '--left-right', '--count', intervalo]);
+  if (!r.ok) return null;
+  const [frente, atras] = r.saida.trim().split(/\s+/).map(Number);
+  return Number.isFinite(frente) && Number.isFinite(atras) ? { frente, atras } : null;
+}
+
+// Quanto o checkout principal esta atras do proprio upstream, e quanto cada
+// worktree esta atras da base. Sem `fetch`: so le o que ja esta no disco.
+function situacaoRemoto(projeto) {
+  const base = (gitSilencioso(projeto, ['rev-parse', '--abbrev-ref', 'HEAD']).saida || '').trim();
+  if (!base || base === 'HEAD') return { base: '', upstream: '', atras: 0, frente: 0 };
+
+  // Sem upstream configurado nao ha o que comparar -- e isso e um estado
+  // normal (branch local), nao um erro.
+  const up = gitSilencioso(projeto, ['rev-parse', '--abbrev-ref', `${base}@{u}`]);
+  if (!up.ok) return { base, upstream: '', atras: 0, frente: 0 };
+
+  const c = contar(projeto, `${base}...${base}@{u}`) || { frente: 0, atras: 0 };
+  return { base, upstream: up.saida.trim(), frente: c.frente, atras: c.atras };
+}
+
+async function buscar(projeto) {
+  if (!ehRepositorio(projeto)) return { ok: false, erro: 'nao e um repositorio' };
+  const r = await gitDeRede(projeto, ['fetch', '--quiet', '--no-tags']);
+  return r.ok ? { ok: true, ...situacaoRemoto(projeto) } : { ok: false, erro: r.erro };
+}
+
+// Atualizar e SEMPRE `--ff-only`.
+//
+// E o que torna isto seguro de oferecer: fast-forward nao cria merge nem
+// conflito. Quando nao da, o git RECUSA -- e a recusa vira mensagem, no mesmo
+// formato dos portoes do arquivar, em vez de deixar o checkout do usuario num
+// estado que ele nao pediu.
+function atualizar(projeto) {
+  const s = situacaoRemoto(projeto);
+  if (!s.upstream) return { ok: false, texto: `${s.base || 'HEAD'} nao tem upstream configurado.` };
+  if (!s.atras) return { ok: true, jaEstava: true, ...s };
+
+  // `--untracked-files=no` de proposito: aqui o que atrapalha um fast-forward e
+  // alteracao em arquivo RASTREADO. Contar os nao rastreados recusaria a
+  // atualizacao por causa de um `.env` ou um `dist/` parado na raiz -- coisa que
+  // quase todo repositorio tem o tempo todo, e que nao impede merge nenhum.
+  // (E se um deles for justamente sobrescrito pelo que vem, o proprio git
+  // recusa e a mensagem dele aparece logo abaixo.)
+  const sujo = gitSilencioso(projeto, ['status', '--porcelain', '--untracked-files=no']);
+  const quantos = sujo.ok ? sujo.saida.split(/\r?\n/).filter((l) => l.trim()).length : 0;
+  if (quantos) {
+    return {
+      ok: false,
+      texto: `${quantos} ${quantos === 1 ? 'arquivo alterado' : 'arquivos alterados'} no checkout `
+        + 'principal. Comite ou guarde antes de atualizar.',
+    };
+  }
+
+  const r = gitSilencioso(projeto, ['merge', '--ff-only', s.upstream]);
+  if (!r.ok) {
+    // O git responde com cinco linhas de `hint:` sugerindo merge e rebase --
+    // util no terminal, ilegivel num toast. Fica a linha que diz o que houve.
+    const linhas = String(r.erro).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const motivo = linhas.find((l) => /^(fatal|error):/i.test(l)) || linhas[0] || '';
+    return {
+      ok: false,
+      texto: `${s.base} e ${s.upstream} divergiram: ${motivo.replace(/^(fatal|error):\s*/i, '')}`,
+    };
+  }
+  return { ok: true, avancou: s.atras, ...situacaoRemoto(projeto) };
 }
 
 // Arquivos que o git IGNORA dentro do worktree -- e que o arquivamento apaga
@@ -348,6 +466,9 @@ function criarInclude(projeto, linhas) {
 module.exports = {
   CANDIDATOS_ENV,
   ignorados,
+  situacaoRemoto,
+  buscar,
+  atualizar,
   listar,
   podeArquivar,
   arquivar,

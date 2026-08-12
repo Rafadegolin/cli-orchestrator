@@ -196,6 +196,14 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
 - Desinstalar roda `--remover-hooks` pelo `recursos/instalador.nsh`. Sem isso os hooks ficariam no
   `settings.json` para sempre e toda sessao pagaria ~310ms por evento falando com um app que nao
   existe mais.
+  - **E `${ifNot} ${isUpdated}` em volta disso NAO e detalhe.** O instalador de um clique **roda o
+    desinstalador antigo antes de instalar a versao nova** (`installSection.nsh` ->
+    `uninstallOldVersion`), entao sem o guarda a macro rodava ali tambem: **toda atualizacao apagava
+    os hooks**, e nada os reinstalava — `instalar()` so roda por IPC, com clique e dialogo. O
+    sintoma foi "sempre que atualiza preciso instalar os hooks de novo", e demorou a ser ligado a
+    causa porque a tela continua parecendo normal. O electron-builder ja passa `--updated` e define
+    `${isUpdated}`; o template usa esse mesmo teste para nao apagar dados do usuario.
+  - Quem usa o zip portatil ou o `-sac` nunca sofreu disso: a troca leve mexe so no `app.asar`.
 
 ## A nova UI (docs/nova-ui)
 
@@ -275,6 +283,19 @@ A tela responde "para onde eu olho agora?" sem voce procurar.
 - **Ordenar e por `style.order`, nunca movendo nos.** Mover o elemento de um xterm dispara reflow e
   `fit()` em cascata a cada mudanca de status — e status muda o tempo todo. A ordem salva pela Fase 7
   continua sendo a do DOM (ordem de criacao): a ordenacao da tela e uma VISTA, nao o arranjo.
+- **O painel FOCADO nao sai do lugar** (`fixarFocado`, em `grade.js`). A ordenacao por urgencia e
+  global: uma mudanca de status em qualquer sessao recalculava a posicao de todas, e o painel em que
+  voce estava digitando saltava por causa de OUTRO — num `#conteudo` rolavel, ate para fora da tela.
+  Foi relatado assim. O guarda e minimo de proposito: o focado fica no indice que ja ocupava e os
+  outros reorganizam em volta; sem foco, nada muda. So vale na grade — no mapa `style.order` nao tem
+  efeito. `OrqGrade.desfocar()` existe para o teste medir a ordenacao pura.
+- **`focado` e limpo quando o painel morre.** Antes ficava apontando para um id morto; agora isso
+  faria o guarda defender um painel que nao existe.
+- **Alt+setas andam entre terminais** (`src/janela/navegar.js`), em **captura com
+  `stopPropagation`**: medido no xterm 5.5, ele reescreve Alt+Seta para `\x1b[1;5D` (Ctrl+Seta) e
+  manda ao PTY — em fase de bolha o byte ja teria ido embora e o cursor do Claude andaria junto. A
+  escolha do alvo e por **geometria**, nao por indice: assim funciona igual na grade, na densidade
+  personalizada (spans diferentes) e no mapa, com o mesmo codigo.
 - **O cronometro de 1s sai na primeira linha quando ninguem espera**, que e o estado normal da tela.
   Antes ele varria o DOM a cada segundo sem nada para atualizar.
 - **A pill do cabecalho diz o PROJETO** (`OrqProjetos.projetoDe`, casando pelo prefixo mais
@@ -860,6 +881,48 @@ que impede os testes de mexerem na lista real). Clicar num projeto abre painel n
   por `-` (conferida em 19 pastas reais). Isso e layout **interno** do CLI: se mudar, a contagem vira
   zero e o app so deixa de oferecer o retomar — degrada sem quebrar. Worktree tem pasta propria,
   entao a contagem de um projeto nao inclui as conversas das worktrees dele.
+
+## A cor do projeto, e o tom da worktree
+
+`tintaDe()` em `projetos.js` sorteia entre `--proj-1..10` (`estilo.css`), **paleta propria**. Antes a
+lista era `['var(--acc)', 'var(--info)', 'var(--warn)', ...]`: um projeto podia nascer com a cor de
+"rodando" e outro com a de "esperando", e cor que significa duas coisas nao significa nenhuma.
+
+- **A faixa vai no FRAME do painel** (`.painel-tinto::before`), e nao dentro da pill: abaixo de 260px
+  de largura o `@container` esconde a pill inteira — justamente quando ha muitos painéis e
+  identificar e mais dificil.
+- **Nao pode ser `border-color`**: a borda do painel ja carrega foco (`--acc`), esperando
+  (`--warn-linha`) e alvo de arrasto.
+- **Worktree e a mesma cor mais clara** (`color-mix` contra `--bg1`, em `tintaDaPasta`), e nao uma
+  cor diferente: `api` e `api/auth-refresh` tem de se ler como parentes. Quem distingue os dois e o
+  `dentro` que `projetoDe()` passou a devolver.
+- **O cartao da lateral ganhou a cor** — ele nao tinha identidade de projeto nenhuma, so status.
+- **`projetoDe()` passou a normalizar `\` e `/`.** Sem isso o mesmo caminho vindo por outra rota
+  (o git imprime com barra normal; um dialogo devolve com barra invertida) deixava de casar, e o
+  projeto sumia sem erro nenhum — o defeito aparecia como "a cor nao aplicou".
+- `mostrarProjeto()` **limpa** o estilo quando nao ha projeto: antes o inline ficava para sempre, e
+  descadastrar um projeto deixava a cor dele no painel.
+
+## Ficar em dia com o remoto
+
+`worktrees.situacaoRemoto/buscar/atualizar`. O caso que motivou: o merge acontece **no servidor**
+enquanto a sessao trabalha isolada numa worktree, e o checkout principal envelhece sem nada avisar —
+invisivel por construcao, porque `baseBranch` e sempre a ref local e nenhum comando do app tocava a
+rede.
+
+- **Git de rede tem caminho PROPRIO** (`gitDeRede`), e nao o `git()` de sempre: aquele e
+  `execFileSync` e **bloqueia o processo principal** — um remoto lento congelaria a janela inteira.
+- **Proibido perguntar.** `GIT_TERMINAL_PROMPT=0` e `GCM_INTERACTIVE=never`: o Git Credential Manager
+  abre JANELA pedindo senha, e uma busca de fundo nao pode virar dialogo do nada nem esperar para
+  sempre. Sem credencial, falha calado — mesma politica do updater.
+- **Atualizar e sempre `merge --ff-only`**, por clique. Fast-forward nao cria merge nem conflito;
+  quando nao da, o git recusa e a recusa vira uma linha (as cinco `hint:` dele nao cabem num toast).
+- **O portao de arvore suja conta so arquivo RASTREADO** (`--untracked-files=no`): um `.env` ou um
+  `dist/` parado na raiz nao impede fast-forward nenhum, e recusar por causa deles seria recusar
+  quase sempre.
+- A busca periodica segue o padrao do `atualizacao.js` (10min, primeira depois de 20s, so com a
+  janela visivel), e nunca o do `metricas.js` — rede a cada 2s contraria a meta de consumo parado.
+- `atrasDaBase` por worktree e o outro lado da mesma conta: a base andou e a worktree ficou.
 
 ## Arrastar arquivo para dentro do terminal
 

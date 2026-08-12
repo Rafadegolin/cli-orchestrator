@@ -32,6 +32,10 @@ function montarRepo() {
   git(RAIZ, 'init', '-q', '-b', 'main');
   git(RAIZ, 'config', 'user.email', 'teste@teste');
   git(RAIZ, 'config', 'user.name', 'teste');
+  // Sem conversao de fim de linha: o teste escreve arquivos com \n e o Windows
+  // devolve \r\n, o que faz arquivo recem-commitado aparecer como MODIFICADO e
+  // envenena qualquer checagem de "arvore limpa".
+  git(RAIZ, 'config', 'core.autocrlf', 'false');
   fs.writeFileSync(path.join(RAIZ, 'leiame.txt'), 'base\n');
   fs.writeFileSync(path.join(RAIZ, '.gitignore'), '.env\n.env.local\n');
   git(RAIZ, 'add', '-A');
@@ -205,6 +209,95 @@ function achar(nome) {
   const sumiu = wt.diff(RAIZ, path.join(RAIZ, 'nao', 'existe'));
   checar('worktree inexistente vira recusa com motivo, sem estourar',
     sumiu.ok === false && Boolean(sumiu.texto), JSON.stringify(sumiu));
+
+  // --- ficar em dia com o remoto -----------------------------------------
+  //
+  // O remoto e um `--bare` numa pasta temporaria: da para exercitar atras/em
+  // dia, o fast-forward e as duas recusas SEM tocar a rede. Testar contra o
+  // GitHub seria testar o GitHub.
+  const REMOTO = path.join(os.tmpdir(), `orq-teste-remoto-${Date.now()}`);
+  // `-b main` no bare tambem: sem isso o HEAD dele nasce apontando para
+  // `master`, o clone nao faz checkout de nada ("remote HEAD refers to
+  // nonexistent ref") e commita numa branch que ninguem esta olhando -- o teste
+  // passava a medir o nada.
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', REMOTO], { encoding: 'utf8' });
+  git(RAIZ, 'remote', 'add', 'origin', REMOTO);
+  git(RAIZ, 'push', '-q', '-u', 'origin', 'main');
+
+  const emDia = wt.situacaoRemoto(RAIZ);
+  checar('com tudo empurrado, nao ha atraso',
+    emDia.base === 'main' && emDia.upstream === 'origin/main' && emDia.atras === 0,
+    JSON.stringify(emDia));
+
+  // Alguem commitou no servidor -- e este checkout nao sabe. E o caso real: o
+  // merge acontece no servidor enquanto a sessao trabalha isolada na worktree.
+  const CLONE = path.join(os.tmpdir(), `orq-teste-clone-${Date.now()}`);
+  execFileSync('git', ['clone', '-q', REMOTO, CLONE], { encoding: 'utf8' });
+  git(CLONE, 'config', 'user.email', 'outro@teste');
+  git(CLONE, 'config', 'user.name', 'outro');
+  git(CLONE, 'config', 'core.autocrlf', 'false');
+  fs.writeFileSync(path.join(CLONE, 'do-servidor.txt'), 'veio de fora\n');
+  git(CLONE, 'add', '-A');
+  git(CLONE, 'commit', '-qm', 'commit do servidor');
+  git(CLONE, 'push', '-q');
+
+  checar('antes do fetch o app nao pode ADIVINHAR que ficou atras',
+    wt.situacaoRemoto(RAIZ).atras === 0, '');
+
+  const busca = await wt.buscar(RAIZ);
+  checar('buscar traz o que ha de novo', busca.ok === true, JSON.stringify(busca));
+  checar('e ai sim a base aparece atrasada',
+    busca.atras === 1 && busca.frente === 0, JSON.stringify(busca));
+
+  // Arvore suja recusa, com motivo -- mesma gramatica dos portoes do arquivar.
+  fs.writeFileSync(path.join(RAIZ, 'leiame.txt'), 'mexido\n');
+  const sujo = wt.atualizar(RAIZ);
+  checar('com alteracao sem commit, atualizar RECUSA e diz por que',
+    sujo.ok === false && /alterado/.test(sujo.texto), JSON.stringify(sujo));
+  git(RAIZ, 'checkout', '-q', '--', 'leiame.txt');
+
+  const subiu = wt.atualizar(RAIZ);
+  checar('com a arvore limpa, o fast-forward acontece',
+    subiu.ok === true && subiu.avancou === 1, JSON.stringify(subiu));
+  checar('e depois nao ha mais atraso', wt.situacaoRemoto(RAIZ).atras === 0, '');
+  checar('o arquivo do servidor chegou ao disco',
+    fs.existsSync(path.join(RAIZ, 'do-servidor.txt')), '');
+
+  // Historias divergentes: `--ff-only` tem de RECUSAR em vez de criar merge.
+  fs.writeFileSync(path.join(CLONE, 'lado-b.txt'), 'b\n');
+  git(CLONE, 'add', '--', 'lado-b.txt');
+  git(CLONE, 'commit', '-qm', 'lado b');
+  git(CLONE, 'push', '-q');
+  // `add` do ARQUIVO, e nunca `add -A` aqui: os worktrees deste teste vivem em
+  // `.claude/worktrees/` DENTRO do repo, e cada um tem um `.git` -- o `-A`
+  // adiciona a pasta como gitlink e deixa a arvore permanentemente "modificada".
+  fs.writeFileSync(path.join(RAIZ, 'lado-a.txt'), 'a\n');
+  git(RAIZ, 'add', '--', 'lado-a.txt');
+  git(RAIZ, 'commit', '-qm', 'lado a');
+  await wt.buscar(RAIZ);
+
+  // A checagem e sobre DIVERGENCIA, entao a arvore tem de estar limpa aqui --
+  // senao a recusa medida seria a de arquivo alterado, que ja foi testada acima.
+  const restou = git(RAIZ, 'status', '--porcelain', '--untracked-files=no').trim();
+  checar('a arvore esta limpa antes de medir a divergencia', restou === '', restou);
+
+  const divergiu = wt.atualizar(RAIZ);
+  checar('divergiu: recusa em vez de criar merge ou conflito',
+    divergiu.ok === false && /divergiram/i.test(divergiu.texto), JSON.stringify(divergiu));
+  checar('e a recusa cabe numa linha, sem as cinco dicas do git',
+    divergiu.texto.split('\n').length === 1 && divergiu.texto.length < 160, divergiu.texto);
+  checar('e o commit local continua intacto',
+    git(RAIZ, 'log', '--oneline', '-1').includes('lado a'), '');
+
+  // Sem upstream nao ha o que comparar, e isso e estado normal.
+  git(RAIZ, 'checkout', '-q', '-b', 'sem-upstream');
+  const solto = wt.situacaoRemoto(RAIZ);
+  checar('branch sem upstream nao vira erro nem atraso',
+    solto.upstream === '' && solto.atras === 0, JSON.stringify(solto));
+  git(RAIZ, 'checkout', '-q', 'main');
+
+  fs.rmSync(REMOTO, { recursive: true, force: true });
+  fs.rmSync(CLONE, { recursive: true, force: true });
 
   // Limpeza: o repo e descartavel, mas worktree deixa metadado no git.
   fs.rmSync(RAIZ, { recursive: true, force: true });

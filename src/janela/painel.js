@@ -618,8 +618,20 @@ class Painel {
   mostrarProjeto() {
     const p = window.OrqProjetos?.projetoDe?.(this.cwd);
     this.elLocal.textContent = p ? p.nome : nomeCurto(this.cwd);
+    // Worktree tem o nome do projeto na pill, entao o caminho e a unica coisa
+    // que diz QUAL worktree -- e ele vai no balao.
     this.elLocal.title = this.cwd;
-    if (p) this.elLocal.style.boxShadow = `inset 2px 0 0 ${p.tinta}`;
+
+    // A cor vai no PAINEL, e nao so na pill: abaixo de 260px de largura o
+    // `@container` esconde a pill inteira -- justamente quando ha muitos painéis
+    // e distinguir e mais dificil. A faixa mora no frame e sobrevive a isso.
+    //
+    // E limpa quando nao ha projeto: antes o estilo inline ficava para sempre,
+    // entao descadastrar um projeto deixava a cor dele no painel.
+    const tinta = window.OrqProjetos?.tintaDaPasta?.(this.cwd) || '';
+    this.el.style.setProperty('--tinta', tinta);
+    this.el.classList.toggle('painel-tinto', Boolean(tinta));
+    this.elLocal.style.boxShadow = tinta ? `inset 2px 0 0 ${tinta}` : '';
   }
 
   // Redimensionar reflui o buffer inteiro do terminal. Fazer isso a cada pixel

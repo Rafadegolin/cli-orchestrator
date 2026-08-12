@@ -571,6 +571,12 @@ async function arrastarAlca(cdp, id, dx, dy) {
     });
   })()`);
 
+  // Solta o foco antes de medir a ordenacao PURA: painel focado nao sai do
+  // lugar (e a protecao contra a grade fugir do dedo), e o ultimo painel criado
+  // nasce focado -- entao sem isto o teste mediria a ordenacao COM o guarda.
+  await cdp.avaliar(`window.OrqGrade.desfocar()`);
+  await esperar(400);
+
   const urgencia = JSON.parse(await naTela());
   const esperadoUrgencia = 'ui-a-espera-velha,ui-d-espera-nova,ui-c-revisar,ui-b-trabalha';
   checar('a grade ordena por urgencia', urgencia.porOrder.join() === esperadoUrgencia,
@@ -971,6 +977,76 @@ async function arrastarAlca(cdp, id, dx, dy) {
     checar(`contraste AA no tema ${tema}`, ruins.length === 0,
       ruins.map((r) => `${r.nome}=${r.razao}`).join(' ') || medido.map((r) => `${r.nome}=${r.razao}`).join(' '));
   }
+
+  // --- 14a1. o painel focado NAO muda de lugar ----------------------------
+  //
+  // A ordenacao por urgencia e global: uma mudanca de status em QUALQUER sessao
+  // recalculava a posicao de todas, e o painel em que voce estava digitando
+  // saltava por causa de outro. Num `#conteudo` rolavel ele podia ate sair da
+  // tela. Foi relatado exatamente assim.
+  await cdp.avaliar(`window.OrqCasca.mudar({ ordem: 'urgencia', densidade: 2 })`);
+  await zerarGrade(cdp);
+  const foco = {};
+  for (const f of ['foco-a', 'foco-b', 'foco-c']) {
+    foco[f] = await cdp.avaliar(`(async () => { const p = await window.OrqGrade.criarPainel(
+      { cwd: ${JSON.stringify(RAIZ)}, feature: ${JSON.stringify(f)} }); return p.id; })()`);
+    await esperar(350);
+  }
+  await esperar(1500);
+
+  // Foca o do meio e poe OUTRO painel em espera -- que sem o guarda o jogaria
+  // para a frente da fila e empurraria o focado.
+  await cdp.avaliar(`window.OrqGrade.focarPainel(${JSON.stringify(foco['foco-b'])})`);
+  await esperar(300);
+  const ordemAntes = await cdp.avaliar(
+    `window.OrqPainel.painelPorId.get(${JSON.stringify(foco['foco-b'])}).el.style.order`);
+
+  await cdp.avaliar(`window.OrqLateral.definirStatus(${JSON.stringify(foco['foco-c'])},
+    'esperando', 'pedindo permissao', Date.now() - 300000, { tipo: 'permissao' })`);
+  await esperar(600);
+
+  const depoisDoStatus = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    focado: window.OrqPainel.painelPorId.get(${JSON.stringify(foco['foco-b'])}).el.style.order,
+    aindaFocado: window.OrqGrade.focado() === ${JSON.stringify(foco['foco-b'])},
+    // O que espera FOI para a frente: o guarda protege o focado, nao congela a grade.
+    esperando: window.OrqPainel.painelPorId.get(${JSON.stringify(foco['foco-c'])}).el.style.order,
+  })`));
+  checar('o painel focado nao muda de lugar quando outro passa a esperar',
+    depoisDoStatus.focado === ordemAntes && depoisDoStatus.aindaFocado,
+    `${ordemAntes} -> ${JSON.stringify(depoisDoStatus)}`);
+  checar('e a grade continua reordenando os outros em volta',
+    depoisDoStatus.esperando !== depoisDoStatus.focado, JSON.stringify(depoisDoStatus));
+
+  // --- 14a2. Alt+setas ----------------------------------------------------
+  //
+  // Tem de ser em CAPTURA: o xterm reescreve Alt+Seta para Ctrl+Seta e manda ao
+  // PTY, entao em fase de bolha o byte ja teria ido embora e o cursor do Claude
+  // andaria junto.
+  await cdp.avaliar(`window.OrqCasca.mudar({ ordem: 'projeto' })`);
+  await esperar(400);
+  const nav = JSON.parse(await cdp.avaliar(`(async () => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(foco['foco-a'])});
+    p.focar();
+    await new Promise((r) => setTimeout(r, 300));
+    const antes = p.textoDoBuffer().length;
+
+    // A tecla REAL, no textarea do xterm -- que e onde ela chegaria de verdade.
+    p.term.textarea.dispatchEvent(new KeyboardEvent('keydown',
+      { key: 'ArrowRight', altKey: true, bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 500));
+
+    const agora = window.OrqPainel.painelPorId.get(window.OrqGrade.focado());
+    return JSON.stringify({
+      de: p.feature, para: agora.feature, cresceu: p.textoDoBuffer().length - antes,
+    });
+  })()`));
+  checar('Alt+Seta move o foco para o terminal do lado',
+    nav.para !== nav.de, JSON.stringify(nav));
+  checar('e NAO vaza tecla para a sessao (o xterm mandaria Ctrl+Seta)',
+    nav.cresceu === 0, JSON.stringify(nav));
+
+  await zerarGrade(cdp);
+  await cdp.avaliar(`window.OrqCasca.mudar({ ordem: 'urgencia' })`);
 
   // --- 14b. TODO botao de overlay, nos dois temas --------------------------
   //

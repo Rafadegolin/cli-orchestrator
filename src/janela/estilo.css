@@ -44,6 +44,22 @@
      ligacao, que sao --acc a .55. */
   --ponto: rgba(255, 255, 255, .075);
 
+  /* IDENTIDADE DE PROJETO -- paleta propria, sem semantica de status.
+     Antes a cor do projeto era sorteada entre --acc, --info, --warn e mais tres:
+     ou seja, um projeto podia nascer com a cor de "rodando" e outro com a de
+     "esperando". Cor que significa duas coisas nao significa nenhuma.
+     Dez tons em vez de seis, para a colisao demorar mais a aparecer. */
+  --proj-1: #a78bfa;
+  --proj-2: #22d3ee;
+  --proj-3: #f472b6;
+  --proj-4: #fb923c;
+  --proj-5: #a3e635;
+  --proj-6: #2dd4bf;
+  --proj-7: #818cf8;
+  --proj-8: #e879f9;
+  --proj-9: #38bdf8;
+  --proj-10: #f87171;
+
   --ui: 'Space Grotesk', system-ui, 'Segoe UI', sans-serif;
   /* Segoe UI Symbol no fim porque as setas e o simbolo de tema (U+2194,
      U+263E) estao fora dos subsets latin que vendorizamos. */
@@ -78,6 +94,19 @@ html.claro {
   --shadow: 0 18px 44px -24px rgba(16, 24, 40, .35);
   --glass: rgba(255, 255, 255, .9);
   --ponto: rgba(0, 0, 0, .095);
+
+  /* Os mesmos dez tons, escurecidos para aparecerem sobre fundo claro. Token
+     e declarado NOS DOIS TEMAS, como todo o resto deste arquivo. */
+  --proj-1: #7c5cd6;
+  --proj-2: #0e93ab;
+  --proj-3: #d1478b;
+  --proj-4: #c96a1e;
+  --proj-5: #5f8f16;
+  --proj-6: #12907f;
+  --proj-7: #5560cf;
+  --proj-8: #b446c4;
+  --proj-9: #1583c0;
+  --proj-10: #cf4a4a;
 }
 
 * { box-sizing: border-box; }
@@ -664,6 +693,7 @@ button:focus-visible, input:focus-visible {
 /* --------------------------------------------------------- lista de sessoes */
 
 .card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 9px;
@@ -674,6 +704,22 @@ button:focus-visible, input:focus-visible {
   margin-bottom: 4px;
   cursor: pointer;
 }
+
+/* A cor do projeto na lista de sessoes. Barra a esquerda, e nao um quadradinho:
+   com varias sessoes de projetos diferentes, o que agrupa e a linha continua na
+   borda, nao um ponto no meio do texto. */
+.card-tinto::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--tinta);
+}
+
+.card-tinto { padding-left: 11px; }
 
 .card:hover { background: var(--bg3); }
 
@@ -981,6 +1027,21 @@ button.primario:hover {
 }
 
 .painel:hover { transform: translateY(-2px); }
+
+/* A FAIXA DO PROJETO, no topo do painel.
+   Pseudo-elemento, e nao `border-color`: a borda do painel ja carrega tres
+   significados (foco em --acc, esperando em --warn-linha, alvo de arrasto), e
+   somar identidade de projeto ali faria a mesma linha dizer duas coisas.
+   z-index 3 fica acima do cabecalho e abaixo da alca (6) e do dormindo (5). */
+.painel-tinto::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: var(--tinta);
+  z-index: 3;
+  pointer-events: none;
+}
 
 .painel-focado {
   border-color: var(--acc);

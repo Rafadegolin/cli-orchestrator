@@ -46,6 +46,10 @@ contextBridge.exposeInMainWorld('orq', {
     ipcRenderer.invoke('worktrees:arquivar', { projeto, caminho, confirmar }),
   worktreesDiff: (projeto, caminho) => ipcRenderer.invoke('worktrees:diff', { projeto, caminho }),
   includeSituacao: (projeto) => ipcRenderer.invoke('worktrees:situacaoInclude', projeto),
+
+  gitSituacao: (projeto) => ipcRenderer.invoke('git:situacao', projeto),
+  gitBuscar: (projeto) => ipcRenderer.invoke('git:buscar', projeto),
+  gitAtualizar: (projeto) => ipcRenderer.invoke('git:atualizar', projeto),
   includeCriar: (projeto, linhas, confirmar = true) =>
     ipcRenderer.invoke('worktrees:criarInclude', { projeto, linhas, confirmar }),
 

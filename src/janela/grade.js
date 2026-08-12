@@ -44,6 +44,9 @@ async function criarPainel({
     cwd,
     aoFocar: (pid) => { focado = pid; marcarFocado(); },
     aoFechar: () => {
+      // Sem isto `focado` continua apontando para um id morto, e o guarda de
+      // ordenacao passa a defender um painel que nao existe mais.
+      if (focado === id) focado = null;
       atualizarVazio();
       window.OrqLateral?.remover(id);
       // Painel fechado antes de partir nao pode deixar entrada presa na fila.
@@ -234,6 +237,35 @@ async function retomarTodas() {
   window.OrqLateral?.atualizarRetomarTodas?.();
 }
 
+// O painel FOCADO nao sai do lugar.
+//
+// A ordenacao por urgencia e global: qualquer mudanca de status em QUALQUER
+// sessao recalcula a posicao de todas. Na pratica isso movia a janela em que
+// voce estava digitando -- por causa de outro painel --, e num `#conteudo`
+// rolavel ela podia sair da tela. Foi relatado exatamente assim.
+//
+// A regra e minima de proposito: o focado fica no indice que ja ocupava e os
+// outros se reorganizam em volta. Sem foco, nada muda em relacao a antes.
+//
+// So faz sentido na grade: no mapa o painel e posicionado e `style.order` nao
+// tem efeito nenhum.
+function fixarFocado(ordenada) {
+  const id = focado;
+  if (!id || document.getElementById('app')?.dataset.modo === 'mapa') return ordenada;
+
+  const p = porId.get(id);
+  const atual = Number(p?.el.style.order);
+  if (!p || !Number.isFinite(atual)) return ordenada;
+
+  const i = ordenada.findIndex((c) => c.id === id);
+  if (i < 0 || i === atual) return ordenada;
+
+  const sem = [...ordenada];
+  const [alvo] = sem.splice(i, 1);
+  sem.splice(Math.min(atual, sem.length), 0, alvo);
+  return sem;
+}
+
 // Reordena a grade por `style.order`, NUNCA movendo nos no DOM.
 //
 // Mover o elemento de um xterm funciona, mas cada mudanca de status dispararia
@@ -243,7 +275,7 @@ async function retomarTodas() {
 // A ordem salva pela Fase 7 continua sendo a do DOM (ordem de criacao), que e o
 // que `retratoSessao()` le: a ordenacao da tela e uma VISTA, nao o arranjo.
 function ordenarGrade(lista) {
-  const ordenada = lista || window.OrqLateral?.ordenadas?.() || [];
+  const ordenada = fixarFocado(lista || window.OrqLateral?.ordenadas?.() || []);
   ordenada.forEach((c, i) => {
     const p = porId.get(c.id);
     if (p) p.el.style.order = String(i);
@@ -268,6 +300,15 @@ function marcarFocado() {
 function focarPainel(id) {
   const p = porId.get(id);
   if (p) p.focar();
+}
+
+// Solta o foco. Enquanto ha painel focado ele nao sai do lugar (`fixarFocado`),
+// entao existe um caminho para dizer "nenhum" -- e o teste que mede a ordenacao
+// PURA por urgencia depende disso.
+function desfocar() {
+  focado = null;
+  marcarFocado();
+  window.OrqLateral?.redesenhar?.();
 }
 
 // ------------------------------------------------------------ eventos
@@ -311,6 +352,7 @@ window.OrqGrade = {
   criarPainel, focarPainel, painelPorId: porId,
   despertar, restaurarSessao, retomarTodas, dormindos, retratoSessao, salvarSessao,
   ordenarGrade,
+  desfocar,
   focado: () => focado,
 };
 

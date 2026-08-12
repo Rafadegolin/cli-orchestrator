@@ -251,6 +251,13 @@ function redesenhar() {
     porta.className = 'card-porta';
     porta.textContent = painel?.portas?.length ? `:${painel.portas[0]}` : '';
 
+    // O cartao nao tinha NENHUMA identidade de projeto -- so status. Com sessoes
+    // de projetos diferentes lado a lado, a lista era uma coluna de nomes sem
+    // agrupamento visivel.
+    const tinta = window.OrqProjetos?.tintaDaPasta?.(c.cwd) || '';
+    li.style.setProperty('--tinta', tinta);
+    li.classList.toggle('card-tinto', Boolean(tinta));
+
     li.title = [c.cwd, c.motivo].filter(Boolean).join('\n');
     li.append(bolinha, texto, porta);
     li.addEventListener('click', () => window.OrqGrade.focarPainel(c.id));
@@ -393,7 +400,20 @@ async function atualizarBotaoHooks() {
       : `Registrar hooks em ${s.arquivo} para as bolinhas mudarem sozinhas`);
 }
 
-atualizarBotaoHooks();
+// No arranque, AVISA em vez de esperar voce reparar no rotulo da lateral.
+//
+// Registro incompleto significa que parte das mudancas de status nao chega, e o
+// sintoma disso e a tela parecer normal enquanto o amarelo nunca aparece. Quem
+// nao olha para o rodape da lateral nao descobre. O app continua PERGUNTANDO
+// antes de escrever no settings.json -- isto so leva voce ate o botao.
+(async () => {
+  await atualizarBotaoHooks();
+  const s = await window.orq.hooksSituacao();
+  if (!s.parcial) return;
+  window.OrqToast?.mostrar(
+    `Faltam ${s.faltando} hooks de status — clique em Hooks, no rodapé, para registrar`,
+  );
+})();
 
 // Primeiro desenho com a lista vazia: sem isto a contagem de SESSOES nasce em
 // branco em vez de zero, e o placar de sessoes vivas so aparece quando o

@@ -13,17 +13,33 @@
 !macroend
 
 !macro customUnInstall
-  ; roda antes dos arquivos serem apagados, entao o executavel ainda existe
-  IfFileExists "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0 semExe
-    DetailPrint "Removendo os hooks do Claude Code..."
-    ; /TIMEOUT evita que uma desinstalacao trave esperando o processo; se
-    ; estourar, o usuario ainda pode remover pelo botao dentro do app.
-    nsExec::ExecToStack /TIMEOUT=15000 '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" --remover-hooks'
-    Pop $0
-    ${If} $0 == "0"
-      DetailPrint "Hooks removidos."
-    ${Else}
-      DetailPrint "Nao consegui remover os hooks automaticamente (codigo $0)."
-    ${EndIf}
-  semExe:
+  ; ATUALIZAR NAO E DESINSTALAR -- e este guarda faltava.
+  ;
+  ; O instalador de um clique do electron-builder RODA O DESINSTALADOR ANTIGO
+  ; antes de instalar a versao nova (installSection.nsh -> uninstallOldVersion).
+  ; Sem o teste abaixo, esta macro rodava ali tambem: toda atualizacao apagava os
+  ; hooks do settings.json, e nada os reinstalava -- `instalar()` so roda por IPC,
+  ; com clique e dialogo. O sintoma era "sempre que atualiza preciso instalar os
+  ; hooks de novo", e foi relatado.
+  ;
+  ; O proprio electron-builder ja passa `--updated` ao desinstalador nesse caso
+  ; (installUtil.nsh) e define ${isUpdated}; o template usa esse mesmo teste para
+  ; nao apagar os dados do usuario. Aqui ele so nunca tinha sido lido.
+  ${ifNot} ${isUpdated}
+    ; roda antes dos arquivos serem apagados, entao o executavel ainda existe
+    IfFileExists "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0 semExe
+      DetailPrint "Removendo os hooks do Claude Code..."
+      ; /TIMEOUT evita que uma desinstalacao trave esperando o processo; se
+      ; estourar, o usuario ainda pode remover pelo botao dentro do app.
+      nsExec::ExecToStack /TIMEOUT=15000 '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" --remover-hooks'
+      Pop $0
+      ${If} $0 == "0"
+        DetailPrint "Hooks removidos."
+      ${Else}
+        DetailPrint "Nao consegui remover os hooks automaticamente (codigo $0)."
+      ${EndIf}
+    semExe:
+  ${else}
+    DetailPrint "Atualizacao: os hooks do Claude Code ficam como estao."
+  ${endif}
 !macroend

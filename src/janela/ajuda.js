@@ -225,6 +225,12 @@ const SECOES = [
       ]),
       aviso('Desligar tira o registro dos dois lados, mas a sessão que já está rodando só perde o acesso '
         + 'ao ser reiniciada — não existe comando para remover um diretório de uma sessão viva.'),
+      p('<b>Quando o repositório fica para trás:</b> se o merge acontece no servidor enquanto você '
+        + 'trabalha numa worktree, o checkout principal envelhece sem avisar — e as worktrees novas '
+        + 'nascem a partir dele. O app busca do remoto de tempos em tempos e, quando há atraso, '
+        + 'mostra <b>&lt;branch&gt; está N commits atrás</b> ao expandir o projeto, com um botão '
+        + 'para atualizar. A atualização é sempre <b>fast-forward</b>: se não der, ela recusa em vez '
+        + 'de criar merge ou conflito no seu checkout.'),
     ],
   },
   {
@@ -253,8 +259,13 @@ const SECOES = [
         + 'é lembrada. Com ela recolhida, a fila de atenção continua alcançável por <b>Ctrl+Enter</b> '
         + 'e o resto pela paleta; se sair versão nova, uma bolinha acende no próprio botão, porque '
         + 'o aviso de atualização mora lá dentro.'),
+      p('Cada painel tem uma <b>faixa colorida no topo</b> com a cor do projeto — worktrees do mesmo '
+        + 'projeto usam um tom mais claro da mesma cor, para se lerem como parentes. A mesma cor '
+        + 'aparece à esquerda de cada item na lista de sessões.'),
       lista([
         'Com muitos painéis a grade <b>rola</b> em vez de espremer todo mundo.',
+        '<b>Alt+setas</b> pulam para o terminal ao lado, acima ou abaixo — sem tirar a mão do teclado.',
+        'O painel em que você está <b>não muda de lugar</b> quando outra sessão passa a esperar.',
         'Painel fora da área visível <b>para de desenhar</b> e guarda a saída, escrevendo tudo de uma vez quando volta. Nada se perde.',
         'Clicar num painel dá foco; só o painel focado recebe o teclado. O <b>×</b> fecha e mata o processo de verdade.',
       ]),
@@ -331,6 +342,7 @@ const SECOES = [
         ['Ctrl+Enter', 'Pula para a sessão que espera há mais tempo'],
         ['Ctrl+K', 'Abre a paleta de comandos'],
         ['Ctrl+B', 'Recolhe ou mostra a barra lateral'],
+        ['Alt+setas', 'Pula para o terminal ao lado, acima ou abaixo'],
         ['F1', 'Abre esta ajuda'],
         ['Esc', 'Fecha o que estiver aberto por cima'],
         ['1 2 3', 'Densidade da grade: 1, 2 ou 3 colunas'],

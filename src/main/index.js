@@ -27,6 +27,13 @@ const atalho = require('./atalho');
 // Sem isto, desinstalar o app deixaria os hooks no settings.json do Claude para
 // sempre, e toda sessao passaria a pagar ~310ms por evento tentando falar com
 // um app que nao existe mais.
+// Fica com `includes`, de proposito, e vale registrar por que a alternativa foi
+// recusada: exigir a flag na PRIMEIRA posicao parece mais seguro, mas se um dia
+// o Electron puser qualquer coisa antes dela o desinstalador para de remover os
+// hooks EM SILENCIO -- e ai eles ficam registrados para sempre, que e
+// exatamente o que este bloco existe para evitar. O risco que a posicao evitaria
+// (o relancamento da troca leve repassando argv) nao existe na pratica: um app
+// lancado com esta flag sai antes de virar app.
 if (process.argv.includes('--remover-hooks')) {
   try {
     instalarHooks.desinstalar();
@@ -304,6 +311,14 @@ ipcMain.handle('projetos:adicionar', (_e, caminho, faixa) => {
 ipcMain.handle('worktrees:listar', (_e, projeto) => worktrees.listar(projeto));
 
 ipcMain.handle('worktrees:situacaoInclude', (_e, projeto) => worktrees.situacaoInclude(projeto));
+
+// Leitura pura, sem rede: quanto a base local esta atras do que ja foi buscado.
+ipcMain.handle('git:situacao', (_e, projeto) => worktrees.situacaoRemoto(projeto));
+// Esta toca a rede -- assincrona, com prazo, e proibida de pedir senha.
+ipcMain.handle('git:buscar', (_e, projeto) => worktrees.buscar(projeto));
+// Escreve no checkout do usuario, mas so por fast-forward: sem dialogo porque
+// `--ff-only` nao tem como estragar nada -- ou avanca, ou recusa com motivo.
+ipcMain.handle('git:atualizar', (_e, projeto) => worktrees.atualizar(projeto));
 
 ipcMain.handle('worktrees:diff', (_e, { projeto, caminho }) => worktrees.diff(projeto, caminho));
 
