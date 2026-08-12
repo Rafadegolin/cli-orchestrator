@@ -19,6 +19,7 @@ const metricas = require('./metricas');
 const historico = require('./historico');
 const layouts = require('./layouts');
 const atalho = require('./atalho');
+const uso = require('./uso');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -145,6 +146,7 @@ function criarJanela() {
   janela.on('closed', () => {
     terminais.fecharTodos();
     metricas.parar();
+    uso.parar();
     janela = null;
   });
 
@@ -152,6 +154,7 @@ function criarJanela() {
   estado.definirJanela(janela);
   atualizacao.iniciar(janela);
   metricas.iniciar(janela);
+  uso.iniciar(janela);
   janela.loadFile(path.join(__dirname, '..', 'janela', 'index.html'));
 }
 
@@ -211,6 +214,7 @@ app.on('before-quit', () => {
   eventos.parar();
   atualizacao.parar();
   metricas.parar();
+  uso.parar();
 });
 
 // ---------------------------------------------------------------- IPC
@@ -435,6 +439,7 @@ ipcMain.handle('app:constantes', () => ({
   portaEventos: eventos.PORTA,
   pastaDados: arquivo.PASTA,
   arquivoHooks: instalarHooks.ARQ_SETTINGS,
+  minutosUso: Math.round(uso.MS_ENTRE / 60000),
 }));
 
 ipcMain.handle('ui:carregar', () => preferencias.carregar());
@@ -457,6 +462,11 @@ ipcMain.handle('ui:salvar', (_e, parcial) => {
 ipcMain.handle('app:metricas', () => metricas.agora());
 
 ipcMain.handle('historico:resumo', () => historico.resumo());
+
+// Os quatro numeros do medidor do topo. `detalhe` traz junto a tabela por
+// projeto, que e grande e so o overlay precisa.
+ipcMain.handle('uso:situacao', () => uso.agora());
+ipcMain.handle('uso:detalhe', () => uso.detalhe());
 
 ipcMain.handle('layouts:listar', () => layouts.listar());
 ipcMain.handle('layouts:salvar', (_e, layout) => {

@@ -51,6 +51,13 @@ const gravarBruto = (ui) => fs.writeFileSync(
   checar('valor torto de lateral volta para aberta',
     preferencias.salvar({ lateral: 'talvez' }).lateral === 'aberta', '');
 
+  // --- o medidor de uso no topo -------------------------------------------
+  checar('o medidor de uso nasce VISIVEL', padrao.uso === 'barras', String(padrao.uso));
+  checar('esconder o medidor sobrevive ao salvar e reler',
+    preferencias.salvar({ uso: 'oculto' }).uso === 'oculto', '');
+  checar('valor torto de uso volta para barras',
+    preferencias.salvar({ uso: 'as vezes' }).uso === 'barras', '');
+
   // --- o molde entra pela porta da normalizacao ---------------------------
   const salvo = preferencias.salvar({
     personalizado: { cols: 3, alturaLinha: 200, celulas: [{ c: 1, r: 2 }, { c: 2, r: 1 }] },

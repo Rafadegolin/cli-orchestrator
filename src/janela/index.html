@@ -48,6 +48,25 @@
       <span class="mono" id="lateral-versao"></span>
     </div>
 
+    <!-- Uso do Claude Code: a janela de 5h e a da semana, da CONTA inteira.
+         Tem de ser <button>: a regra de arraste desta barra e por TAG
+         (`#titulo button, #titulo input { -webkit-app-region: no-drag }`), e um
+         <div> aqui nasceria arrastavel e nao receberia clique nem hover.
+         Nasce oculto e so aparece quando ha numero -- medidor vazio no topo da
+         tela parece app quebrado. -->
+    <button id="uso" hidden title="Uso do Claude Code">
+      <span class="uso-par" data-tipo="five_hour">
+        <span class="mono uso-rot">5h</span>
+        <span class="uso-barra"><i></i></span>
+        <span class="mono uso-pct">—</span>
+      </span>
+      <span class="uso-par" data-tipo="seven_day">
+        <span class="mono uso-rot">7d</span>
+        <span class="uso-barra"><i></i></span>
+        <span class="mono uso-pct">—</span>
+      </span>
+    </button>
+
     <button id="btn-busca" title="Buscar sessão, projeto ou comando (Ctrl+K)">
       <span>Buscar sessão, projeto, comando…</span>
       <span class="tecla mono">Ctrl+K</span>
@@ -242,6 +261,16 @@
     </div>
   </div>
 
+  <div id="uso-detalhe" class="overlay" hidden>
+    <div class="historico-caixa">
+      <div class="ajuda-topo">
+        <h2>Uso do Claude Code</h2>
+        <button id="uso-fechar" title="Fechar (Esc)">&times;</button>
+      </div>
+      <div id="uso-corpo"></div>
+    </div>
+  </div>
+
   <div id="diff" class="overlay" hidden>
     <div class="diff-caixa">
       <div class="ajuda-topo">
@@ -358,6 +387,7 @@
 <script src="ajuda.js"></script>
 <script src="modal-projeto.js"></script>
 <script src="historico.js"></script>
+<script src="uso.js"></script>
 <script src="diff.js"></script>
 <script src="enviar-varias.js"></script>
 <script src="layouts.js"></script>

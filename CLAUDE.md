@@ -38,6 +38,8 @@ npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
 npm run teste:fase7       # sessao salva, painel dormindo, retomar
 npm run teste:ui          # tokens, tema, densidade, fontes, paleta, overlays e contraste
 npm run teste:historico   # Node puro, sem app: agregacao de tempo por feature
+npm run teste:uso         # o medidor de uso no topo: leitura, faixas, compressao
+npm run teste:uso-real    # o spike: fala com a API de uso de verdade (nao consome tokens)
 npm run teste:layouts     # Node puro: gravar, substituir e normalizar layouts
 npm run teste:ajuda       # a ajuda no app, e se os numeros dela batem com o codigo
 npm run teste:ligacoes    # mecanica das ligacoes, sem invocar o Claude
@@ -581,6 +583,53 @@ preferencias que o `ui.json` ja guarda. Por isso ficou barato depois da Fase 7 e
   quantas — a mesma regra que fechar o app ja segue.
 - Os painéis voltam **dormindo**, como na Fase 7: religar seis sessoes sozinho e caro e ninguem
   pediu. O "Retomar todas" da lateral esta ali para isso.
+
+## O medidor de uso do Claude, no topo
+
+`src/main/uso.js` + `src/janela/uso.js`. Duas barrinhas na barra de titulo (`5h` e `7d`), com o
+detalhe num overlay. Responde "posso continuar?" sem voce entrar num painel para digitar `/usage` —
+dentro de uma das sessoes que o app existe para voce nao ter de entrar.
+
+- **Nao existe percentual no disco, e isso foi PROCURADO.** Nenhum arquivo de `~/.claude/` guarda
+  utilizacao, janela de reset ou status; grep por `ratelimit|resetsAt|weekly|utilization` em todos
+  os `.json` de la e nos 710 `.jsonl` de transcrito da zero. E nao ha subcomando `claude usage` —
+  `/usage` e so da TUI. Ou se consulta a rede, ou nao se sabe.
+- **O contrato saiu de um spike, nao de documentacao** (`testes/uso-real.js`, contra o CLI 2.1.220):
+  `GET https://api.anthropic.com/api/oauth/usage` com `Authorization: Bearer <accessToken>` devolve
+  200 e, no CORPO, `five_hour`/`seven_day` (`utilization` + `resets_at`) mais um array `limits[]` com
+  `kind` (`session`/`weekly_all`/`weekly_scoped`), `percent`, `severity` e `resets_at`.
+  - Duas suposicoes tiradas da leitura do binario que o spike **desmentiu**: nao vem cabecalho
+    `anthropic-ratelimit-*` nenhum nesta resposta, e o `anthropic-beta` e **dispensavel** (200 sem
+    ele). O primeiro plano lia cabecalho e teria lido vazio.
+  - `limits[]` e a fonte preferida porque traz `severity` — o servidor dizendo se esta apertado vale
+    mais que um limiar de porcentagem inventado aqui. Os objetos soltos ficam de reserva: se a forma
+    mudar, o app perde a cor mas nao perde o numero.
+  - Chaves de codinome (`tangelo`, `iguana_necktie`, `nimbus_quill`…) vem nulas e sao ignoradas de
+    proposito. Nao "conserte" o parser para le-las.
+- **O token e lido no instante da chamada e morre ali.** Nao vai para arquivo nosso, nao vai para a
+  janela, nao vai para log — nem em caso de erro. Com `expiresAt` vencido o app **nem tenta**: quem
+  renova token e uma sessao do Claude, e e isso que a tela diz. O app nao faz refresh de credencial
+  de ninguem.
+- **Sem consulta, o medidor mostra `—`, nunca um numero estimado.** Chegou a existir uma varredura
+  dos transcritos que somava tokens por projeto (com dedupe por `message.id`, porque o `usage` das
+  linhas e cumulativo e somar linha a linha inflava 2,4x). Foi **removida a pedido**: a tela mostra
+  so as duas barras. Se ela voltar um dia, o dedupe e o primeiro teste a escrever.
+- Relogio de 5min, primeira em 15s, **so com a janela visivel** (a guarda do `metricas.js`, nao a do
+  updater), e emite so quando algum valor muda.
+  - **Um tique perdido nao pode custar cinco minutos.** Abrir o app minimizado pulava o primeiro e o
+    proximo so viria no ciclo seguinte, com o medidor vazio e nada explicando. Dai o `aoVoltar` nos
+    eventos `show`/`restore`/`focus` e uma retentativa unica 60s depois de falhar — uma so, para
+    ficar offline nao virar marretada na rede. Foi o teste que pegou isso.
+- Erro **nunca** vira dialogo, como no updater e no `gitDeRede`.
+- `src/main/claude-dados.js` passou a ser o unico lugar que conhece o layout de `~/.claude` (raiz,
+  codificacao de caminho e credencial); `projetos.conversas` foi para la. A env **`ORQ_CLAUDE`** e
+  irma do `ORQ_DADOS` e reaponta a pasta — e o que permite testar o modo sem credencial sem tocar na
+  credencial real.
+- O botao TEM de ser `<button>`: a regra de arraste da barra de titulo e por TAG
+  (`#titulo button, #titulo input { -webkit-app-region: no-drag }`), e um `<div>` ali nasce
+  arrastavel e **nao recebe clique nem hover**.
+- Compressao em tres degraus (1240 / 1040 / 940px): caem os rotulos, depois a barra da semana,
+  depois a semana inteira. A de 5h e a ultima a sair porque e a que muda enquanto voce trabalha.
 
 ## Historico de tempo por feature
 

@@ -178,6 +178,24 @@
 
     lista.push({
       tag: 'ajuda',
+      rotulo: 'Ver uso do Claude Code',
+      dica: 'sessão de 5h e semana',
+      correr: () => window.OrqUso?.abrir(),
+    });
+
+    // O medidor pode ser escondido, e ai este item e o unico caminho de volta --
+    // o proprio botao que se alternaria some junto.
+    lista.push({
+      tag: 'tema',
+      rotulo: window.OrqCasca?.ui().uso === 'oculto'
+        ? 'Mostrar o medidor de uso no topo'
+        : 'Ocultar o medidor de uso no topo',
+      dica: '',
+      correr: () => window.OrqUso?.alternar(),
+    });
+
+    lista.push({
+      tag: 'ajuda',
       rotulo: 'Abrir Como usar',
       dica: 'F1',
       correr: () => window.OrqAjuda.abrir(),

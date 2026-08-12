@@ -72,6 +72,12 @@ contextBridge.exposeInMainWorld('orq', {
   metricas: () => ipcRenderer.invoke('app:metricas'),
   historico: () => ipcRenderer.invoke('historico:resumo'),
 
+  // Uso do Claude Code. `uso()` traz so os quatro numeros do medidor do topo;
+  // `usoDetalhe()` traz tambem a tabela por projeto, e por isso e sob demanda.
+  uso: () => ipcRenderer.invoke('uso:situacao'),
+  usoDetalhe: () => ipcRenderer.invoke('uso:detalhe'),
+  aoMudarUso: (fn) => ipcRenderer.on('uso:estado', (_e, u) => fn(u)),
+
   layoutsListar: () => ipcRenderer.invoke('layouts:listar'),
   layoutsSalvar: (layout) => ipcRenderer.invoke('layouts:salvar', layout),
   layoutsRemover: (nome) => ipcRenderer.invoke('layouts:remover', nome),

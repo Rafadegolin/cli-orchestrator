@@ -11,6 +11,7 @@ const os = require('os');
 const path = require('path');
 
 const arquivo = require('./arquivo');
+const claude = require('./claude-dados');
 
 const NOME = 'projetos.json';
 const PASTA = arquivo.PASTA;
@@ -246,22 +247,15 @@ function renomear(id, nome) {
 
 // Quantas conversas o Claude Code ja guardou para esta pasta.
 //
-// Ele grava os transcritos em `~/.claude/projects/<caminho-codificado>/*.jsonl`,
-// e a codificacao (conferida em 19 pastas reais desta maquina) troca `:`, `\`,
-// `/` e `.` por `-`. Isso e layout INTERNO do CLI, nao contrato: se mudar, a
-// contagem vira zero e o app so deixa de oferecer o "retomar" -- degrada sem
-// quebrar, e por isso da para depender disso sem medo.
+// A mecanica (onde fica a pasta e como o caminho e codificado) mora no
+// `claude-dados.js`, que e o unico lugar do app que conhece o layout interno do
+// CLI. Se ele mudar, a contagem vira zero e o app so deixa de oferecer o
+// "retomar" -- degrada sem quebrar.
 //
 // Ressalva: worktree tem pasta propria, porque o cwd e outro. A contagem de um
 // projeto nao inclui as conversas das worktrees dele.
 function conversas(caminho) {
-  try {
-    const codificado = path.resolve(String(caminho)).replace(/[:\\/.]/g, '-');
-    const pasta = path.join(os.homedir(), '.claude', 'projects', codificado);
-    return fs.readdirSync(pasta).filter((f) => f.endsWith('.jsonl')).length;
-  } catch {
-    return 0;
-  }
+  return claude.conversas(caminho);
 }
 
 module.exports = {

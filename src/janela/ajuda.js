@@ -20,6 +20,7 @@ let constantes = {
   portaEventos: 47615,
   pastaDados: '~/.orquestrador',
   arquivoHooks: '~/.claude/settings.json',
+  minutosUso: 5,
 };
 
 const p = (texto) => ({ tipo: 'p', texto });
@@ -305,6 +306,21 @@ const SECOES = [
         'A busca <b>ignora acento</b>: procurar por <code>sessao</code> acha "sessão".',
         'Setas para navegar, <b>Enter</b> para executar o primeiro, <b>Esc</b> para fechar.',
       ]),
+    ],
+  },
+  {
+    id: 'uso',
+    titulo: 'Quanto do seu Claude já foi',
+    blocos: [
+      p('O medidor no topo mostra duas coisas: <b>5h</b> é a janela da sessão atual e <b>7d</b> é a '
+        + 'semana. São da <b>conta inteira</b> — incluem o que você gastou fora deste app. É o mesmo '
+        + 'que o <code>/usage</code> responde dentro de um painel, sem você precisar entrar em um.'),
+      p('<b>Clique nele</b> (ou procure "uso" na paleta) para ver as duas barras grandes com a hora '
+        + 'do reset de cada uma.'),
+      aviso('Se aparecer <b>—</b> no lugar da porcentagem, é porque a consulta não foi: sem internet, '
+        + 'ou com a credencial do Claude vencida — abrir uma sessão renova. O app <b>não estima</b> '
+        + 'esse número por conta própria. Ele consulta a cada {minutosUso} minutos, e só com a '
+        + 'janela à vista.'),
     ],
   },
   {

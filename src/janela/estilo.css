@@ -267,6 +267,81 @@ button:focus-visible, input:focus-visible {
   padding: 1px 5px;
 }
 
+/* ---- o medidor de uso do Claude Code -------------------------------------
+
+   Fica ANTES do `margin-left:auto` do #btn-busca, entao ele encosta na marca e
+   o resto continua empurrado para a direita.
+
+   Nada aqui e animado alem da largura da barra: este elemento vive no topo da
+   janela e redesenha junto com ela. A licao do pulso das bolinhas (2,39% de CPU
+   parado, contra 0,02% depois de trocar box-shadow por transform) vale aqui
+   mesmo com um elemento so. */
+#uso {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: 6px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg2);
+}
+
+#uso:hover { border-color: var(--line2); }
+
+.uso-par {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.uso-rot {
+  font-size: 9.5px;
+  color: var(--fg3);
+  flex: 0 0 auto;
+}
+
+.uso-barra {
+  flex: 0 0 44px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.uso-barra i {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 2px;
+  background: var(--acc);
+  transition: width .3s ease;
+}
+
+/* As faixas. `apertado` e `estourando` sao escritos no PAR, e nao na barra, para
+   o numero acompanhar a cor -- ler "91%" em verde ao lado de uma barra vermelha
+   seria pior que nao ter cor nenhuma. */
+.uso-par.apertado .uso-barra i { background: var(--warn); }
+.uso-par.estourando .uso-barra i { background: var(--danger); }
+.uso-par.apertado .uso-pct { color: var(--warn); }
+.uso-par.estourando .uso-pct { color: var(--danger); }
+
+.uso-pct {
+  font-size: 10.5px;
+  color: var(--fg2);
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Sem percentual (sem credencial, sem rede), o medidor mostra tokens medidos --
+   nunca uma porcentagem inventada. A barra sai de cena porque nao ha teto
+   contra o que desenha-la. */
+#uso.sem-limite .uso-barra { display: none; }
+#uso.sem-limite .uso-pct { color: var(--fg3); }
+
 #btn-busca {
   margin-left: auto;
   display: flex;
@@ -1894,12 +1969,66 @@ button.primario:hover {
   animation: orqPop .24s ease;
 }
 
-#historico-corpo {
+#historico-corpo, #uso-corpo {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding: 18px 22px 24px 22px;
 }
+
+/* ------------------------------------------------ o detalhe do uso ---- */
+
+/* As duas barras grandes. Mesmos tokens do medidor do topo, so que com espaco
+   para dizer por extenso o que la e abreviado. */
+.uso-linha {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.uso-linha h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.uso-reset {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--fg3);
+  font-family: var(--mono);
+}
+
+.uso-grande {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line);
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+
+.uso-grande i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--acc);
+}
+
+.uso-bloco.apertado .uso-grande i { background: var(--warn); }
+.uso-bloco.estourando .uso-grande i { background: var(--danger); }
+.uso-bloco.apertado .uso-num { color: var(--warn); }
+.uso-bloco.estourando .uso-num { color: var(--danger); }
+
+.uso-num {
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* O ultimo bloco nao precisa da folga de baixo: a nota vem logo depois. */
+.uso-bloco:last-of-type .uso-grande { margin-bottom: 10px; }
 
 .historico-tabela td:first-child { font-family: var(--ui); }
 
@@ -1912,6 +2041,19 @@ button.primario:hover {
   font-size: 12px;
   color: var(--fg3);
   line-height: 1.6;
+}
+
+/* O aviso de que a metade oficial nao chegou. Nao e erro: o app continua util
+   com os tokens medidos, e a faixa so explica por que nao ha percentual. */
+.uso-aviso {
+  margin: 0 0 18px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--warn-linha);
+  background: var(--warnd);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--fg2);
+  line-height: 1.55;
 }
 
 /* ----------------------------------------------------------------- diff */
@@ -2451,6 +2593,28 @@ button.primario:hover {
 @media (max-width: 1320px) {
   #barra-dica { display: none; }
   .campo-feature { min-width: 168px; }
+}
+
+/* O medidor de uso cede em tres degraus, do menos informativo para o mais.
+   A barra de titulo tem 38px fixos e ja reserva ~140px para os botoes do
+   Windows: a 924px (o minWidth da janela) o que sobra e pouco, e o teste de
+   compressao exige que NADA estoure em 1440, 1100 e 924.
+
+   O que cai primeiro sao os rotulos, porque o `title` do botao continua dizendo
+   qual janela e qual. Depois cai a barra da SEMANA, nao a das 5h: a de 5h e a
+   que muda enquanto voce trabalha, e portanto a que vale olhar. */
+@media (max-width: 1240px) {
+  .uso-rot { display: none; }
+  #uso { gap: 9px; }
+}
+
+@media (max-width: 1040px) {
+  .uso-par[data-tipo="seven_day"] .uso-barra { display: none; }
+}
+
+@media (max-width: 940px) {
+  .uso-par[data-tipo="seven_day"] { display: none; }
+  #uso { padding: 3px 6px; }
 }
 
 /* ================================================ movimento sob demanda */

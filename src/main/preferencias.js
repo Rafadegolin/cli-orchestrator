@@ -33,6 +33,7 @@ const PADRAO = {
   densidade: 2,
   ordem: 'urgencia',
   lateral: 'aberta',
+  uso: 'barras',
   personalizado: MOLDE_PADRAO,
 };
 
@@ -69,6 +70,10 @@ function normalizar(bruto) {
     // atencao e o aviso de versao nova, e um app que nasce escondendo isso
     // parece quebrado para quem abre pela primeira vez.
     lateral: b.lateral === 'fechada' ? 'fechada' : 'aberta',
+    // O medidor de uso do topo. O padrao e MOSTRAR: ele responde "posso
+    // continuar?", e um app que esconde isso por padrao devolve a pergunta para
+    // dentro do terminal, que e de onde ela veio.
+    uso: b.uso === 'oculto' ? 'oculto' : 'barras',
     personalizado: normalizarMolde(b.personalizado),
   };
 }
