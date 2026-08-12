@@ -34,8 +34,28 @@ jobs:
         run: npm ci
 
       # O Electron 43 removeu o postinstall: o binario nao vem no npm ci.
+      #
+      # Sao ~100 MB puxados do GitHub a cada build, e este passo nao tinha rede
+      # de seguranca nenhuma: um `TypeError: fetch failed` ali derrubou a release
+      # inteira antes mesmo de ela ser criada. O cache evita a ida a rede quando
+      # a versao do Electron nao mudou, e as tres tentativas cobrem a instabilidade
+      # que sobrar.
+      - name: Cache do binario do Electron
+        uses: actions/cache@v4
+        with:
+          path: ~/AppData/Local/electron/Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Baixar o binario do Electron
-        run: npx --no-install install-electron
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            if npx --no-install install-electron; then exit 0; fi
+            echo "tentativa $i falhou; nova tentativa em ${i}0s"
+            sleep "${i}0"
+          done
+          echo "as tres tentativas falharam"
+          exit 1
 
       - name: Conferir que o node-pty tem binario nativo
         shell: bash
