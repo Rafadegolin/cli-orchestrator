@@ -61,6 +61,12 @@ fs.cpSync(path.join(EMPACOTADO, 'app.asar'), path.join(SAIDA, 'resources', 'app.
 fs.cpSync(path.join(EMPACOTADO, 'app.asar.unpacked'),
   path.join(SAIDA, 'resources', 'app.asar.unpacked'), { recursive: true });
 
+// O icone SOLTO, ao lado do executavel. Nao e redundancia com o que ja esta no
+// asar: quando voce fixa o app na barra de tarefas, o Windows guarda um atalho
+// e tira o icone de um ARQUIVO -- e o electron.exe original nao tem o nosso.
+// O `src/main/atalho.js` procura exatamente por este caminho.
+fs.cpSync(path.join(RAIZ, 'recursos', 'icone.ico'), path.join(SAIDA, 'icone.ico'));
+
 // Sem ele o electron-updater nao sabe onde procurar versao nova. O aviso no
 // rodape continua sendo so "Baixar a versao X" -- a deteccao de portatil
 // (ausencia de desinstalador ao lado do executavel) vale aqui tambem.
@@ -93,9 +99,13 @@ fs.writeFileSync(path.join(SAIDA, 'LEIA-ME.txt'), [
   '  app nao e assinado. Aqui o executavel e o proprio electron.exe original,',
   '  que o Windows ja conhece, e o app vai ao lado dele em resources/app.asar.',
   '',
+  'Atalho no menu Iniciar, e fixar na barra de tarefas',
+  '  Abra o app e use Ctrl+K -> "Criar atalho no menu Iniciar". Fixe A PARTIR',
+  '  do atalho: fixando direto o executavel, o Windows tira o icone do proprio',
+  '  electron.exe e voce ve o icone do Electron.',
+  '',
   'O que muda em relacao ao instalador',
   '  - o processo aparece como electron.exe no Gerenciador de Tarefas;',
-  '  - nao ha atalho no menu Iniciar (crie um para Orquestrador.cmd se quiser);',
   '  - a atualizacao nao se aplica sozinha: o aviso abre a pagina da release.',
   '',
   'Seus dados ficam em %USERPROFILE%\\.orquestrador, fora desta pasta.',

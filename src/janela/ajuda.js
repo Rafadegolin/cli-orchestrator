@@ -296,6 +296,7 @@ const SECOES = [
         ['Não consigo arquivar um worktree', 'A etiqueta dele diz o motivo: sessão viva, alteração sem commit ou commit fora da base.'],
         ['O painel abriu mas o comando não rodou', 'Pode estar na fila de partida. A etiqueta <b>na fila</b> aparece no cabeçalho; clique nela para começar agora.'],
         ['Cliquei em Aprovar e nada aconteceu', 'O pedido não estava mais na tela do terminal — provavelmente já foi respondido. O app avisa e leva você até lá em vez de responder às cegas.'],
+        ['Fixei na barra de tarefas e virou o ícone do Electron', 'Fixar guarda um atalho para o executável, e no pacote compatível com o SAC o executável é o do próprio Electron. Use <b>Ctrl+K → Criar atalho no menu Iniciar</b> e fixe a partir dele.'],
       ]),
       p('O servidor que recebe os avisos do Claude Code escuta em <code>127.0.0.1:{portaEventos}</code>, '
         + 'só nesta máquina. Com o app fechado, os hooks falham em silêncio e não atrapalham suas sessões.'),

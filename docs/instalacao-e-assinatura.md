@@ -75,12 +75,21 @@ terminal de verdade. `npm run teste:sac` refaz essa prova.
 O preço é cosmético, e está no `LEIA-ME.txt` do pacote:
 
 - o processo aparece como **electron.exe** no Gerenciador de Tarefas;
-- não há atalho no menu Iniciar — abre-se pelo `Orquestrador.cmd` que vai junto;
 - a atualização não se aplica sozinha (o aviso abre a página da release), como já acontecia no
   portátil.
 
-A barra de tarefas continua com o ícone certo: como não há executável nosso para carregá-lo, quem o
-veste é o `icon` da `BrowserWindow`, e por isso o `recursos/icone.ico` entra no asar.
+**O ícone precisou de duas coisas, não uma.** A janela aberta veste o `icon` da `BrowserWindow` — por
+isso o `recursos/icone.ico` entra no asar. Mas **fixar na barra de tarefas não guarda a janela**:
+guarda um atalho para o executável, e o Windows lê o ícone dos recursos do `.exe`, que é o do
+Electron. Daí `Ctrl+K → Criar atalho no menu Iniciar`, que grava um `.lnk` com o nosso `.ico` e o
+mesmo `AppUserModelID` que o app declara — é esse id que faz o Windows tratar a janela aberta e o
+atalho fixado como a mesma coisa. O `.lnk` é criado na sua máquina, e não vai dentro do zip: ele
+grava caminho absoluto e viajaria quebrado.
+
+**Uma armadilha que só apareceu aqui:** `app.isPackaged` responde pelo **nome do executável**, e como
+o nosso se chama `electron.exe`, o app se via em desenvolvimento. O updater se desligava sozinho — o
+aviso de versão nova simplesmente nunca chegaria, sem nenhum erro. A pergunta certa é se o código
+está sendo lido de dentro de um `.asar`.
 
 **A garantia do pacote inteiro é uma linha:** o script compara o SHA-256 do `electron.exe` copiado
 com o do npm e aborta se diferirem. Se algum passo tocar no executável, ele volta a ser bloqueado — e

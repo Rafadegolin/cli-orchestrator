@@ -111,6 +111,41 @@ async function soltar(cdp) {
     JSON.stringify(titulo));
   checar('e reserva a area dos botoes de janela', titulo.reserva > 40, `${titulo.reserva}px`);
 
+  // --- 2b. a marca e a MESMA do icone do app ------------------------------
+  //
+  // Ela era um quadrado verde com um furo, herdado do prototipo, enquanto o
+  // icone do app e a grade de quatro painéis com as bolinhas de status. Duas
+  // marcas diferentes para o mesmo programa.
+  const marca = JSON.parse(await cdp.avaliar(`(() => {
+    const svg = document.querySelector('.marca-icone');
+    const vazio = document.querySelector('.vazio-marca');
+    const cores = (el) => [...(el?.querySelectorAll('circle') || [])]
+      .map(c => c.getAttribute('fill').toLowerCase());
+    return JSON.stringify({
+      ehSvg: svg?.tagName.toLowerCase(),
+      paineis: svg?.querySelectorAll('rect[rx]').length,
+      bolinhas: cores(svg),
+      vazioIgual: JSON.stringify(cores(vazio)) === JSON.stringify(cores(svg)),
+    });
+  })()`));
+  checar('a marca do cabecalho e um svg', marca.ehSvg === 'svg', marca.ehSvg);
+  // Quatro painéis (mais o fundo) e as quatro bolinhas de status, na ordem do
+  // icone: esperando, rodando, terminou, dormindo.
+  checar('ela desenha os quatro painéis do icone', marca.paineis === 5, String(marca.paineis));
+  checar('com as quatro cores de status',
+    JSON.stringify(marca.bolinhas) === JSON.stringify(['#ffb454', '#3ddc97', '#7aa2f7', '#7d8690']),
+    JSON.stringify(marca.bolinhas));
+  checar('e a marca da tela vazia e a mesma', marca.vazioIgual, '');
+
+  // --- 2c. o atalho recusa fora de app empacotado ------------------------
+  //
+  // Aqui o executavel e o electron.exe do node_modules: um atalho para ele
+  // abriria a tela padrao do Electron, e nao este app.
+  const semAtalho = JSON.parse(await cdp.avaliar(
+    '(async () => JSON.stringify(await window.orq.atalhoCriar()))()'));
+  checar('em desenvolvimento, criar atalho recusa com motivo',
+    !!semAtalho.erro && !semAtalho.ok, JSON.stringify(semAtalho));
+
   // --- 3. tema ------------------------------------------------------------
   await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'claro' })`);
   await esperar(400);

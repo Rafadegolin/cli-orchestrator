@@ -13,7 +13,24 @@
        titleBarOverlay: e o que preserva o Snap Layouts. A faixa e nossa. -->
   <header id="titulo">
     <div class="marca">
-      <span class="marca-icone"></span>
+      <!-- A MESMA marca do icone do app: quatro painéis, cada um com a bolinha
+           do seu status. Ela e desenhada aqui em vez de vir do icone.png porque
+           18px de PNG reduzido fica sujo -- e porque o icone tem de existir
+           tambem quando o app roda do codigo, onde nao ha .ico empacotado.
+           As cores sao literais de proposito: logo nao muda com o tema. -->
+      <svg class="marca-icone" viewBox="0 0 24 24" aria-hidden="true">
+        <rect width="24" height="24" rx="7" fill="#0d1014"/>
+        <g fill="#212932">
+          <rect x="3.6" y="3.6" width="7.6" height="7.6" rx="2.2"/>
+          <rect x="12.8" y="3.6" width="7.6" height="7.6" rx="2.2"/>
+          <rect x="3.6" y="12.8" width="7.6" height="7.6" rx="2.2"/>
+          <rect x="12.8" y="12.8" width="7.6" height="7.6" rx="2.2"/>
+        </g>
+        <circle cx="6.2" cy="6.2" r="1.15" fill="#ffb454"/>
+        <circle cx="15.4" cy="6.2" r="1.15" fill="#3ddc97"/>
+        <circle cx="6.2" cy="15.4" r="1.15" fill="#7aa2f7"/>
+        <circle cx="15.4" cy="15.4" r="1.15" fill="#7d8690"/>
+      </svg>
       <span class="marca-nome">Orquestrador</span>
       <span class="mono" id="lateral-versao"></span>
     </div>
@@ -118,7 +135,32 @@
         <div id="grade"></div>
 
         <div id="vazio">
-          <div class="vazio-marca"><span></span></div>
+          <!-- A mesma marca do cabecalho, no tamanho em que as linhas de texto
+               dos painéis ainda se leem -- e ai ela vira a promessa da tela:
+               quatro sessoes, cada uma com o seu status. -->
+          <svg class="vazio-marca" viewBox="0 0 24 24" aria-hidden="true">
+            <rect width="24" height="24" rx="7" fill="#0d1014"/>
+            <g fill="#212932">
+              <rect x="3.6" y="3.6" width="7.6" height="7.6" rx="2.2"/>
+              <rect x="12.8" y="3.6" width="7.6" height="7.6" rx="2.2"/>
+              <rect x="3.6" y="12.8" width="7.6" height="7.6" rx="2.2"/>
+              <rect x="12.8" y="12.8" width="7.6" height="7.6" rx="2.2"/>
+            </g>
+            <g fill="#39434e">
+              <rect x="5.1" y="8" width="4.6" height=".62" rx=".31"/>
+              <rect x="5.1" y="9.4" width="3.1" height=".62" rx=".31"/>
+              <rect x="14.3" y="8" width="4.6" height=".62" rx=".31"/>
+              <rect x="14.3" y="9.4" width="3.1" height=".62" rx=".31"/>
+              <rect x="5.1" y="17.2" width="4.6" height=".62" rx=".31"/>
+              <rect x="5.1" y="18.6" width="3.1" height=".62" rx=".31"/>
+              <rect x="14.3" y="17.2" width="4.6" height=".62" rx=".31"/>
+              <rect x="14.3" y="18.6" width="3.1" height=".62" rx=".31"/>
+            </g>
+            <circle cx="6.2" cy="6.2" r="1.15" fill="#ffb454"/>
+            <circle cx="15.4" cy="6.2" r="1.15" fill="#3ddc97"/>
+            <circle cx="6.2" cy="15.4" r="1.15" fill="#7aa2f7"/>
+            <circle cx="15.4" cy="15.4" r="1.15" fill="#7d8690"/>
+          </svg>
           <div class="vazio-texto">
             <h2>Nenhuma sessão aberta</h2>
             <p>Cadastre um repositório, digite o nome da sessão e o Orquestrador cria o worktree,

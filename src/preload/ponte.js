@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('orq', {
   includeCriar: (projeto, linhas, confirmar = true) =>
     ipcRenderer.invoke('worktrees:criarInclude', { projeto, linhas, confirmar }),
 
+  atalhoCriar: () => ipcRenderer.invoke('atalho:criar'),
+  atalhoExiste: () => ipcRenderer.invoke('atalho:existe'),
+
   hooksSituacao: () => ipcRenderer.invoke('hooks:situacao'),
   hooksInstalar: () => ipcRenderer.invoke('hooks:instalar'),
   hooksDesinstalar: () => ipcRenderer.invoke('hooks:desinstalar'),

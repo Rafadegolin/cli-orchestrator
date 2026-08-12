@@ -137,7 +137,19 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
     nao abre — por isso o script compara o SHA-256 com o do npm e aborta se diferir. Renomear para
     `Orquestrador.exe` e a "melhoria" tentadora que reintroduz o bug.
   - O icone da barra de tarefas passou a vir do `icon` da `BrowserWindow` (e `recursos/icone.ico`
-    entrou no `files:` do asar): aqui nao ha executavel nosso para carrega-lo.
+    entrou no `files:` do asar): aqui nao ha executavel nosso para carrega-lo. **Isso cobre a janela
+    aberta, mas nao o FIXAR**: ao fixar, o Windows guarda um atalho e le o icone dos recursos do
+    `.exe` — que e o do Electron. Dai `src/main/atalho.js`, que cria um `.lnk` no menu Iniciar com o
+    nosso `.ico` e o `appUserModelId`, mais `app.setAppUserModelId` no `index.js` com o MESMO id (e
+    ele que faz o Windows entender que a janela aberta e aquele atalho). O `.lnk` e criado na maquina
+    de quem usa, pela paleta: ele grava caminho absoluto e viajaria quebrado dentro do zip.
+- **`app.isPackaged` MENTE neste projeto, e a falha e muda.** O Electron responde pelo NOME do
+  executavel (`electron.exe` -> "nao empacotado"), e o pacote `-sac` roda sobre exatamente esse nome.
+  O updater inteiro se desligava sozinho: nenhum aviso de versao nova, para sempre, sem um erro
+  sequer. `src/main/empacotamento.js` pergunta o que interessa — se o codigo esta sendo lido de dentro
+  de um `.asar`. O `electron-updater` tem a mesma checagem por dentro, entao no `-sac` ele ainda
+  precisa de `forceDevUpdateConfig = true` mais `setFeedURL` (que dispensa ler o `app-update.yml`).
+  Aplicar segue desligado ali, porque o layout e sempre `portatil`.
   - O zip sai pelo **bsdtar do Windows** (`%SystemRoot%\System32\tar.exe`), e cada detalhe custou uma
     tentativa: o `Compress-Archive` morre no meio porque o Electron distribui arquivos com data fora
     da faixa do formato zip; `tar` solto no PATH acha o GNU tar do Git, que nao escreve zip;
@@ -177,6 +189,11 @@ Onde o documento descreve o app errado, vale o app. Dois pontos: `linkSessions` 
 de uma sessao para outra (e `--add-dir`, acesso a pasta, mutuo), e os 4 status do doc 05 sao um
 subconjunto dos 5 que os hooks entregam — `terminou` (evento `Stop`) fica, com cor propria.
 
+- **A marca da tela e a MESMA do icone do app** (grade de quatro painéis com as bolinhas de status),
+  desenhada como `<svg>` inline no `index.html` — em dois tamanhos, com as linhas de texto so no
+  grande. Ela **nao responde ao tema**: e a mesma imagem que aparece na barra de tarefas, e marca que
+  troca de cor deixa de ser marca. A anterior (quadrado verde com um furo) veio do prototipo e nao
+  tinha relacao nenhuma com o icone.
 - **Tokens em `estilo.css`**, tema claro e `html.claro` sobrescrevendo as MESMAS variaveis. Nao
   existe regra `.claro .algumacoisa` no arquivo; se voce precisar de uma, o token que falta e o
   problema. **O terminal fica escuro nos dois temas** (`--term`/`--termfg`, repetidos como literais

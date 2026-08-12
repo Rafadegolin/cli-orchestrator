@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn, execSync } = require('child_process');
-const { conectar, checar, encerrar, esperar } = require('./cdp');
+const { conectar, checar, encerrar, esperar, exigirPortaLivre } = require('./cdp');
 
 const RAIZ = path.resolve(__dirname, '..');
 const EXE = path.join(RAIZ, 'dist', 'win-unpacked', 'Orquestrador.exe');
@@ -28,6 +28,10 @@ const UDATA = path.join(RAIZ, '.dev-udata', 'empacotado');
     execSync('powershell -NoProfile -Command "Get-Process Orquestrador -ErrorAction SilentlyContinue | Stop-Process -Force"');
   } catch { /* nao havia nenhuma */ }
   await esperar(1000);
+
+  // Esta suite sobe o proprio app: com a porta ocupada ela testaria a instancia
+  // que ja estava la, e nao o pacote.
+  await exigirPortaLivre();
 
   fs.mkdirSync(UDATA, { recursive: true });
   // Com o Smart App Control ligado, ESTE executavel e bloqueado -- o Windows

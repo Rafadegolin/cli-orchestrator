@@ -132,6 +132,18 @@
     });
 
     lista.push({
+      tag: 'app',
+      rotulo: 'Criar atalho no menu Iniciar',
+      dica: 'para fixar com o icone certo',
+      correr: async () => {
+        const r = await window.orq.atalhoCriar();
+        window.OrqToast?.mostrar(r.erro
+          ? `Não deu para criar o atalho: ${r.erro}`
+          : 'Atalho criado no menu Iniciar — fixe a partir dali');
+      },
+    });
+
+    lista.push({
       tag: 'ajuda',
       rotulo: 'Ver tempo por feature',
       dica: '',

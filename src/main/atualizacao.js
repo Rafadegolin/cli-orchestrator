@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 const terminais = require('./terminais');
+const { ehEmpacotado } = require('./empacotamento');
 
 const PAGINA_RELEASES = 'https://github.com/Rafadegolin/cli-orchestrator/releases/latest';
 
@@ -67,7 +68,7 @@ function iniciar(j) {
 
   // Fora de um app empacotado nao ha o que consultar: o electron-updater
   // precisa do app.asar e do arquivo de metadados que o electron-builder gera.
-  if (!app.isPackaged) {
+  if (!ehEmpacotado()) {
     console.log('[atualizacao] app nao empacotado, updater desligado');
     return;
   }
@@ -91,6 +92,20 @@ function iniciar(j) {
   // mandar para a pagina da release, onde esta o zip novo.
   atualizador.autoDownload = !situacao.portatil;
   atualizador.autoInstallOnAppQuit = !situacao.portatil;
+
+  // O pacote compativel com o SAC roda sobre o electron.exe original, e por
+  // causa do NOME dele o proprio electron-updater se acha em desenvolvimento e
+  // recusa a checagem ("application is not packed"). Nada estoura -- o aviso de
+  // versao nova simplesmente nunca chegava.
+  //
+  // As duas linhas resolvem sem tocar no caminho de instalacao: a primeira
+  // libera a checagem, e a segunda dispensa a leitura do app-update.yml,
+  // apontando o repositorio direto. Aplicar continua desligado aqui, porque
+  // este layout e sempre `portatil`.
+  if (!app.isPackaged) {
+    atualizador.forceDevUpdateConfig = true;
+    atualizador.setFeedURL({ provider: 'github', owner: 'Rafadegolin', repo: 'cli-orchestrator' });
+  }
 
   atualizador.on('update-available', (info) => {
     situacao.disponivel = info?.version || null;

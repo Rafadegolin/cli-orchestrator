@@ -20,7 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn, execSync } = require('child_process');
-const { conectar, checar, encerrar, esperar } = require('./cdp');
+const { conectar, checar, encerrar, esperar, exigirPortaLivre } = require('./cdp');
 
 const RAIZ = path.resolve(__dirname, '..');
 const VERSAO = require(path.join(RAIZ, 'package.json')).version;
@@ -58,6 +58,10 @@ const hash = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).diges
       + 'Where-Object { $_.Path -like \'*-sac*\' } | Stop-Process -Force"');
   } catch { /* nao havia nenhuma */ }
   await esperar(1000);
+
+  // Depois de matar as nossas, a porta tem de estar livre. Se ainda houver
+  // alguem, e outro app (o `npm run dev`) -- e o teste rodaria contra ele.
+  await exigirPortaLivre();
 
   fs.mkdirSync(UDATA, { recursive: true });
   const app = spawn(EXE, ['--remote-debugging-port=9222', `--user-data-dir=${UDATA}`], {
@@ -103,6 +107,56 @@ const hash = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).diges
   }
   checar('o node-pty abriu terminal de verdade',
     est.status === 'rodando' && /\w/.test(est.texto), JSON.stringify(est).slice(0, 160));
+
+  // O ATALHO, que e o unico jeito de o icone sobreviver a "fixar na barra de
+  // tarefas": fixando o executavel direto, o Windows tira o icone dos recursos
+  // do proprio .exe -- e aqui o .exe e o electron.exe original, que nao pode
+  // ser tocado.
+  //
+  // O teste devolve o menu Iniciar ao estado anterior: criar atalho e uma acao
+  // do USUARIO, nao um efeito de rodar a suite.
+  const LNK = path.join(process.env.APPDATA,
+    'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Orquestrador.lnk');
+  const jaExistia = fs.existsSync(LNK);
+
+  const r = JSON.parse(await cdp.avaliar('(async () => JSON.stringify(await window.orq.atalhoCriar()))()'));
+  checar('o app cria o atalho no menu Iniciar', r.ok === true, r.erro || r.caminho);
+
+  if (r.ok) {
+    const props = execSync('powershell -NoProfile -Command "'
+      + `$s = (New-Object -ComObject WScript.Shell).CreateShortcut('${LNK}'); `
+      + `$p = (New-Object -ComObject Shell.Application).Namespace('${path.dirname(LNK)}'); `
+      + '$i = $p.ParseName(\'Orquestrador.lnk\'); '
+      + 'Write-Output $s.TargetPath; Write-Output $s.IconLocation; '
+      + 'Write-Output $i.ExtendedProperty(\'System.AppUserModel.ID\')"',
+    { encoding: 'utf8' }).trim().split(/\r?\n/);
+
+    checar('o atalho aponta para o electron.exe do pacote',
+      props[0] === EXE, props[0]);
+    // A linha que resolve o bug relatado: o icone tem de vir do NOSSO .ico, e
+    // nao do executavel (que e o do Electron).
+    checar('e o icone vem do nosso .ico, nao do executavel',
+      /icone\.ico/i.test(props[1] || ''), props[1]);
+    checar('o atalho carrega o AppUserModelID do app',
+      (props[2] || '').trim() === 'com.pronixtech.orquestrador', props[2]);
+  }
+
+  if (!jaExistia) { try { fs.rmSync(LNK); } catch { /* ja nao estava la */ } }
+
+  // O UPDATER, que neste layout so funciona porque paramos de perguntar
+  // `app.isPackaged` -- ele responde pelo NOME do executavel, e aqui o nome e
+  // electron.exe. A falha era muda: nenhum aviso de versao nova, para sempre.
+  await cdp.avaliar('window.orq.atualizacaoVerificar()');
+  let sit = {};
+  for (let i = 0; i < 40; i++) {
+    sit = JSON.parse(await cdp.avaliar('(async () => JSON.stringify(await window.orq.atualizacaoSituacao()))()'));
+    if (sit.ativo) break;
+    await esperar(250);
+  }
+  checar('o updater esta ligado mesmo com o executavel chamado electron.exe',
+    sit.ativo === true, JSON.stringify(sit));
+  checar('e o pacote e tratado como portatil (nao tenta rodar instalador)',
+    sit.portatil === true, JSON.stringify(sit));
 
   // MATA O QUE SUBIU. Esta suite e uma das duas que abrem o app por conta
   // propria (a outra e a do empacotado); as demais se conectam ao `npm run

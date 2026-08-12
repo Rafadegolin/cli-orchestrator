@@ -18,6 +18,7 @@ const preferencias = require('./preferencias');
 const metricas = require('./metricas');
 const historico = require('./historico');
 const layouts = require('./layouts');
+const atalho = require('./atalho');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -134,6 +135,12 @@ function criarJanela() {
 }
 
 app.whenReady().then(async () => {
+  // ANTES de criar janela ou emitir notificacao: e este id que diz ao Windows
+  // que a janela aberta e o atalho fixado sao a mesma coisa. Sem ele o Windows
+  // usa o caminho do executavel como identidade, e no pacote `-sac` isso e
+  // "electron.exe" -- que e literalmente outro programa aos olhos dele.
+  app.setAppUserModelId(atalho.AUMID);
+
   // Corte do historico UMA VEZ por arranque, antes de a janela pedir o resumo.
   try {
     historico.podar();
@@ -396,6 +403,9 @@ ipcMain.handle('layouts:salvar', (_e, layout) => {
   }
 });
 ipcMain.handle('layouts:remover', (_e, nome) => ({ ...layouts.remover(nome), layouts: layouts.listar() }));
+
+ipcMain.handle('atalho:criar', () => atalho.criar());
+ipcMain.handle('atalho:existe', () => atalho.existe());
 
 ipcMain.handle('atualizacao:situacao', () => ({ ...atualizacao.situacao }));
 ipcMain.handle('atualizacao:verificar', () => { atualizacao.verificar(); return true; });

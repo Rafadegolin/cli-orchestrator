@@ -5,6 +5,23 @@
 
 const PORTA_CDP = 9222;
 
+// Para as DUAS suites que sobem o proprio app (empacotado e sac): se ja houver
+// alguem na porta de depuracao, o app que elas lancam nao consegue bindar e o
+// `conectar()` cai no app que ja estava la. A suite roda inteira, passa ou
+// falha -- testando outro programa. Ja aconteceu, e a mensagem de erro nao
+// tinha nada a ver com a causa.
+async function exigirPortaLivre(porta = PORTA_CDP) {
+  try {
+    await fetch(`http://127.0.0.1:${porta}/json/version`, { signal: AbortSignal.timeout(1500) });
+  } catch {
+    return; // ninguem atendeu: livre, que e o que queremos
+  }
+  console.error(`\nJa ha um Electron na porta ${porta} -- provavelmente o \`npm run dev\`.`);
+  console.error('Esta suite SOBE o proprio app, entao ele nao conseguiria a porta e o teste');
+  console.error('rodaria contra a instancia errada. Feche a outra antes.');
+  process.exit(2);
+}
+
 async function acharAlvo(porta, tentativas = 80) {
   for (let i = 0; i < tentativas; i++) {
     try {
@@ -119,4 +136,6 @@ async function zerarGrade(cdp) {
   await esperar(1500);
 }
 
-module.exports = { conectar, checar, encerrar, esperar, zerarGrade, aoFrente, PORTA_CDP };
+module.exports = {
+  conectar, checar, encerrar, esperar, zerarGrade, aoFrente, exigirPortaLivre, PORTA_CDP,
+};

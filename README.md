@@ -40,8 +40,12 @@ inteligente de aplicativos**.
 > dois bloqueados — e não há conserto pelo lado do arquivo: desbloquear não adianta, e **nem
 > compilar na sua própria máquina** (medido: o binário sai novo no mundo, e é a identidade dele que
 > o SAC julga). O pacote `-sac` roda sobre o `electron.exe` **original**, que o Windows já conhece.
-> Em troca, o processo aparece como `electron.exe` e não há atalho no menu Iniciar. Detalhes e as
-> medições em [docs/instalacao-e-assinatura.md](docs/instalacao-e-assinatura.md).
+> Em troca, o processo aparece como `electron.exe`. Detalhes e as medições em
+> [docs/instalacao-e-assinatura.md](docs/instalacao-e-assinatura.md).
+
+Nesse pacote, para ter atalho no menu Iniciar — e o ícone certo ao **fixar na barra de tarefas** —
+abra o app e use **Ctrl+K → Criar atalho no menu Iniciar**, e fixe a partir dele. Fixando o
+executável direto, o Windows tira o ícone do próprio `electron.exe`.
 
 Na primeira vez, **F1** abre o manual completo dentro do próprio app.
 
