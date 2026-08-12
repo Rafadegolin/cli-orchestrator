@@ -61,21 +61,11 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "release $TAG ja existe"
           else
-            gh release create "$TAG" --title "$TAG" --notes "$(cat <<'NOTAS'
-Windows. Escolha pelo estado do **Controle Inteligente de Aplicativos (SAC)**:
-
-| Se o SAC estiver... | Baixe |
-|---|---|
-| **ligado** | `Orquestrador-*-sac.zip` — extrair e abrir `Orquestrador.cmd` |
-| desligado | `Orquestrador-*-instalador.exe`, ou o `-portatil.zip` |
-
-O app nao e assinado. Com o SAC ligado, **o instalador e o zip portatil sao os dois
-bloqueados** e nao ha como contornar pelo lado do arquivo. O pacote `-sac` roda sobre o
-`electron.exe` original, que o Windows ja conhece.
-
-Detalhes: docs/instalacao-e-assinatura.md
-NOTAS
-)"
+            # O texto vem de um ARQUIVO, e nao de um heredoc aqui dentro: o
+            # `run: |` e um bloco literal de YAML, entao qualquer linha na
+            # coluna 0 -- inclusive o terminador do heredoc -- encerra o bloco
+            # e invalida o workflow inteiro. Ele nem chega a rodar.
+            gh release create "$TAG" --title "$TAG" --notes-file .github/notas-release.md
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
