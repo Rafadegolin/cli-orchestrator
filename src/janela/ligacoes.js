@@ -195,17 +195,25 @@ async function registrarEm(p, caminho, aplicar, ms) {
   return { mudou: true, aplicado: r.aplicado, motivo: r.motivo };
 }
 
+// O campo e `ligacoesPendentes`, e o nome comprido tem motivo: `pendentes` JA
+// EXISTE no Painel e guarda os Uint8Array de saida de painel fora da vista
+// (Fase 6.1), com `pendentesBytes` contando o total. Este arquivo escrevia
+// STRINGS naquele mesmo array sem mexer no contador, entao o
+// `descarregarPendentes()` seguinte alocava um buffer menor que o conteudo e
+// caia em `junto.set(string, off)`: os bytes viravam zero e o offset podia
+// estourar com RangeError. Uma ligacao que falhava corrompia a saida de um
+// painel que estivesse rolado para fora da tela.
 function guardar(p, caminho, { pendente }) {
   if (!jaLigado(p.id, caminho)) p.ligacoes = [...ligacoesDe(p.id), caminho];
-  p.pendentes = (p.pendentes || []).filter((c) => normalizar(c) !== normalizar(caminho));
-  if (pendente) p.pendentes.push(caminho);
+  p.ligacoesPendentes = (p.ligacoesPendentes || []).filter((c) => normalizar(c) !== normalizar(caminho));
+  if (pendente) p.ligacoesPendentes.push(caminho);
   p.mostrarLigacoes?.();
 }
 
 // Ligacao registrada que o CLI ainda nao aceitou. Existir como ESTADO e o que
 // devolve o botao de tentar de novo -- antes isso era um silencio.
 function pendenteEm(id, caminho) {
-  return (painel(id)?.pendentes || []).some((c) => normalizar(c) === normalizar(caminho));
+  return (painel(id)?.ligacoesPendentes || []).some((c) => normalizar(c) === normalizar(caminho));
 }
 
 async function ligar(id, caminho, { aplicar = true, ms = MS_ESPERA_CONFIRMACAO } = {}) {
@@ -252,13 +260,13 @@ function desligar(id, caminho) {
   if (!p) return { ok: false };
 
   p.ligacoes = ligacoesDe(id).filter((c) => normalizar(c) !== normalizar(caminho));
-  p.pendentes = (p.pendentes || []).filter((c) => normalizar(c) !== normalizar(caminho));
+  p.ligacoesPendentes = (p.ligacoesPendentes || []).filter((c) => normalizar(c) !== normalizar(caminho));
   p.mostrarLigacoes?.();
 
   const outro = painelEm(caminho);
   if (outro) {
     outro.ligacoes = ligacoesDe(outro.id).filter((c) => normalizar(c) !== normalizar(p.cwd));
-    outro.pendentes = (outro.pendentes || []).filter((c) => normalizar(c) !== normalizar(p.cwd));
+    outro.ligacoesPendentes = (outro.ligacoesPendentes || []).filter((c) => normalizar(c) !== normalizar(p.cwd));
     outro.mostrarLigacoes?.();
   }
 

@@ -31,6 +31,9 @@ function carregar() {
       // Ligacoes sao caminhos de pasta: sobrevivem ao fechar e reabrir, ao
       // contrario de id de painel.
       ligacoes: Array.isArray(p.ligacoes) ? p.ligacoes.map(String) : [],
+      // As que o CLI ainda nao aceitou. Sem elas no disco, reabrir o app
+      // transformava toda ligacao pendente em "aplicada" na interface.
+      ligacoesPendentes: Array.isArray(p.ligacoesPendentes) ? p.ligacoesPendentes.map(String) : [],
       ordem: Number.isFinite(p.ordem) ? p.ordem : i,
       // Posicao no mapa. `null` significa "nunca foi arrastado" -- e o mapa
       // arruma sozinho, em vez de empilhar tudo no canto superior esquerdo.
@@ -57,6 +60,8 @@ function salvar(paineis) {
       cwd: path.resolve(String(p.cwd)),
       comandoInicial: p.comandoInicial ? String(p.comandoInicial) : '',
       ligacoes: Array.isArray(p.ligacoes) ? [...new Set(p.ligacoes.map(String))] : [],
+      ligacoesPendentes: Array.isArray(p.ligacoesPendentes)
+        ? [...new Set(p.ligacoesPendentes.map(String))] : [],
       ordem: Number.isFinite(p.ordem) ? p.ordem : i,
       x: Number.isFinite(p.x) ? Math.round(p.x) : null,
       y: Number.isFinite(p.y) ? Math.round(p.y) : null,

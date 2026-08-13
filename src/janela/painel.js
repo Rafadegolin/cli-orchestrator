@@ -375,17 +375,24 @@ class Painel {
     return String(texto || '').replace(/\s+/g, ' ');
   }
 
-  // So o que esta VISIVEL na janela do terminal, sem scrollback e sem flush.
+  // So o que esta VISIVEL na janela do terminal, sem scrollback.
   //
   // Existe para ser lido de tempos em tempos: `textoDoBuffer()` percorre as 3000
   // linhas do scrollback e ainda descarrega os bytes pendentes -- barato uma
   // vez, caro a cada segundo em oito painéis. Aqui sao as ~15 linhas da tela, e
   // e onde o prompt de permissao sempre esta.
   //
-  // Sem flush de proposito: quem chama isto em laco pula painel fora da vista,
-  // justamente para nao desfazer a economia da Fase 6.1.
-  textoDaTela() {
+  // `flush` e o que separa os dois usos, e a diferenca importa:
+  //
+  //  - SEM flush (padrao) para quem le em LACO. O farejador roda a cada 1,5s e
+  //    pula painel fora da vista justamente para nao desfazer a economia da
+  //    Fase 6.1 -- descarregar ali seria pagar o custo que ela evita.
+  //  - COM flush para quem vai DECIDIR alguma coisa. Ler sem descarregar
+  //    devolve a tela de antes dos bytes que ja chegaram, e decidir por texto
+  //    velho e responder ao pedido errado -- num caminho que escreve no PTY.
+  textoDaTela({ flush = false } = {}) {
     if (this.encerrado || !this.term) return '';
+    if (flush) this.descarregarPendentes();
     const b = this.term.buffer.active;
     return Painel._juntar(b, b.baseY, b.baseY + this.term.rows);
   }
@@ -512,32 +519,61 @@ class Painel {
     this.elPergunta.textContent = pergunta || 'Esperando você';
     this.elPergunta.title = this.elPergunta.textContent;
 
-    const acoes = document.createElement('span');
-    acoes.className = 'rodape-acoes';
+    this.elAcoes = document.createElement('span');
+    this.elAcoes.className = 'rodape-acoes';
 
-    if (aoAprovar) {
-      const btn = document.createElement('button');
-      btn.className = 'rodape-aprovar';
-      btn.textContent = 'Aprovar';
-      btn.title = 'Responde "1. Yes" ao pedido que está na tela do terminal';
-      btn.addEventListener('click', (ev) => { ev.stopPropagation(); aoAprovar(); });
-      acoes.append(btn);
-    }
+    // Guardado porque o botao pode nascer e SAIR: quando a leitura da tela
+    // descobre que o pedido e de um formato que este app nao responde (o
+    // prompt de plano), `atualizarPedido` o remove.
+    this._aprovar = aoAprovar || null;
+    this.elAprovar = null;
+    if (this._aprovar) this._montarAprovar();
 
     const ver = document.createElement('button');
     ver.className = 'rodape-ver';
     ver.textContent = 'Ver';
     ver.title = 'Leva o cursor para este terminal, sem responder nada';
     ver.addEventListener('click', (ev) => { ev.stopPropagation(); (aoVer || (() => this.focar()))(); });
-    acoes.append(ver);
+    this.elAcoes.append(ver);
 
-    this.elRodape.append(this.elPergunta, acoes);
+    this.elRodape.append(this.elPergunta, this.elAcoes);
   }
 
-  atualizarPergunta(texto) {
-    if (this.elPergunta && texto) {
-      this.elPergunta.textContent = texto;
-      this.elPergunta.title = texto;
+  // `rotuloOpcao` e o texto da opcao que sera respondida, lido da tela. Antes
+  // isto era a string fixa `"1. Yes"`, que passou a ser mentira no instante em
+  // que o app aprendeu a reconhecer mais de um formato de pedido.
+  _montarAprovar(rotuloOpcao) {
+    if (!this._aprovar || !this.elAcoes) return;
+    if (!this.elAprovar) {
+      this.elAprovar = document.createElement('button');
+      this.elAprovar.className = 'rodape-aprovar';
+      this.elAprovar.textContent = 'Aprovar';
+      this.elAprovar.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        this._aprovar?.();
+      });
+      this.elAcoes.prepend(this.elAprovar);
+    }
+    this.elAprovar.title = rotuloOpcao
+      ? `Responde "${rotuloOpcao}" ao pedido que está na tela do terminal`
+      : 'Responde ao pedido que está na tela do terminal';
+  }
+
+  // A faixa depois de a tela ter sido lida de verdade: a pergunta certa no
+  // lugar da frase generica do hook, e o botao presente so se este app souber
+  // responder AQUELE formato.
+  atualizarPedido({ pergunta, aprovavel, rotuloOpcao } = {}) {
+    if (pergunta && this.elPergunta) {
+      this.elPergunta.textContent = pergunta;
+      this.elPergunta.title = pergunta;
+    }
+    if (!this.elAcoes) return;
+
+    if (aprovavel === false) {
+      this.elAprovar?.remove();
+      this.elAprovar = null;
+    } else if (aprovavel === true) {
+      this._montarAprovar(rotuloOpcao);
     }
   }
 
@@ -545,6 +581,9 @@ class Painel {
     this.elRodape.classList.remove('tem-pedido');
     this.elRodape.replaceChildren();
     this.elPergunta = null;
+    this.elAcoes = null;
+    this.elAprovar = null;
+    this._aprovar = null;
   }
 
   // posicao 0 esconde a etiqueta. `aoForcar` e o escape manual.

@@ -139,6 +139,38 @@ function achar(nome) {
   checar('e ter .env NAO impede de arquivar (so avisa)',
     wt.podeArquivar(comEnv).pode === true, JSON.stringify(wt.podeArquivar(comEnv)));
 
+  // --- o que a tela de limpeza consome ------------------------------------
+  //
+  // `candidata` e `podeArquivar` na forma que a lista ja entrega. Existe para a
+  // tela nao reimplementar o criterio: duas regras para a mesma pergunta e o
+  // caminho curto para a lista dizer uma coisa e o clique fazer outra.
+  const porNome = Object.fromEntries(wt.listar(RAIZ).map((w) => [w.nome, w]));
+  checar('candidata acompanha podeArquivar em TODAS as worktrees',
+    Object.values(porNome).every((w) => w.candidata === wt.podeArquivar(w).pode),
+    Object.values(porNome).map((w) => `${w.nome}:${w.candidata}`).join(' '));
+  checar('so a limpa e candidata; viva, suja e nao-mesclada nao sao',
+    porNome.limpo.candidata === true && porNome.viva.candidata === false
+    && porNome.sujo.candidata === false && porNome.commitado.candidata === false,
+    Object.values(porNome).map((w) => `${w.nome}:${w.candidata}`).join(' '));
+
+  // A idade sai do COMMIT, e nao do mtime da pasta: um build reescreve arquivo
+  // e faria uma worktree parada ha um mes parecer de hoje.
+  checar('ultimoCommit vem em ISO e e uma data valida',
+    !Number.isNaN(new Date(porNome.commitado.ultimoCommit).getTime()),
+    porNome.commitado.ultimoCommit);
+
+  const tam = await wt.tamanhoDe(dLimpo);
+  checar('tamanhoDe soma os bytes da pasta', tam.bytes > 0 && tam.arquivos > 0, JSON.stringify(tam));
+  checar('e nao vem parcial num teto de 8s numa pasta pequena', tam.parcial === false, JSON.stringify(tam));
+  // Com teto zerado ele PRECISA se declarar parcial: um numero cortado que se
+  // apresenta como total viraria "libera 2 MB" numa worktree de 400.
+  const cortado = await wt.tamanhoDe(dLimpo, { ms: 0 });
+  checar('estourando o teto, ele avisa que o numero e parcial',
+    cortado.parcial === true, JSON.stringify(cortado));
+  const somiu = await wt.tamanhoDe(path.join(RAIZ, 'nao-existe'));
+  checar('pasta inexistente devolve zero em vez de estourar',
+    somiu.bytes === 0 && somiu.parcial === false, JSON.stringify(somiu));
+
   // --- arquivar de verdade o que esta limpo -------------------------------
   const r = wt.arquivar(RAIZ, dLimpo);
   checar('arquiva o worktree limpo', r.ok === true, JSON.stringify(r));
@@ -150,6 +182,48 @@ function achar(nome) {
     !branches.includes('worktree-limpo'), branches.filter(Boolean).join(','));
   checar('a lista agora tem 3', wt.listar(RAIZ).length === 3,
     wt.listar(RAIZ).map((w) => w.nome).join(','));
+
+  // --- o lote -------------------------------------------------------------
+  //
+  // O caso que decide se o lote presta: pedir de uma vez duas que NAO podem
+  // sair, uma que pode, e uma travada por painel aberto. Nenhuma pode derrubar
+  // as outras, e cada recusa tem de voltar com o motivo -- e por isso que isto
+  // nao e um laco de `arquivar` (`projetos.adicionarVarios` existe pelo mesmo
+  // motivo: `adicionar` LANCA, e um caminho torto matava a importacao inteira).
+  const dLote = criarWorktree('lote', { pidDoLock: 999999 });
+  const dPreso = criarWorktree('preso', { pidDoLock: 999999 });
+
+  const triagem = wt.triarLote(
+    RAIZ,
+    [dLote, dPreso, achar('viva').caminho, achar('sujo').caminho, path.join(RAIZ, 'inventado')],
+    { bloqueados: [dPreso] },
+  );
+  checar('a triagem separa so o que pode sair',
+    triagem.aptas.length === 1 && triagem.aptas[0].nome === 'lote',
+    triagem.aptas.map((w) => w.nome).join(','));
+  checar('e devolve as outras 4 com motivo, sem estourar',
+    triagem.recusadas.length === 4 && triagem.recusadas.every((x) => x.texto),
+    triagem.recusadas.map((x) => `${x.nome}:${x.texto.slice(0, 24)}`).join(' | '));
+  checar('painel aberto na pasta e um motivo proprio, e nao um "nao deu" generico',
+    /painel deste app/i.test(triagem.recusadas.find((x) => x.nome === 'preso').texto), '');
+  // O caminho que nem existe nao pode virar excecao: a lista da tela pode ter
+  // minutos e apontar para uma worktree ja arquivada em outra janela.
+  checar('caminho inexistente vira recusa, nao excecao',
+    triagem.recusadas.some((x) => /nao encontrado/i.test(x.texto)), '');
+
+  // Executa o lote com uma boa e uma que vai falhar na revalidacao interna.
+  const lote = wt.arquivarVarias(RAIZ, [dLote, achar('sujo').caminho]);
+  checar('o lote arquiva a que pode', lote.ok === true && lote.arquivadas.length === 1,
+    JSON.stringify(lote.arquivadas));
+  checar('e a falha no meio NAO derruba o resto', lote.recusadas.length === 1,
+    JSON.stringify(lote.recusadas.map((x) => x.nome)));
+  checar('a pasta da arquivada sumiu e a da recusada ficou',
+    !fs.existsSync(dLote) && fs.existsSync(achar('sujo').caminho), '');
+  checar('e o worktree travado por painel continua intacto',
+    fs.existsSync(dPreso) && Boolean(achar('preso')), '');
+
+  // Limpa o que o lote deixou para nao envenenar as contagens seguintes.
+  wt.arquivar(RAIZ, dPreso);
 
   // --- .worktreeinclude ---------------------------------------------------
   let inc = wt.situacaoInclude(RAIZ);

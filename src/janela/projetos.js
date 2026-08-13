@@ -331,6 +331,36 @@ function desenharDetalhe(p) {
     return frag;
   }
 
+  // O CONTADOR PASSIVO, e o caminho para a faxina.
+  //
+  // Fechar um painel nunca apagou pasta nem branch, entao o que sobra so
+  // aparecia para quem expandisse o projeto e contasse as linhas na mao. Dizer
+  // "N worktrees, N prontas" na primeira linha e o que transforma "nunca lembro
+  // de limpar" em "da para ver que esta sujo".
+  const prontas = d.worktrees.filter((w) => w.candidata).length;
+  const resumo = document.createElement('div');
+  resumo.className = 'wt-resumo';
+
+  const conta = document.createElement('span');
+  conta.textContent = `${d.worktrees.length} worktree${d.worktrees.length === 1 ? '' : 's'}`
+    + (prontas ? ` · ${prontas} pronta${prontas === 1 ? '' : 's'} para arquivar` : '');
+  conta.title = 'Cada worktree é um checkout inteiro do projeto, com node_modules próprio.\n'
+    + 'Fechar o painel não apaga nada: a pasta e o branch ficam no disco.';
+
+  const btnLimpar = document.createElement('button');
+  btnLimpar.className = 'wt-limpar' + (prontas ? ' wt-limpar-ativo' : '');
+  btnLimpar.textContent = 'limpar…';
+  btnLimpar.title = prontas
+    ? `Ver tamanho em disco e arquivar várias de uma vez (${prontas} pronta${prontas === 1 ? '' : 's'})`
+    : 'Ver tamanho em disco de cada worktree e o que impede arquivar';
+  btnLimpar.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    window.OrqLimpeza?.abrir(p.caminho, p.nome);
+  });
+
+  resumo.append(conta, btnLimpar);
+  frag.append(resumo);
+
   const ol = document.createElement('ol');
   ol.className = 'wt-lista';
 
@@ -416,6 +446,16 @@ async function carregarDetalhes(id) {
 
   detalhes.set(id, { carregando: false, worktrees, include, git });
   desenharProjetos();
+}
+
+// Redesenha os detalhes de todo projeto ABERTO na arvore.
+//
+// Existe para a tela de limpeza: arquivar em lote muda a lista de worktrees, e
+// o card que ficou atras dela mostraria as arquivadas ate alguem recolher e
+// expandir de novo. Projeto fechado nao paga nada -- ler worktree sao varios
+// comandos git por projeto.
+function recarregarDetalhes() {
+  for (const id of expandidos) carregarDetalhes(id);
 }
 
 // A BUSCA periodica.
@@ -523,6 +563,7 @@ window.OrqProjetos = {
   abrirUltimo,
   cadastrarProjeto,
   carregarDetalhes,
+  recarregarDetalhes,
   retomar,
   tintaDe,
   tintaDoProjeto,

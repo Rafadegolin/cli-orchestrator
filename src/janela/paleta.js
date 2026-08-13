@@ -88,6 +88,18 @@
       });
     }
 
+    // Uma entrada por projeto com git: a faxina e sempre DE um repositorio, e
+    // nao ha uma lista global de worktrees para limpar de uma vez.
+    for (const p of window.OrqProjetos?.lista?.() || []) {
+      if (!p.existe || !p.git) continue;
+      lista.push({
+        tag: 'worktree',
+        rotulo: `Limpar worktrees de ${p.nome}`,
+        dica: 'espaço em disco',
+        correr: () => window.OrqLimpeza?.abrir(p.caminho, p.nome),
+      });
+    }
+
     const dormindo = window.OrqGrade?.dormindos?.().length || 0;
     if (dormindo) {
       lista.push({

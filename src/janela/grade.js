@@ -34,7 +34,7 @@ function atualizarVazio() {
 }
 
 async function criarPainel({
-  cwd, feature, comandoInicial, dormindo, indisponivel, ligacoes, x, y, w, h,
+  cwd, feature, comandoInicial, dormindo, indisponivel, ligacoes, ligacoesPendentes, x, y, w, h,
 }) {
   const id = novoId();
 
@@ -58,6 +58,11 @@ async function criarPainel({
 
   painel.comandoInicial = comandoInicial || '';
   painel.ligacoes = Array.isArray(ligacoes) ? [...ligacoes] : [];
+  // Pendente e a ligacao que o CLI ainda NAO aceitou. Sem restaurar isto, o
+  // seletor voltava dizendo "desligar" para uma ligacao que nunca chegou a
+  // valer, e o botao de tentar de novo sumia -- o mesmo silencio que a ordem de
+  // gravacao em `registrarEm` existe para evitar.
+  painel.ligacoesPendentes = Array.isArray(ligacoesPendentes) ? [...ligacoesPendentes] : [];
   painel.x = Number.isFinite(x) ? x : null;
   painel.y = Number.isFinite(y) ? y : null;
   // Tamanho no mapa. Separado de x/y porque um sessao.json gravado antes do
@@ -144,6 +149,7 @@ function retratoSessao() {
       // Ligacao e entre PASTAS, nao entre ids: id de painel e efemero, pasta
       // sobrevive ao fechar e reabrir.
       ligacoes: p.ligacoes || [],
+      ligacoesPendentes: p.ligacoesPendentes || [],
       ordem,
       // Posicao e tamanho no mapa, quando o painel ja passou por la.
       x: Number.isFinite(p.x) ? p.x : null,
@@ -214,6 +220,7 @@ async function restaurarSessao() {
       feature: s.feature,
       comandoInicial: s.comandoInicial,
       ligacoes: s.ligacoes,
+      ligacoesPendentes: s.ligacoesPendentes,
       x: s.x,
       y: s.y,
       w: s.w,

@@ -277,6 +277,23 @@ ipcMain.on('terminal:fechar', (_e, { id }) => {
 
 ipcMain.handle('estado:todas', () => estado.todas());
 
+// O farejador do Canal 1 (`aprovacao.js`) avisando o que leu na tela.
+//
+// ISTO EXISTE PORQUE HAVIA DOIS DONOS DA VERDADE, e o sintoma foi relatado como
+// "o painel fica amarelo com o Claude trabalhando". O farejador acendia o
+// amarelo so na JANELA (`OrqLateral.definirStatus`) e o processo principal
+// seguia achando `rodando`. Quando o evento seguinte chegava, `aplicar()`
+// comparava com o que ELE guardava, concluia "nao mudou nada" e nao emitia
+// diff nenhum -- ou seja, o amarelo aceso pela janela nao tinha como ser
+// apagado por hook nenhum, e ficava preso ate um `Stop`.
+//
+// `send` e nao `handle`: e notificacao. A resposta volta pelo `estado:diff` de
+// sempre, que e o unico caminho por onde status chega na janela.
+ipcMain.on('estado:farejado', (_e, { id, status, motivo, pergunta, tipo } = {}) => {
+  if (!id || !status) return;
+  estado.definirStatus(id, status, motivo || '', { pergunta, tipo });
+});
+
 // --------------------------------------------------------------- sessao
 
 ipcMain.handle('sessao:carregar', () => sessao.carregar());
@@ -330,6 +347,72 @@ ipcMain.handle('git:buscar', (_e, projeto) => worktrees.buscar(projeto));
 ipcMain.handle('git:atualizar', (_e, projeto) => worktrees.atualizar(projeto));
 
 ipcMain.handle('worktrees:diff', (_e, { projeto, caminho }) => worktrees.diff(projeto, caminho));
+
+// Quanto cada worktree ocupa. Separado do `listar` porque e caro: somar bytes
+// de um checkout com node_modules sao dezenas de milhares de stat, e o `listar`
+// roda ao expandir um projeto. Aqui e sob demanda -- so a tela de limpeza pede.
+ipcMain.handle('worktrees:tamanhos', async (_e, caminhos) => {
+  const alvos = Array.isArray(caminhos) ? caminhos : [];
+  const saida = {};
+  // Sequencial: sao varias arvores grandes no MESMO disco, e disparar todas
+  // juntas so faz a cabeca do disco brigar consigo mesma.
+  for (const c of alvos) saida[c] = await worktrees.tamanhoDe(c);
+  return saida;
+});
+
+// Arquivar VARIAS de uma vez.
+//
+// Nao e um laco de `worktrees:arquivar`, pela mesma razao que
+// `projetos.adicionarVarios` existe: um alvo problematico nao pode derrubar o
+// lote, e N dialogos nativos seguidos seriam N chances de clicar no automatico.
+// Um dialogo so, que NOMEIA tudo que vai embora, e cada recusa volta com motivo.
+ipcMain.handle('worktrees:arquivarVarias', async (_e, { projeto, caminhos, confirmar = true } = {}) => {
+  const pedidos = Array.isArray(caminhos) ? caminhos : [];
+  if (!pedidos.length) return { ok: false, arquivadas: [], recusadas: [] };
+
+  // O portao que so o main conhece: painel deste app aberto na pasta. O lock do
+  // Claude cobre a sessao; este cobre o terminal.
+  const bloqueados = terminais.idsAbertos().map((id) => terminais.cwdDe(id)).filter(Boolean);
+  const { aptas, recusadas } = worktrees.triarLote(projeto, pedidos, { bloqueados });
+
+  if (!aptas.length) return { ok: false, arquivadas: [], recusadas };
+
+  if (confirmar) {
+    const linhas = aptas.map((w) => {
+      const extra = w.ignorados?.length ? `  (+ ${w.ignorados.join(', ')})` : '';
+      return `  ${w.nome}  —  ${w.branch}${extra}`;
+    });
+    // Os ignorados NOMEADOS, como no dialogo de uma so: o git nao os enxerga e
+    // o `worktree remove` os apaga assim mesmo. Em lote isso pesa mais, nao
+    // menos.
+    const comIgnorados = aptas.filter((w) => w.ignorados?.length).length;
+
+    const { response } = await dialog.showMessageBox(janela, {
+      type: 'warning',
+      buttons: ['Arquivar', 'Cancelar'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Arquivar worktrees',
+      message: aptas.length === 1
+        ? `Arquivar "${aptas[0].nome}"?`
+        : `Arquivar ${aptas.length} worktrees?`,
+      detail:
+        'Isto remove a pasta e o branch de cada uma:\n\n' +
+        `${linhas.join('\n')}\n\n` +
+        (comIgnorados
+          ? `Os itens entre parenteses sao arquivos que o git ignora e que nenhum commit guarda.\n\n`
+          : '') +
+        'Conferido agora: nenhuma tem sessao aberta, alteracao sem commit ou commit fora da ' +
+        'base. Ainda assim, isto nao tem desfazer.',
+    });
+    if (response !== 0) return { ok: false, cancelado: true, arquivadas: [], recusadas };
+  }
+
+  const r = worktrees.arquivarVarias(projeto, aptas.map((w) => w.caminho));
+  // As recusas da triagem e as da execucao contam a mesma historia para quem
+  // esta olhando: uma lista so.
+  return { ...r, recusadas: [...recusadas, ...r.recusadas] };
+});
 
 // Arquivar apaga trabalho de forma irreversivel. Tres portoes antes de mexer em
 // qualquer coisa, e cada recusa diz QUAL deles impediu.

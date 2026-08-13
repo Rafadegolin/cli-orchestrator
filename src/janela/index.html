@@ -284,6 +284,29 @@
     </div>
   </div>
 
+  <!-- Faxina de worktrees. Fechar um painel nunca apagou nada em disco (e nao
+       vai passar a apagar): pasta, branch e lock ficam la. Esta tela existe
+       para isso ficar VISIVEL e sair em um clique, em vez de um x por vez
+       escondido dentro do card do projeto. -->
+  <div id="limpeza" class="overlay" hidden>
+    <div class="diff-caixa">
+      <div class="ajuda-topo">
+        <h2 id="limpeza-titulo">Limpar worktrees</h2>
+        <button id="limpeza-fechar" title="Fechar (Esc)">&times;</button>
+      </div>
+      <p class="modal-explica">Cada worktree é um checkout inteiro do projeto. Elas ficam no disco
+        depois que a feature acaba — fechar o painel não apaga nada.</p>
+      <ol id="limpeza-lista"></ol>
+      <div class="limpeza-rodape">
+        <span id="limpeza-resumo"></span>
+        <span class="limpeza-acoes">
+          <button id="limpeza-arquivar" class="primario">Arquivar marcadas</button>
+          <button id="limpeza-cancelar">Cancelar</button>
+        </span>
+      </div>
+    </div>
+  </div>
+
   <div id="modal-projeto" class="overlay" hidden>
     <div class="modal-caixa">
       <h2>Cadastrar projeto</h2>
@@ -389,6 +412,7 @@
 <script src="historico.js"></script>
 <script src="uso.js"></script>
 <script src="diff.js"></script>
+<script src="limpeza.js"></script>
 <script src="enviar-varias.js"></script>
 <script src="layouts.js"></script>
 <script src="mapa.js"></script>

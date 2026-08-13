@@ -202,14 +202,39 @@ function aplicar({ evento, tipo, cwd, orqId, sessionId, mensagem = '' }) {
   return { id, mudou: true, status: s.status };
 }
 
-function definirStatus(id, status, motivo = '') {
+// Status vindo de dentro do app (shell aberto, e o farejador do Canal 1), e
+// nao de um hook.
+//
+// Ela CARREGA pergunta e tipo, e isso nao e enfeite: sem eles, um diff emitido
+// aqui chegava na janela sem os campos, `lateral.definirStatus` recebia
+// `extra = {}` e zerava a pergunta do card -- a faixa de aprovacao perdia o
+// texto por causa de uma atualizacao que nao tinha nada a ver com ela.
+//
+// A mesma regra de `aplicar()` vale: pergunta so existe enquanto se espera.
+function definirStatus(id, status, motivo = '', { pergunta = '', tipo = '' } = {}) {
   const s = sessoes.get(id);
-  if (!s || (s.status === status && s.motivo === motivo)) return;
-  if (s.status !== status) anotar(s, status);
+  if (!s) return;
+
+  const perguntaAlvo = status === 'esperando' ? pergunta : '';
+  const tipoAlvo = status === 'esperando' ? tipo : '';
+
+  const mudouStatus = s.status !== status;
+  if (!mudouStatus && s.motivo === motivo
+    && s.pergunta === perguntaAlvo && s.tipo === tipoAlvo) return;
+
+  if (mudouStatus) anotar(s, status);
   s.status = status;
   s.motivo = motivo;
-  s.desde = Date.now();
-  emitir('estado:diff', { id, status, motivo, desde: s.desde });
+  s.pergunta = perguntaAlvo;
+  s.tipo = tipoAlvo;
+  // O cronometro so reinicia quando o status muda de verdade -- reacender o
+  // mesmo `esperando` a cada giro do farejador nao pode zerar "esperando ha
+  // 4min".
+  if (mudouStatus) s.desde = Date.now();
+
+  emitir('estado:diff', {
+    id, status: s.status, motivo: s.motivo, desde: s.desde, pergunta: s.pergunta, tipo: s.tipo,
+  });
 }
 
 function todas() {

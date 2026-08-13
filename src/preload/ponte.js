@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld('orq', {
   aoMudarEstado: (fn) => ipcRenderer.on('estado:diff', (_e, diff) => fn(diff)),
   estadoAtual: () => ipcRenderer.invoke('estado:todas'),
 
+  // O que o farejador do Canal 1 leu na tela. Sem isto o processo principal nao
+  // fica sabendo, e o hook seguinte nao consegue apagar o que a janela acendeu.
+  estadoFarejado: (dados) => ipcRenderer.send('estado:farejado', dados),
+
   projetosListar: () => ipcRenderer.invoke('projetos:listar'),
   projetosConversas: (caminho) => ipcRenderer.invoke('projetos:conversas', caminho),
   projetosDefinirCor: (id, cor) => ipcRenderer.invoke('projetos:definirCor', { id, cor }),
@@ -46,6 +50,9 @@ contextBridge.exposeInMainWorld('orq', {
   worktreesArquivar: (projeto, caminho, confirmar = true) =>
     ipcRenderer.invoke('worktrees:arquivar', { projeto, caminho, confirmar }),
   worktreesDiff: (projeto, caminho) => ipcRenderer.invoke('worktrees:diff', { projeto, caminho }),
+  worktreesTamanhos: (caminhos) => ipcRenderer.invoke('worktrees:tamanhos', caminhos),
+  worktreesArquivarVarias: (projeto, caminhos, confirmar = true) =>
+    ipcRenderer.invoke('worktrees:arquivarVarias', { projeto, caminhos, confirmar }),
   includeSituacao: (projeto) => ipcRenderer.invoke('worktrees:situacaoInclude', projeto),
 
   gitSituacao: (projeto) => ipcRenderer.invoke('git:situacao', projeto),

@@ -804,6 +804,34 @@ button:focus-visible, input:focus-visible {
 
 .wt-aviso button:hover { background: rgba(255, 180, 84, .14); }
 
+/* Contagem de worktrees + caminho para a faxina. Fica ANTES da lista porque a
+   pergunta que ela responde ("tem sujeira aqui?") vem antes de "qual delas?". */
+.wt-resumo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  color: var(--fg3);
+  padding: 2px 8px 6px 12px;
+  margin-left: 11px;
+}
+
+.wt-limpar {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--fg3);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+
+.wt-limpar:hover { color: var(--fg2); border-color: var(--line2); }
+/* Com algo pronto para sair, o botao deixa de ser decoracao. */
+.wt-limpar-ativo { color: var(--acc); border-color: var(--line2); background: var(--accd); }
+
 /* --------------------------------------------------------- lista de sessoes */
 
 .card {
@@ -2149,6 +2177,101 @@ button.primario:hover {
   color: var(--fg2);
   background: var(--bg1);
 }
+
+/* ------------------------------------------------------ limpar worktrees */
+
+/* Reusa a `.diff-caixa` (mesmo tamanho, mesma moldura): sao duas telas do mesmo
+   assunto, e a de limpeza abre a de diff por dentro. */
+#limpeza .modal-explica { margin: 0; padding: 0 18px 12px 18px; }
+
+#limpeza-lista {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0 8px;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+
+.limpeza-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg2);
+}
+
+.limpeza-item:last-child { border-bottom: none; }
+
+/* Travada continua visivel, e nao escondida: sumir com ela esconderia
+   justamente a worktree que voce quer entender por que nao sai. */
+.limpeza-travado { opacity: .62; }
+
+.limpeza-caixa { flex: 0 0 auto; width: 14px; height: 14px; accent-color: var(--acc); }
+.limpeza-caixa:disabled { cursor: not-allowed; }
+
+.limpeza-nome {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.limpeza-marca {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--acc);
+  background: var(--accd);
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+
+.limpeza-marca-impedida { color: var(--warn); background: var(--warnd); }
+
+.limpeza-meta { margin-left: auto; flex: 0 0 auto; font-size: 10.5px; color: var(--fg3); }
+
+.limpeza-ver {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--fg3);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+
+.limpeza-ver:hover { color: var(--fg2); border-color: var(--line2); }
+
+.limpeza-rodape {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--line);
+  background: var(--bg2);
+  font-size: 11.5px;
+  color: var(--fg3);
+}
+
+.limpeza-acoes { display: flex; gap: 8px; margin-left: auto; }
+
+.limpeza-acoes button:not(.primario) {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--fg2);
+  font-size: 12px;
+  padding: 8px 14px;
+}
+
+.limpeza-acoes button:not(.primario):hover { color: var(--fg); border-color: var(--line2); }
+.limpeza-acoes .primario:disabled { opacity: .4; box-shadow: none; }
 
 /* ---------------------------------------------------------------- modal */
 

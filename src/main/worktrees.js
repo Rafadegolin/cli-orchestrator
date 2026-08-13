@@ -156,7 +156,7 @@ function listar(projeto) {
       }
     }
 
-    return {
+    const wt = {
       nome: path.basename(caminho),
       caminho,
       branch,
@@ -174,8 +174,79 @@ function listar(projeto) {
       // mesmo. Ver `ignorados()`.
       ignorados: existe ? ignorados(caminho) : [],
       prunable: 'prunable' in p,
+      // Quando esta feature foi mexida pela ultima vez. E a data do COMMIT, e
+      // nao o mtime da pasta: um `npm install` ou um build reescreve arquivo e
+      // faria uma worktree parada ha um mes parecer de hoje.
+      ultimoCommit: branch ? ultimoCommit(projeto, branch) : '',
     };
+
+    // Derivado, e nao uma regra nova: quem decide continua sendo `podeArquivar`.
+    // Reimplementar o criterio na tela era o caminho curto para a lista dizer
+    // uma coisa e o clique fazer outra.
+    wt.candidata = podeArquivar(wt).pode;
+    return wt;
   });
+}
+
+// Data ISO do ultimo commit do branch, ou '' se nao der para saber.
+function ultimoCommit(projeto, branch) {
+  const r = gitSilencioso(projeto, ['log', '-1', '--format=%cI', branch]);
+  return r.ok ? r.saida.trim() : '';
+}
+
+// Quanto a pasta ocupa em disco.
+//
+// Fica FORA do `listar()` de proposito, e assincrona. `listar()` e sincrona e
+// roda ao expandir um projeto; somar bytes de um checkout com `node_modules`
+// sao dezenas de milhares de `stat` e travaria a janela inteira no clique.
+//
+// Com teto de tempo: numero aproximado com aviso de parcial e melhor que uma
+// tela congelada contando bytes. Quem chama decide quando pagar isto.
+const MS_TAMANHO = 8000;
+
+async function tamanhoDe(caminho, { ms = MS_TAMANHO } = {}) {
+  const limite = Date.now() + ms;
+  let bytes = 0;
+  let arquivos = 0;
+  let parcial = false;
+
+  const pilha = [caminho];
+  while (pilha.length) {
+    // `>=` e nao `>`: com teto zero o certo e nao varrer nada e se declarar
+    // parcial. Com `>`, uma pasta pequena varrida dentro do mesmo milissegundo
+    // voltava `parcial: false` para um teto que nao permitia trabalho nenhum.
+    if (Date.now() >= limite) { parcial = true; break; }
+
+    const dir = pilha.pop();
+    let itens;
+    try {
+      itens = await fs.promises.readdir(dir, { withFileTypes: true });
+    } catch {
+      continue; // sumiu, ou sem permissao: nao e motivo para derrubar a conta
+    }
+
+    const aMedir = [];
+    for (const it of itens) {
+      // Link nao e seguido: contaria o alvo de novo, e um link circular nunca
+      // terminaria.
+      if (it.isSymbolicLink()) continue;
+      const alvo = path.join(dir, it.name);
+      if (it.isDirectory()) pilha.push(alvo);
+      else aMedir.push(alvo);
+    }
+
+    // Em lote: no Windows o custo esta na ida ao disco por arquivo, e
+    // sequencial isso multiplica por dezenas de milhares.
+    await Promise.all(aMedir.map(async (a) => {
+      try {
+        const s = await fs.promises.stat(a);
+        bytes += s.size;
+        arquivos += 1;
+      } catch { /* arquivo sumiu entre o readdir e o stat */ }
+    }));
+  }
+
+  return { bytes, arquivos, parcial };
 }
 
 // ------------------------------------------------- ficar em dia com o remoto
@@ -345,6 +416,72 @@ function arquivar(projeto, caminho) {
   return { ok: true, nome: alvo.nome, branch: alvo.branch, branchRemovido, avisoBranch };
 }
 
+// ------------------------------------------------------------- em lote
+
+// Separa o que da para arquivar do que nao da, ANTES de perguntar qualquer
+// coisa. O dialogo precisa listar o que vai acontecer de verdade, e nao o que a
+// tela achava quando foi desenhada.
+//
+// `bloqueados` sao caminhos com painel deste app aberto: o unico portao que
+// este modulo nao tem como conhecer sozinho (quem sabe de PTY e o index.js).
+function triarLote(projeto, caminhos, { bloqueados = [] } = {}) {
+  const norm = (p) => path.resolve(String(p || '')).toLowerCase();
+  const presos = new Set(bloqueados.map(norm));
+  const lista = listar(projeto);
+
+  const aptas = [];
+  const recusadas = [];
+
+  for (const caminho of (Array.isArray(caminhos) ? caminhos : [])) {
+    const alvo = lista.find((w) => norm(w.caminho) === norm(caminho));
+    if (!alvo) {
+      recusadas.push({
+        caminho, nome: path.basename(String(caminho)), texto: 'Worktree nao encontrado.',
+      });
+      continue;
+    }
+    if (presos.has(norm(caminho))) {
+      recusadas.push({
+        caminho, nome: alvo.nome,
+        texto: 'Ha um painel deste app aberto nesta pasta. Feche o painel antes de arquivar.',
+      });
+      continue;
+    }
+    const veredito = podeArquivar(alvo);
+    if (veredito.pode) aptas.push(alvo);
+    else recusadas.push({ caminho, nome: alvo.nome, texto: veredito.texto });
+  }
+
+  return { aptas, recusadas };
+}
+
+// Arquiva as ja triadas, EM SEQUENCIA.
+//
+// Nao e `caminhos.map(arquivar)`: sao varios comandos git no MESMO repositorio,
+// e o git nao gosta de concorrencia no index nem no diretorio de worktrees.
+// Cada `arquivar` revalida tudo por dentro de novo, entao uma sessao que suba
+// no meio do lote ainda encontra portao fechado -- e uma recusa no meio nao
+// derruba as outras, que e a razao de `projetos.adicionarVarios` existir.
+function arquivarVarias(projeto, caminhos) {
+  const arquivadas = [];
+  const recusadas = [];
+  const avisos = [];
+
+  for (const caminho of (Array.isArray(caminhos) ? caminhos : [])) {
+    const r = arquivar(projeto, caminho);
+    if (r.ok) {
+      arquivadas.push({ nome: r.nome, branch: r.branch, branchRemovido: r.branchRemovido });
+      if (r.avisoBranch) avisos.push(r.avisoBranch);
+    } else {
+      recusadas.push({
+        caminho, nome: path.basename(String(caminho)), texto: r.texto || 'falhou',
+      });
+    }
+  }
+
+  return { ok: arquivadas.length > 0, arquivadas, recusadas, avisos };
+}
+
 // ------------------------------------------------------- .worktreeinclude
 
 // Sem esse arquivo o worktree e um checkout limpo: o .env nao vai junto e a
@@ -465,13 +602,18 @@ function criarInclude(projeto, linhas) {
 
 module.exports = {
   CANDIDATOS_ENV,
+  MS_TAMANHO,
   ignorados,
   situacaoRemoto,
   buscar,
   atualizar,
   listar,
+  ultimoCommit,
+  tamanhoDe,
   podeArquivar,
   arquivar,
+  triarLote,
+  arquivarVarias,
   diff,
   MAX_DIFF,
   situacaoInclude,

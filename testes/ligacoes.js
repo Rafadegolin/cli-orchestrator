@@ -242,6 +242,86 @@ async function ateQue(cdp, expr, ms = 8000) {
   checar('e o comando de despertar ja sai com a flag',
     restaurado.comandoQueVaiRodar.includes('--add-dir'), restaurado.comandoQueVaiRodar);
 
+  // --- 8. ligacao pendente NAO pode corromper a saida do painel -----------
+  //
+  // `pendentes` do Painel guarda os Uint8Array de saida de painel fora da vista
+  // (Fase 6.1), com `pendentesBytes` contando o total. As ligacoes usavam ESSE
+  // MESMO campo para caminhos que o CLI ainda nao aceitou -- strings empurradas
+  // num array de bytes, sem mexer no contador. O `descarregarPendentes()`
+  // seguinte alocava um buffer menor que o conteudo e fazia
+  // `junto.set(string, off)`: bytes viravam zero, e o offset podia estourar.
+  //
+  // O sintoma seria uma ligacao falha corrompendo a saida de OUTRO painel que
+  // estivesse rolado para fora da tela -- longe o bastante da causa para custar
+  // uma tarde.
+  await zerarGrade(cdp);
+  await esperar(800);
+
+  const idB = await cdp.avaliar(`(async () => { const p = await window.OrqGrade.criarPainel(
+    { cwd: ${JSON.stringify(RAIZ_URL)}, feature: 'buffer' }); return p.id; })()`);
+  await esperar(2000);
+
+  const separados = JSON.parse(await cdp.avaliar(`(() => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(idB)});
+    // Uma ligacao pendente, como uma falha de /add-dir deixaria.
+    window.OrqLigacoes.ligar; // so para deixar claro de onde vem o campo
+    p.ligacoesPendentes = ['C:/algum/caminho'];
+    return JSON.stringify({
+      pendentesEhBytes: Array.isArray(p.pendentes) && p.pendentes.every(x => x instanceof Uint8Array),
+      camposSeparados: p.ligacoesPendentes.length === 1 && p.pendentes.length === 0,
+    });
+  })()`));
+  checar('caminho pendente nao entra no buffer de bytes do painel',
+    separados.pendentesEhBytes && separados.camposSeparados, JSON.stringify(separados));
+
+  // Agora o caminho completo: painel fora da vista, saida chegando, e volta.
+  const MARCA = 'BUFFER_INTEIRO_9F3A';
+  await cdp.avaliar(`(() => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(idB)});
+    p.definirVisivel(false);
+    const enc = new TextEncoder();
+    for (let i = 0; i < 40; i++) p.escreverBytes(enc.encode('linha ' + i + ' ${MARCA}\\r\\n'));
+    return 'ok';
+  })()`);
+  await esperar(300);
+
+  // O `term.write` do xterm e ASSINCRONO: o que o flush entregou so aparece no
+  // buffer no passo seguinte do parser. Ler na mesma chamada le o passado --
+  // e a mesma razao pela qual todo mundo que espera algo no buffer usa laco.
+  const erroAoVoltar = await cdp.avaliar(`(() => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(idB)});
+    try { p.definirVisivel(true); return ''; } catch (e) { return String(e); }
+  })()`);
+  await esperar(800);
+
+  const voltou = JSON.parse(await cdp.avaliar(`(() => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(idB)});
+    const erro = ${JSON.stringify(erroAoVoltar)};
+    const texto = p.textoDoBuffer();
+    return JSON.stringify({
+      erro,
+      ocorrencias: (texto.match(/${MARCA}/g) || []).length,
+      temNulo: texto.includes('\\u0000'),
+      pendentesZerado: p.pendentes.length === 0 && p.pendentesBytes === 0,
+      ligacaoIntacta: (p.ligacoesPendentes || []).length === 1,
+    });
+  })()`));
+
+  checar('descarregar o buffer com ligacao pendente nao estoura', voltou.erro === '', voltou.erro);
+  checar('e a saida volta INTEIRA, sem bytes zerados',
+    voltou.ocorrencias === 40 && !voltou.temNulo,
+    `${voltou.ocorrencias}/40 nulos=${voltou.temNulo}`);
+  checar('o buffer de bytes zera e a ligacao pendente continua la',
+    voltou.pendentesZerado && voltou.ligacaoIntacta, JSON.stringify(voltou));
+
+  // E o campo novo sobrevive ao fechar e reabrir, senao uma ligacao que falhou
+  // volta parecendo aplicada e o botao de tentar de novo some.
+  await cdp.avaliar(`window.OrqGrade.salvarSessao({ agora: true })`);
+  await esperar(900);
+  const gravado = lerSessao().find((p) => p.feature === 'buffer');
+  checar('ligacao pendente e gravada no sessao.json',
+    (gravado?.ligacoesPendentes || []).length === 1, JSON.stringify(gravado?.ligacoesPendentes));
+
   await zerarGrade(cdp);
   await cdp.avaliar(`window.orq.sessaoSalvar([])`);
   fs.rmSync(OUTRO, { recursive: true, force: true });

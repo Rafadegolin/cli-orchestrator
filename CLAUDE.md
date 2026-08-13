@@ -44,7 +44,9 @@ npm run teste:layouts     # Node puro: gravar, substituir e normalizar layouts
 npm run teste:ajuda       # a ajuda no app, e se os numeros dela batem com o codigo
 npm run teste:ligacoes    # mecanica das ligacoes, sem invocar o Claude
 npm run teste:ligacoes-reais # com Claude de verdade: ~3min e consome tokens
+npm run teste:aprovacao    # formas do pedido e o farejador, sem invocar o Claude
 npm run teste:aprovacao-reais # aprovar um pedido real: ~2min e consome tokens
+npm run spike:aprovacao   # MEDE as marcas contra o CLI real: consome tokens
 npm run perfil            # CPU/RAM POR PROCESSO (use -Json para consumir em script)
 npm run teste:metas       # latencia de tecla e CPU sob carga (leva ~90s)
 node testes/arvore.js     # fechar painel mata a arvore de processos
@@ -92,7 +94,10 @@ Decisao estruturante. Nunca misture os dois.
   (`src/main/eventos.js`) -> `src/main/estado.js` -> **diffs** para a janela. Leve e raro.
 
 **Nunca deduza status lendo os bytes do Canal 1.** E fragil e quebra a cada atualizacao do Claude
-Code; o Canal 2 existe exatamente para isso.
+Code; o Canal 2 existe exatamente para isso. As tres excecoes sao conscientes, estreitas e medidas
+(o farejador de permissao, a confirmacao do `/add-dir` e a leitura da pergunta na faixa) — e quando
+alguma delas muda status, ela **avisa o processo principal**, senao a janela e o main passam a ter
+verdades diferentes.
 
 Arquivos: `src/main/{index,terminais,eventos,estado,instalar-hooks,projetos}.js`,
 `src/preload/ponte.js`, `src/janela/{index.html,painel,grade,lateral,projetos}.js`. Nomes de arquivo
@@ -734,7 +739,15 @@ interface.
 - Sessao viva grava **so depois** de a sessao responder; painel dormindo grava sem aplicar (a flag
   entra na proxima partida) e o toast diz isso.
 - Falha deixa a ligacao **pendente**, e o seletor troca o botao para **aplicar** — e o que devolve a
-  chance de tentar de novo.
+  chance de tentar de novo. O campo e **`p.ligacoesPendentes`**, e o nome comprido e cicatriz: ele se
+  chamava `pendentes`, que **JA EXISTIA no Painel** guardando os `Uint8Array` de saida de painel fora
+  da vista (Fase 6.1), com `pendentesBytes` contando o total. Uma ligacao que falhava empurrava uma
+  **string** naquele array sem mexer no contador, e o `descarregarPendentes()` seguinte alocava um
+  buffer menor que o conteudo e fazia `junto.set(string, off)`: bytes viravam zero, e o offset podia
+  estourar com `RangeError`. O sintoma seria a saida de OUTRO painel — um que estivesse rolado para
+  fora da tela — voltando corrompida, longe o bastante da causa para custar uma tarde. Ele tambem
+  passou a ir para o `sessao.json`: sem isso, reabrir o app transformava toda ligacao pendente em
+  "aplicada" na interface, e o botao de tentar de novo sumia.
 - A leitura do buffer olha so o que chegou **depois** do envio: o `textoDoBuffer()` inclui o
   scrollback, entao uma confirmacao de dez minutos atras casava na primeira volta e o app disparava
   um Enter no que estivesse na tela. Na pratica a **segunda** ligacao de uma sessao nao fazia nada e
@@ -855,6 +868,45 @@ locked   claude session feat-x (pid 24172 start 639219707467220630)
   dialogo cujo padrao e Cancelar.
 - Todos os comandos usam `execFile` com argumentos em **array**: os caminhos vem do usuario e podem
   conter espaco ou `&`.
+
+### A faxina (`limpeza.js`), e por que ela precisou existir
+
+A consequencia honesta do item acima: pasta, branch **e o lock com o PID ja morto** ficam no disco
+para sempre. Cada worktree e um checkout inteiro, com `node_modules` proprio — uma feature por dia
+vira alguns GB por semana que ninguem ve, porque o unico caminho para limpar era o `×` de uma linha
+dentro de um card expandido, uma por vez. Foi relatado como pergunta: *"com o tempo nao vai encher o
+computador?"*. Vai.
+
+`src/janela/limpeza.js` e a **mesma acao em lote**, com o que interessa na frente. O que ela NAO faz
+e igualmente importante: **nada automatico**. Continua valendo a regra da casa — so apaga por clique
+explicito, e com o dialogo nativo nomeando o que vai embora, inclusive os arquivos que o git ignora.
+
+- **`candidata` e derivado, nao regra nova.** Sai de `podeArquivar(wt).pode`, dentro do `listar()`.
+  Reimplementar o criterio na tela era o caminho curto para a lista dizer uma coisa e o clique fazer
+  outra.
+- **`tamanhoDe()` e assincrona e fica FORA do `listar()`.** O `listar()` e sincrono e roda ao
+  expandir um projeto; somar bytes de um checkout com `node_modules` sao dezenas de milhares de
+  `stat`. Medido aqui: 10.091 arquivos e 5,6 GB em **270ms** com os `stat` em lote por diretorio —
+  rapido, mas nao a ponto de merecer entrar no caminho sincrono. Tem teto de tempo, e o parcial se
+  declara (`≥ 400 MB`) em vez de mentir para baixo.
+  - O corte usa `Date.now() >= limite`, e nao `>`: com teto zero o certo e nao varrer nada e se
+    declarar parcial. Com `>`, uma pasta pequena varrida dentro do mesmo milissegundo voltava
+    `parcial: false` para um teto que nao permitia trabalho nenhum. Foi o teste que pegou.
+- **`ultimoCommit` e a data do COMMIT, nunca o `mtime` da pasta.** Um `npm install` ou um build
+  reescreve arquivo e faria uma worktree parada ha um mes parecer de hoje.
+- **Lote nao e um laco de `arquivar`.** `triarLote()` separa apto de recusado ANTES de perguntar (o
+  dialogo tem de listar o que vai acontecer de verdade), e `arquivarVarias()` executa **em
+  sequencia** — sao varios comandos git no mesmo repositorio, e o git nao gosta de concorrencia no
+  index. Cada `arquivar` revalida tudo por dentro, entao uma sessao que suba no meio do lote ainda
+  encontra portao fechado. Uma recusa no meio **nao derruba as outras**, e volta com motivo: mesma
+  razao pela qual `projetos.adicionarVarios` existe.
+  - As duas ficam no **modulo**, e nao no handler, porque handler de IPC nao da para testar em Node
+    puro. O `index.js` so acrescenta o portao que so ele conhece (painel aberto na pasta) e o
+    dialogo.
+- **Impedida aparece na lista, desmarcada e travada.** Some-la esconderia justamente a worktree que
+  voce quer entender por que nao sai.
+- O contador no card (`N worktrees · N prontas para arquivar`) e o que transforma "nunca lembro de
+  limpar" em "da para ver que esta sujo".
 
 **Retomar** abre painel na pasta do worktree com `cls && claude -c`. Sem fallback de proposito:
 medido, `claude -c` num diretorio sem conversa anterior sai com codigo **0** e simplesmente abre
@@ -1057,7 +1109,11 @@ escrever a pergunta junto e um arrasto sem querer nao dispara execucao nem custo
 - **Um unico `setInterval` de 1s** para todos os cronometros.
 
 **Canal 2**
-- Emita **diffs** (`{ id, status, motivo, desde }`), nunca a lista inteira.
+- Emita **diffs** (`{ id, status, motivo, desde, pergunta, tipo }`), nunca a lista inteira.
+- **O processo principal e o dono do status, e a janela nunca pinta status sem contar para ele.**
+  Quem descobre algo pela tela (o farejador do `aprovacao.js`) manda `estado:farejado` — se pintar so
+  no renderer, os dois ficam com verdades diferentes e o `aplicar()` seguinte descarta o evento como
+  "nao mudou nada", deixando a bolinha presa. Ja aconteceu; ver a secao do farejador.
 - O servidor responde 200 **antes** de qualquer processamento (o trabalho de estado vai para
   `setImmediate`). Consumir o corpo antes de responder e ok — e rapido; responder antes de consumir
   faz o curl esperar o proprio timeout.
@@ -1097,11 +1153,95 @@ binario do CLI 2.1.220, nao de supor.
   amarelo voltou a significar **uma coisa so**: tem pergunta te bloqueando. `parada` fica fora da
   fila e nao notifica.
 - **O farejador do Canal 1** (`aprovacao.js`) cobre os 6 segundos: le as duas marcas que ja
-  autorizam escrever no PTY e acende o amarelo na hora. **So ACENDE, nunca apaga** — sair do amarelo
-  continua sendo exclusividade do Canal 2. So painel visivel, e lendo so a tela (`textoDaTela`), sem
-  flush: painel fora da vista nao paga o custo nem perde a economia da Fase 6.1. E a terceira
-  excecao consciente a regra de nao deduzir status do Canal 1; as outras duas sao o `/add-dir` e a
-  leitura da pergunta na faixa.
+  autorizam escrever no PTY e acende o amarelo na hora. So painel visivel, e lendo so a tela
+  (`textoDaTela`), sem flush: painel fora da vista nao paga o custo nem perde a economia da Fase
+  6.1. E a terceira excecao consciente a regra de nao deduzir status do Canal 1; as outras duas sao
+  o `/add-dir` e a leitura da pergunta na faixa.
+
+### O farejador passou a ter DUAS MAOS, e o amarelo deixou de ficar preso
+
+O relato: painel marcado `esperando ha 43s` com o terminal mostrando `* Fluttering… (1m 8s · ↓ 3.9k
+tokens)`. Duas causas somadas, e nenhuma se resolvia so acendendo mais cedo.
+
+1. **Havia DOIS DONOS DA VERDADE.** `farejar()` acendia chamando `OrqLateral.definirStatus`, que e
+   **so do renderer** — o `preload` nao expunha setter nenhum. O processo principal seguia achando
+   `rodando`, entao quando o `PostToolUse` chegava, `estado.aplicar()` comparava com o que **ele**
+   guardava, concluia `mudou: false` e **nao emitia diff**. O amarelo aceso pela janela nao tinha
+   como ser apagado por hook nenhum: ficava ate um `Stop`. Dai o IPC **`estado:farejado`**, e o
+   `estado.definirStatus` que passou a carregar `pergunta`/`tipo` (sem eles, o diff chegava sem os
+   campos e `lateral.definirStatus` zerava a pergunta do card).
+2. **Prompt RESPONDIDO continua rolando na tela.** Para quem so procura as duas marcas, ele e
+   identico a um pendente — e o farejador reacendia a cada 1,5s por cima de uma sessao que ja
+   voltara a trabalhar. O comentario antigo do arquivo chamava isso de recurso.
+
+**A regra "so o Canal 2 apaga" foi revista de proposito**, e o que a torna segura e a marca nova:
+`MARCA_TRABALHANDO` (`esc to interrupt`, e o rodape de tokens). Ela e **afirmativa** e some assim que
+o CLI volta a esperar.
+
+- **Acender:** pedido na tela **e** nenhum sinal de trabalho.
+- **Apagar:** sinal de trabalho — **mesmo com o prompt ainda na tela**. Essa ultima parte e o caso da
+  captura: exigir que o prompt tivesse sumido deixava o bug de pe. Quem desempata e o tempo verbal
+  de cada marca: o prompt na tela e **historico** (pode ter sido respondido ha um minuto), o sinal de
+  trabalho e sobre o **agora**.
+- **Nunca se apaga pela AUSENCIA do prompt.** O custo de errar e assimetrico: acender a toa e ruido,
+  apagar a toa esconde uma sessao bloqueada.
+
+**`PreToolUse` NAO foi registrado, e isso foi MEDIDO** (`npm run spike:aprovacao`, um pedido real
+contra o CLI). A ordem dos hooks em volta de um prompt de permissao, com o carimbo de cada um:
+
+```
+[  6827ms] PreToolUse
+[  8736ms] PostToolUse
+[ 11014ms] PreToolUse          <- a ferramenta seguinte, a que vai pedir permissao
+[ 17571ms] Notification/permissao
+```
+
+Ou seja: `PreToolUse` roda **antes** do prompt — e o gancho que um hook usa para devolver
+`permissionDecision` —, entao ele nao marca "permissao concedida". Registra-lo so somaria um hook
+por uso de ferramenta (~310ms com o app fechado) sem trazer informacao de status. **Nao tente de
+novo.**
+
+O mesmo spike mediu o ganho do farejador: o amarelo acendeu aos **5s**, e o hook so chegou aos
+**17,5s** — doze segundos de vantagem, bem mais que os ~6s do temporizador do CLI (aqui o pedido
+veio depois de outra ferramenta rodar).
+
+E mediu a separacao das marcas, que e o que torna o apagador seguro: em **14 capturas, ZERO** tinham
+prompt e sinal de trabalho na mesma tela. As capturas cruas ficam em
+`%TEMP%\orq-spike-aprovacao\capturas.json` — se o CLI mudar a forma do prompt, e ali que se compara.
+
+### `pedidoNaTela` le a TELA, e nao o scrollback
+
+Ela lia `textoDoBuffer()`, ou seja as **3000 linhas** de historico, e `MARCA_PERGUNTA.exec` devolve o
+**primeiro** match: a trava que autoriza escrever no PTY podia estar conferindo uma pergunta de dez
+minutos atras e liberando um `1` em cima do que estivesse na tela agora. E o mesmo defeito que
+`esperarNovoNoBuffer` ja tinha consertado para o `/add-dir` — so que aqui o resultado e uma tecla no
+terminal de alguem. Hoje le `textoDaTela({ flush: true })`.
+
+### As FORMAS de pedido, e por que o plano nao ganha botao
+
+Havia uma pergunta so e uma tecla fixa, e os dois viraram mentira quando apareceu o segundo formato:
+
+```
+Claude has written up a plan and is ready to execute. Would you like to proceed?
+> 1. Yes, and use auto mode
+  2. Yes, manually approve edits
+  3. Tell Claude what to change
+```
+
+Isso nao casava com `Do you want to ...?`, entao a faixa ficava com a frase generica do hook
+("Claude Code needs your approval for the plan") e o clique caia no toast **"Nao achei o pedido na
+tela"**. Foi relatado com print.
+
+**Ampliar so a regex teria sido pior que o bug**: ali a opcao 1 e `Yes, and use auto mode`, que liga
+o modo automatico da sessao inteira. Aprovar por POSICAO ("e sempre a 1") escalaria permissao sem
+ninguem pedir — a mesma coisa que o app ja recusa na opcao 2 do prompt de permissao e no "remember"
+do `/add-dir`. Por isso o plano entra como forma **reconhecida e NAO aprovavel**: a faixa mostra a
+pergunta certa, o amarelo fica correto, o toast de erro some, e o botao nao existe ali. Escolher
+entre auto mode e aprovacao manual e decisao de quem trabalha.
+
+O botao nasce presente (o caso comum E o prompt de permissao) e **sai** quando a leitura da tela
+volta com uma forma nao aprovavel. Quem protege esse ~1s e a trava de sempre: `aprovar()` reconfere
+no CLIQUE.
 - **`jaAvisado` era marcado ANTES do teste de foco.** Uma sessao que comecava a esperar com a janela
   na frente queimava ali a unica chance de aviso: ao trocar de janela um minuto depois, nada. Agora
   o aviso fica **pendente** e sai no `blur`. `Stop` tambem passou a avisar (`terminou`), e um

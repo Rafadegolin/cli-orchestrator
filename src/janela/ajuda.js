@@ -151,10 +151,15 @@ const SECOES = [
         '<b>Ver</b> só leva o cursor até o terminal, sem responder nada.',
         'Sessão que parou apenas <b>ociosa</b> aparece sem o botão: ali não há o que aprovar, ela '
           + 'está esperando você digitar.',
+        'O pedido para <b>executar um plano</b> aparece na faixa, mas também sem o botão: ali a '
+          + 'primeira opção liga o modo automático da sessão, e essa escolha é sua, no terminal.',
       ]),
       aviso('O app confere o pedido na tela do terminal antes de responder. Se ele não achar — '
         + 'porque você já respondeu por lá, por exemplo — <b>não escreve nada</b>: leva você ao '
         + 'painel e avisa. Aprovar nunca acontece às cegas.'),
+      p('O amarelo pode acender <b>antes</b> do aviso oficial do Claude, que demora cerca de seis '
+        + 'segundos, e apaga sozinho quando o painel volta a mostrar trabalho em curso — mesmo que a '
+        + 'pergunta já respondida ainda esteja visível na tela.'),
     ],
   },
   {
@@ -165,8 +170,13 @@ const SECOES = [
       lista([
         '<b>Clicar</b> abre um painel dentro do worktree continuando a última conversa dali.',
         'O <b>×</b> arquiva: remove a pasta do worktree e o branch.',
+        '<b>limpar…</b> abre a lista com o tamanho em disco e a idade de cada uma, para arquivar '
+          + 'várias de uma vez. Também está na paleta (Ctrl+K).',
       ]),
-      p('A etiqueta de cada worktree diz o que impede arquivá-lo:'),
+      aviso('<b>Fechar o painel não apaga nada.</b> A pasta do worktree e o branch continuam no '
+        + 'disco, e cada worktree é um checkout inteiro do projeto — com <code>node_modules</code> '
+        + 'próprio. É por isso que a faxina existe: sem ela, elas só se acumulam.'),
+      p('A etiqueta de cada worktree diz o que impede arquivá-la:'),
       tabela(['Etiqueta', 'Por que não dá para arquivar'], [
         ['aberto agora', 'Há uma sessão do Claude viva nele.'],
         ['N alterados', 'Há arquivo modificado sem commit.'],

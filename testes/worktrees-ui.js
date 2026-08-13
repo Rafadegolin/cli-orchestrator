@@ -146,6 +146,75 @@ function montarRepo() {
   checar('a lista na tela ficou so com o que esta aberto',
     restante.length === 1 && restante[0] === 'aberto', restante.join(','));
 
+  // --- a tela de limpeza -------------------------------------------------
+  //
+  // Fechar um painel nunca apagou pasta nem branch, entao worktree se acumula
+  // em silencio. Esta tela existe para isso ficar visivel e sair em um clique.
+  const dNova = path.join(REPO, '.claude', 'worktrees', 'nova');
+  git(REPO, 'worktree', 'add', '-q', '-b', 'worktree-nova', dNova);
+  git(REPO, 'worktree', 'lock', '--reason',
+    'claude session nova (pid 999999 start 639219707467220630)', dNova);
+
+  const projeto = JSON.parse(await cdp.avaliar(`(() => {
+    const p = window.OrqProjetos.lista()[0];
+    return JSON.stringify({ caminho: p.caminho, nome: p.nome, id: p.id });
+  })()`));
+
+  await cdp.avaliar(`window.OrqLimpeza.abrir(${JSON.stringify(projeto.caminho)},
+    ${JSON.stringify(projeto.nome)})`);
+  await esperar(2500); // o tamanho em disco chega depois da lista
+
+  const limpeza = JSON.parse(await cdp.avaliar(`(() => {
+    const itens = [...document.querySelectorAll('.limpeza-item')].map(li => ({
+      nome: li.querySelector('.limpeza-nome').textContent,
+      marcado: li.querySelector('.limpeza-caixa').checked,
+      travado: li.querySelector('.limpeza-caixa').disabled,
+      marca: li.querySelector('.limpeza-marca').textContent,
+      meta: li.querySelector('.limpeza-meta').textContent,
+    }));
+    return JSON.stringify({
+      aberta: !document.getElementById('limpeza').hidden,
+      itens,
+      resumo: document.getElementById('limpeza-resumo').textContent,
+      marcados: window.OrqLimpeza.marcados().length,
+    });
+  })()`));
+
+  checar('a tela de limpeza abre com as duas worktrees',
+    limpeza.aberta && limpeza.itens.length === 2,
+    JSON.stringify(limpeza.itens.map((i) => i.nome)));
+
+  const nova = limpeza.itens.find((i) => i.nome === 'nova');
+  const aberta = limpeza.itens.find((i) => i.nome === 'aberto');
+
+  checar('a candidata vem MARCADA por padrao',
+    nova?.marcado === true && nova?.travado === false, JSON.stringify(nova));
+  // Some-la esconderia justamente a que voce quer entender por que nao sai.
+  checar('a que tem sessao viva aparece, mas desmarcada e travada',
+    aberta?.marcado === false && aberta?.travado === true, JSON.stringify(aberta));
+  checar('e diz o motivo em vez de um "nao deu" generico',
+    aberta?.marca === 'aberto agora', aberta?.marca);
+  checar('o tamanho em disco chega e nao fica em reticencias',
+    /\d/.test(nova?.meta || '') && !/^…$/.test(nova?.meta || ''), nova?.meta);
+  checar('e o resumo conta so o que vai sair',
+    limpeza.marcados === 1 && /1 marcada/.test(limpeza.resumo), limpeza.resumo);
+
+  // Arquivar em lote, sem o dialogo nativo (o CDP nao dirige dialogo do Windows).
+  const lote = JSON.parse(await cdp.avaliar(`(async () => {
+    const r = await window.orq.worktreesArquivarVarias(
+      ${JSON.stringify(projeto.caminho)}, window.OrqLimpeza.marcados(), false);
+    return JSON.stringify(r);
+  })()`));
+  checar('arquivar as marcadas remove a pasta e o branch',
+    lote.ok === true && lote.arquivadas.length === 1 && !fs.existsSync(dNova),
+    JSON.stringify(lote.arquivadas));
+
+  const branches = git(REPO, 'branch', '--list');
+  checar('o branch da arquivada tambem foi embora',
+    !branches.includes('worktree-nova'), branches.replace(/\s+/g, ' ').trim());
+
+  await cdp.avaliar('window.OrqLimpeza.fechar()');
+
   // Limpeza.
   await cdp.avaliar(`(async () => {
     for (const p of await window.orq.projetosListar()) await window.orq.projetosRemover(p.id, false);
