@@ -26,7 +26,9 @@
   const btnFechar = document.getElementById('limpeza-fechar');
 
   let projeto = null;
+  let nomeDoProjeto = '';
   let itens = [];
+  let arquivando = false;
   const marcados = new Set();
 
   function formatarBytes(b) {
@@ -140,46 +142,92 @@
     atualizarResumo();
   }
 
+  // Le o disco e redesenha. Separada do `abrir` de proposito: depois do lote o
+  // que se quer e RELER, e nao reabrir -- chamar `abrir()` ali fazia o overlay
+  // que o usuario ja tinha fechado com Esc voltar sozinho para a tela.
+  async function recarregar({ preservarTamanhos = false } = {}) {
+    const alvo = projeto;
+    const medidos = preservarTamanhos
+      ? new Map(itens.filter((w) => w.tamanho).map((w) => [w.caminho, w.tamanho]))
+      : new Map();
+
+    elResumo.textContent = 'lendo os worktrees…';
+    itens = await window.orq.worktreesListar(alvo) || [];
+    if (projeto !== alvo) return;
+
+    // Marcadas por padrao SO as candidatas -- e quem decide isso e o
+    // `podeArquivar` do processo principal, nao uma regra reescrita aqui.
+    marcados.clear();
+    for (const w of itens) {
+      if (w.candidata) marcados.add(w.caminho);
+      if (medidos.has(w.caminho)) w.tamanho = medidos.get(w.caminho);
+    }
+    desenhar();
+
+    // O tamanho chega DEPOIS: sao dezenas de milhares de stat por checkout, e
+    // segurar a lista para contar bytes deixaria a tela parada no clique.
+    //
+    // Só os que faltam: depois de um lote os sobreviventes ja foram medidos, e
+    // remedir tudo era uma segunda varredura completa de disco logo em seguida.
+    const faltam = itens.filter((w) => !w.tamanho).map((w) => w.caminho);
+    if (!faltam.length) return;
+    const tamanhos = await window.orq.worktreesTamanhos(faltam);
+    // A tela pode ter sido fechada, ou aberta em outro projeto, no meio disso.
+    if (elLimpeza.hidden || projeto !== alvo) return;
+    for (const w of itens) if (tamanhos[w.caminho]) w.tamanho = tamanhos[w.caminho];
+    desenhar();
+  }
+
   async function abrir(caminhoProjeto, nomeProjeto = '') {
     projeto = caminhoProjeto;
+    nomeDoProjeto = nomeProjeto;
     marcados.clear();
     itens = [];
 
     elTitulo.textContent = nomeProjeto ? `Limpar worktrees — ${nomeProjeto}` : 'Limpar worktrees';
     elLista.replaceChildren();
-    elResumo.textContent = 'lendo os worktrees…';
     btnArquivar.disabled = true;
     elLimpeza.hidden = false;
 
-    itens = await window.orq.worktreesListar(caminhoProjeto) || [];
-    // Marcadas por padrao SO as candidatas -- e quem decide isso e o
-    // `podeArquivar` do processo principal, nao uma regra reescrita aqui.
-    for (const w of itens) if (w.candidata) marcados.add(w.caminho);
-    desenhar();
-
-    // O tamanho chega DEPOIS: sao dezenas de milhares de stat por checkout, e
-    // segurar a lista para contar bytes deixaria a tela parada no clique.
-    if (!itens.length) return;
-    const tamanhos = await window.orq.worktreesTamanhos(itens.map((w) => w.caminho));
-    // A tela pode ter sido fechada, ou aberta em outro projeto, no meio disso.
-    if (elLimpeza.hidden || projeto !== caminhoProjeto) return;
-    for (const w of itens) w.tamanho = tamanhos[w.caminho];
-    desenhar();
+    await recarregar();
   }
 
-  async function arquivarMarcadas() {
+  // `confirmar: false` segue a MESMA convencao de `worktrees:arquivar` e
+  // `projetos:remover`: o CDP nao dirige dialogo nativo do Windows, e o caminho
+  // executado e exatamente o mesmo, so sem a pergunta na frente. O clique do
+  // botao sempre pergunta.
+  async function arquivarMarcadas({ confirmar = true } = {}) {
     const alvos = [...marcados];
     if (!alvos.length) return { ok: false };
 
+    const projetoDoLote = projeto;
+    arquivando = true;
     btnArquivar.disabled = true;
     btnArquivar.textContent = 'arquivando…';
+    // Marcar no meio do lote mudaria uma lista que ja esta sendo executada.
+    for (const c of elLista.querySelectorAll('.limpeza-caixa')) c.disabled = true;
 
-    const r = await window.orq.worktreesArquivarVarias(projeto, alvos);
-
-    btnArquivar.textContent = 'Arquivar marcadas';
+    let r;
+    // `try/finally` porque sem ele qualquer rejeicao do processo principal
+    // deixava o botao preso em `arquivando...` e `disabled` PARA SEMPRE, com uma
+    // promessa rejeitada sem catch no listener do clique. Era por aqui que toda
+    // excecao la de tras virava "o app travou" na tela.
+    try {
+      r = await window.orq.worktreesArquivarVarias(projetoDoLote, alvos, confirmar);
+    } catch (err) {
+      console.error('[limpeza] o lote falhou:', err);
+      elResumo.textContent = `Não consegui arquivar: ${err?.message || err}`;
+      window.OrqToast?.mostrar('Não consegui arquivar. Veja a mensagem na lista.');
+      return { ok: false, erro: String(err?.message || err) };
+    } finally {
+      arquivando = false;
+      btnArquivar.textContent = 'Arquivar marcadas';
+      btnArquivar.disabled = marcados.size === 0;
+    }
 
     if (r.cancelado) {
-      btnArquivar.disabled = false;
+      // Cancelou no dialogo: a lista continua valendo, so destrava as caixas.
+      desenhar();
       return r;
     }
 
@@ -194,30 +242,53 @@
 
     // Recarrega em vez de remover da lista na mao: o estado real pode ter
     // mudado no meio do lote, e a lista tem de refletir o disco.
-    await abrir(projeto, elTitulo.textContent.replace(/^Limpar worktrees — /, ''));
+    //
+    // E SO se a tela ainda estiver aberta neste projeto: antes isto chamava
+    // `abrir()`, que trazia de volta um overlay que o usuario ja tinha fechado.
+    if (!elLimpeza.hidden && projeto === projetoDoLote) {
+      await recarregar({ preservarTamanhos: true });
+    }
     window.OrqProjetos?.recarregarDetalhes?.();
     return r;
   }
+
+  // O progresso do lote. Sem isto a unica pista de que algo acontecia era o
+  // texto do botao -- e um lote de dez worktrees leva dezenas de segundos.
+  window.orq.aoArquivarProgresso?.(({ feito, total, nome }) => {
+    if (!arquivando || elLimpeza.hidden) return;
+    elResumo.textContent = feito >= total
+      ? 'Terminando…'
+      : `Arquivando ${feito + 1} de ${total}${nome ? ` — ${nome}` : ''}…`;
+  });
 
   function fechar() {
     elLimpeza.hidden = true;
     itens = [];
     marcados.clear();
     projeto = null;
+    nomeDoProjeto = '';
   }
 
-  btnArquivar?.addEventListener('click', arquivarMarcadas);
+  // `() =>` e nao a funcao direto: o objeto de evento do clique viraria o
+  // parametro de opcoes, e `MouseEvent.confirmar` e `undefined` -- que cai no
+  // padrao por sorte, nao por desenho.
+  btnArquivar?.addEventListener('click', () => arquivarMarcadas());
   btnCancelar?.addEventListener('click', fechar);
   btnFechar?.addEventListener('click', fechar);
   window.OrqOverlays?.registrar(elLimpeza, fechar);
 
   window.OrqLimpeza = {
     abrir,
+    recarregar,
     fechar,
     arquivarMarcadas,
     formatarBytes,
     formatarIdade,
     itens: () => itens,
     marcados: () => [...marcados],
+    // Guardado em variavel, e nao relido do titulo da tela: o `replace` do
+    // proprio prefixo que havia aqui apagava o nome de um projeto chamado
+    // "Limpar worktrees — api".
+    nomeProjeto: () => nomeDoProjeto,
   };
 })();

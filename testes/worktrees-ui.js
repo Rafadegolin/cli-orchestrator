@@ -17,6 +17,16 @@ function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
 }
 
+// Worktree arquivavel (lock orfao), criada depois do `montarRepo` -- e o que os
+// testes de lote precisam para ter varias saindo de uma vez.
+function criarWorktree(nome) {
+  const destino = path.join(REPO, '.claude', 'worktrees', nome);
+  git(REPO, 'worktree', 'add', '-q', '-b', `worktree-${nome}`, destino);
+  git(REPO, 'worktree', 'lock', '--reason',
+    `claude session ${nome} (pid 999999 start 639219707467220630)`, destino);
+  return destino;
+}
+
 function montarRepo() {
   fs.rmSync(REPO, { recursive: true, force: true });
   fs.mkdirSync(REPO, { recursive: true });
@@ -212,6 +222,59 @@ function montarRepo() {
   const branches = git(REPO, 'branch', '--list');
   checar('o branch da arquivada tambem foi embora',
     !branches.includes('worktree-nova'), branches.replace(/\s+/g, ' ').trim());
+
+  // --- o lote pela TELA, com o app respondendo ----------------------------
+  //
+  // O caso que originou tudo: limpar ~10 worktrees "funcionava" mas o app
+  // morria. Nao era crash -- era o processo principal bloqueado dezenas de
+  // segundos por centenas de comandos git sincronos, e o Windows oferecendo
+  // fechar a janela que nao responde. Aqui se cobra o que aquilo custou.
+  for (const n of ['l1', 'l2', 'l3']) criarWorktree(n);
+  await cdp.avaliar(`window.OrqLimpeza.abrir(${JSON.stringify(projeto.caminho)}, 'repo')`);
+  await esperar(1200);
+
+  // Dispara SEM esperar: o que se quer medir e o que acontece DURANTE.
+  await cdp.avaliar(`(() => { window.__lote = window.OrqLimpeza.arquivarMarcadas({ confirmar: false }); return 'ok'; })()`);
+
+  // A prova direta de que o loop de eventos respira: com o lote no ar, a janela
+  // ainda responde. Antes, isto ficava parado ate o fim.
+  const t0 = Date.now();
+  await cdp.avaliar('1+1');
+  const respondeu = Date.now() - t0;
+  checar('o app responde DURANTE o lote', respondeu < 1500, `${respondeu}ms`);
+
+  // O progresso: sem ele a unica pista era o texto do botao.
+  let viuProgresso = '';
+  for (let i = 0; i < 40 && !viuProgresso; i += 1) {
+    const r = await cdp.avaliar(`document.getElementById('limpeza-resumo').textContent`);
+    if (/Arquivando \d+ de \d+/.test(r)) viuProgresso = r;
+    else await esperar(150);
+  }
+  checar('e mostra de quantas em quantas vai', Boolean(viuProgresso), viuProgresso || '(nunca apareceu)');
+
+  const fim = JSON.parse(await cdp.avaliar(`(async () => JSON.stringify(await window.__lote))()`));
+  checar('as tres saem no lote', fim.arquivadas.length === 3,
+    JSON.stringify(fim.arquivadas.map((a) => a.nome)));
+  // O `try/finally`: sem ele o botao ficava preso em `arquivando...` e
+  // `disabled` para sempre, e era assim que toda excecao do main virava "travou".
+  checar('e o botao volta ao rotulo normal, destravado',
+    await cdp.avaliar(`document.getElementById('limpeza-arquivar').textContent`) === 'Arquivar marcadas',
+    await cdp.avaliar(`document.getElementById('limpeza-arquivar').textContent`));
+
+  // --- fechar no meio nao pode trazer o overlay de volta -------------------
+  //
+  // O pos-lote chamava `abrir()`, que poe `hidden = false`: quem tinha fechado
+  // com Esc via a tela reaparecer sozinha.
+  for (const n of ['m1', 'm2']) criarWorktree(n);
+  await cdp.avaliar(`window.OrqLimpeza.abrir(${JSON.stringify(projeto.caminho)}, 'repo')`);
+  await esperar(1200);
+  await cdp.avaliar(`(() => { window.__lote2 = window.OrqLimpeza.arquivarMarcadas({ confirmar: false }); return 'ok'; })()`);
+  await esperar(200);
+  await cdp.avaliar('window.OrqLimpeza.fechar()');
+  await cdp.avaliar(`(async () => JSON.stringify(await window.__lote2))()`);
+  await esperar(400);
+  checar('overlay fechado no meio do lote continua fechado',
+    await cdp.avaliar(`String(document.getElementById('limpeza').hidden)`) === 'true', '');
 
   await cdp.avaliar('window.OrqLimpeza.fechar()');
 

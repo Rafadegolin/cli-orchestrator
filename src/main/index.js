@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const os = require('os');
 
@@ -20,6 +20,9 @@ const historico = require('./historico');
 const layouts = require('./layouts');
 const atalho = require('./atalho');
 const uso = require('./uso');
+const remoto = require('./remoto');
+const avisos = require('./avisos');
+const registro = require('./registro');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -45,6 +48,28 @@ if (process.argv.includes('--remover-hooks')) {
   app.quit();
   process.exit(0);
 }
+
+// A rede de seguranca do processo principal.
+//
+// Este processo HOSPEDA as sessoes: quando ele morre, todas morrem junto, e o
+// trabalho de horas vai com elas. E ate aqui nao havia nada -- um throw fora de
+// um `ipcMain.handle` matava o app em silencio, sem dialogo, sem log, sem nada
+// na tela. O caminho mais exposto era o `setImmediate` do `eventos.js`, que roda
+// para todo hook que chega e nao tinha guarda nenhuma.
+//
+// Ela LOGA E NAO FAZ MAIS NADA. Nunca dialogo -- a mesma politica do updater e
+// do `gitDeRede`: uma excecao que se repete viraria uma fila de caixas modais em
+// cima de sessoes rodando, que e pior que o problema. Seguir com um modulo
+// possivelmente inconsistente e estritamente melhor que derrubar tudo.
+//
+// O custo assumido: rede global MASCARA defeito. Por isso o prefixo e ruidoso e
+// a stack inteira vai para o log.
+function conterFalha(origem, err) {
+  console.error(`[falha-contida] ${origem}:`, (err && err.stack) || err);
+}
+
+process.on('uncaughtException', (err) => conterFalha('uncaughtException', err));
+process.on('unhandledRejection', (err) => conterFalha('unhandledRejection', err));
 
 // cmd.exe abre em dezenas de ms; o PowerShell leva algumas centenas e sozinho
 // comeria boa parte da meta de 1,5s ate o primeiro terminal.
@@ -147,14 +172,19 @@ function criarJanela() {
     terminais.fecharTodos();
     metricas.parar();
     uso.parar();
+    remoto.parar();
+    registro.parar();
     janela = null;
   });
 
   terminais.definirJanela(janela);
   estado.definirJanela(janela);
+  avisos.definirJanela(janela);
   atualizacao.iniciar(janela);
   metricas.iniciar(janela);
   uso.iniciar(janela);
+  remoto.iniciar(janela);
+  registro.iniciar(janela);
   janela.loadFile(path.join(__dirname, '..', 'janela', 'index.html'));
 }
 
@@ -215,6 +245,8 @@ app.on('before-quit', () => {
   atualizacao.parar();
   metricas.parar();
   uso.parar();
+  remoto.parar();
+  registro.parar();
 });
 
 // ---------------------------------------------------------------- IPC
@@ -342,6 +374,17 @@ ipcMain.handle('worktrees:situacaoInclude', (_e, projeto) => worktrees.situacaoI
 ipcMain.handle('git:situacao', (_e, projeto) => worktrees.situacaoRemoto(projeto));
 // Esta toca a rede -- assincrona, com prazo, e proibida de pedir senha.
 ipcMain.handle('git:buscar', (_e, projeto) => worktrees.buscar(projeto));
+// Um projeto, com o piso de tempo do `remoto`: e o gatilho de expandir um card.
+// Quem chama NAO espera o resultado -- o push `git:estado` corrige a tela quando
+// o fetch voltar, e desenhar o card nunca pode depender de internet.
+ipcMain.handle('git:buscarUm', async (_e, projeto) => {
+  const r = await remoto.atualizarUm(projeto);
+  remoto.emitir();
+  return r;
+});
+// Todos, sem piso: e o "Buscar novidades no remoto" da paleta, pedido a mao.
+ipcMain.handle('git:buscarTodos', () => remoto.tique({ forcar: true }));
+ipcMain.handle('git:estado', () => remoto.agora());
 // Escreve no checkout do usuario, mas so por fast-forward: sem dialogo porque
 // `--ff-only` nao tem como estragar nada -- ou avanca, ou recusa com motivo.
 ipcMain.handle('git:atualizar', (_e, projeto) => worktrees.atualizar(projeto));
@@ -351,12 +394,25 @@ ipcMain.handle('worktrees:diff', (_e, { projeto, caminho }) => worktrees.diff(pr
 // Quanto cada worktree ocupa. Separado do `listar` porque e caro: somar bytes
 // de um checkout com node_modules sao dezenas de milhares de stat, e o `listar`
 // roda ao expandir um projeto. Aqui e sob demanda -- so a tela de limpeza pede.
+// Orcamento do LOTE, e nao por item. O teto de 8s do `tamanhoDe` e por pasta:
+// com dez worktrees isso virava 80 segundos varrendo disco e saturando o
+// threadpool do libuv -- a tela ja ficava lenta antes mesmo de alguem clicar em
+// arquivar. Repartir o que sobra mantem a promessa do modulo (numero aproximado
+// que se declara parcial) sem deixar a duracao crescer com a lista.
+const MS_TAMANHOS_LOTE = 12_000;
+
 ipcMain.handle('worktrees:tamanhos', async (_e, caminhos) => {
   const alvos = Array.isArray(caminhos) ? caminhos : [];
   const saida = {};
+  const limite = Date.now() + MS_TAMANHOS_LOTE;
   // Sequencial: sao varias arvores grandes no MESMO disco, e disparar todas
   // juntas so faz a cabeca do disco brigar consigo mesma.
-  for (const c of alvos) saida[c] = await worktrees.tamanhoDe(c);
+  for (const c of alvos) {
+    // Piso de 500ms: com o orcamento estourado o certo e cada uma ainda se
+    // declarar parcial, e nao devolver zero como se a pasta estivesse vazia.
+    const ms = Math.max(500, limite - Date.now());
+    saida[c] = await worktrees.tamanhoDe(c, { ms: Math.min(ms, worktrees.MS_TAMANHO) });
+  }
   return saida;
 });
 
@@ -366,9 +422,15 @@ ipcMain.handle('worktrees:tamanhos', async (_e, caminhos) => {
 // `projetos.adicionarVarios` existe: um alvo problematico nao pode derrubar o
 // lote, e N dialogos nativos seguidos seriam N chances de clicar no automatico.
 // Um dialogo so, que NOMEIA tudo que vai embora, e cada recusa volta com motivo.
-ipcMain.handle('worktrees:arquivarVarias', async (_e, { projeto, caminhos, confirmar = true } = {}) => {
+ipcMain.handle('worktrees:arquivarVarias', async (evento, { projeto, caminhos, confirmar = true } = {}) => {
   const pedidos = Array.isArray(caminhos) ? caminhos : [];
   if (!pedidos.length) return { ok: false, arquivadas: [], recusadas: [] };
+
+  // A janela de QUEM PEDIU, e nao a global `janela` -- que e zerada no `closed`.
+  // Um lote leva dezenas de segundos, e nesse intervalo a janela pode morrer:
+  // com a global, o `showMessageBox` receberia `null` e estouraria.
+  const dono = BrowserWindow.fromWebContents(evento.sender);
+  const vivo = () => dono && !dono.isDestroyed() && !dono.webContents.isDestroyed();
 
   // O portao que so o main conhece: painel deste app aberto na pasta. O lock do
   // Claude cobre a sessao; este cobre o terminal.
@@ -387,7 +449,7 @@ ipcMain.handle('worktrees:arquivarVarias', async (_e, { projeto, caminhos, confi
     // menos.
     const comIgnorados = aptas.filter((w) => w.ignorados?.length).length;
 
-    const { response } = await dialog.showMessageBox(janela, {
+    const { response } = await dialog.showMessageBox(dono, {
       type: 'warning',
       buttons: ['Arquivar', 'Cancelar'],
       defaultId: 1,
@@ -408,7 +470,12 @@ ipcMain.handle('worktrees:arquivarVarias', async (_e, { projeto, caminhos, confi
     if (response !== 0) return { ok: false, cancelado: true, arquivadas: [], recusadas };
   }
 
-  const r = worktrees.arquivarVarias(projeto, aptas.map((w) => w.caminho));
+  // O progresso existe porque o lote leva dezenas de segundos e ate agora a
+  // unica pista era o texto do botao virar `arquivando...`. Quem monta o evento
+  // e o modulo; aqui so se repassa para a janela que pediu.
+  const r = await worktrees.arquivarVarias(projeto, aptas.map((w) => w.caminho), {
+    aoProgresso: (p) => { if (vivo()) dono.webContents.send('worktrees:progresso', p); },
+  });
   // As recusas da triagem e as da execucao contam a mesma historia para quem
   // esta olhando: uma lista so.
   return { ...r, recusadas: [...recusadas, ...r.recusadas] };
@@ -417,20 +484,24 @@ ipcMain.handle('worktrees:arquivarVarias', async (_e, { projeto, caminhos, confi
 // Arquivar apaga trabalho de forma irreversivel. Tres portoes antes de mexer em
 // qualquer coisa, e cada recusa diz QUAL deles impediu.
 ipcMain.handle('worktrees:arquivar', async (_e, { projeto, caminho, confirmar = true } = {}) => {
-  const norm = (p) => path.resolve(String(p || '')).toLowerCase();
-
   // Portao extra que o modulo nao tem como saber: painel deste app aberto na
   // pasta. O lock do Claude cobre a sessao; este cobre o terminal.
-  const emUso = terminais.idsAbertos().some((id) => norm(terminais.cwdDe(id)) === norm(caminho));
+  //
+  // `dentroDe`, e nao igualdade: um painel aberto numa SUBPASTA do worktree
+  // passava aqui, e o `worktree remove` apagava a pasta debaixo dele.
+  const emUso = terminais.idsAbertos()
+    .some((id) => worktrees.dentroDe(caminho, terminais.cwdDe(id)));
   if (emUso) {
     return {
       ok: false,
       motivo: 'painel-aberto',
-      texto: 'Ha um painel deste app aberto nesta pasta. Feche o painel antes de arquivar.',
+      texto: 'Ha um painel deste app aberto dentro desta pasta. Feche o painel antes de arquivar.',
     };
   }
 
-  const alvo = worktrees.listar(projeto).find((w) => norm(w.caminho) === norm(caminho));
+  // Precisa dos `ignorados`, que o dialogo NOMEIA -- entao aqui e `listar`
+  // mesmo, e nao o `lerUma` do caminho de lote.
+  const alvo = worktrees.listar(projeto).find((w) => worktrees.mesmoCaminho(w.caminho, caminho));
   const veredito = worktrees.podeArquivar(alvo);
   if (!veredito.pode) return { ok: false, ...veredito };
 
@@ -523,6 +594,7 @@ ipcMain.handle('app:constantes', () => ({
   pastaDados: arquivo.PASTA,
   arquivoHooks: instalarHooks.ARQ_SETTINGS,
   minutosUso: Math.round(uso.MS_ENTRE / 60000),
+  minutosBusca: Math.round(remoto.MS_ENTRE / 60000),
 }));
 
 ipcMain.handle('ui:carregar', () => preferencias.carregar());
@@ -575,23 +647,9 @@ ipcMain.on('app:focar', () => {
   janela.focus();
 });
 
-ipcMain.on('app:notificar', (_e, { titulo, corpo }) => {
-  // Piscar na barra de tarefas ANTES do toast, e independente dele: o toast do
-  // Windows pode ser descartado em silencio (Foco Assistido, notificacoes do
-  // app desligadas, atalho sem o AppUserModelID), e ai o piscar e o unico sinal
-  // que sobra. Ele para sozinho quando a janela recebe foco.
-  if (janela && !janela.isDestroyed() && !janela.isFocused()) janela.flashFrame(true);
-
-  if (!Notification.isSupported()) return;
-  const n = new Notification({ title: titulo, body: corpo, silent: false });
-  n.on('click', () => {
-    if (!janela) return;
-    if (janela.isMinimized()) janela.restore();
-    janela.show();
-    janela.focus();
-  });
-  n.show();
-});
+// Delegador: o piscar, o toast e o portao da preferencia vivem no `avisos.js`,
+// que e o mesmo caminho do aviso de atualizacao.
+ipcMain.on('app:notificar', (_e, { titulo, corpo }) => avisos.notificar({ titulo, corpo }));
 
 // --------------------------------------------------------- hooks do Claude
 

@@ -586,15 +586,40 @@ button:focus-visible, input:focus-visible {
 
 .projeto-linha:hover { background: var(--bg3); border-color: var(--line); }
 
+/* 24x24 e o minimo da WCAG 2.2, e este botao media ~14x11: `width: 14px`,
+   `padding: 0`, glifo de 9px, e `.projeto-linha` com `align-items: center`, que
+   nao o estica. Era o menor alvo de clique da lateral inteira, e o relato foi
+   "precisa clicar muito exatamente no icone".
+
+   As margens NEGATIVAS sao o que evita o efeito colateral: a altura do conteudo
+   da linha e 18px (a do `.projeto-remover`), entao uma caixa de 24px com -3px em
+   cima e embaixo tem margem-box de 18px. A linha nao cresce um pixel, e a caixa
+   de clique -- que e a border-box -- e 24x24 de verdade. Ela invade o
+   `padding: 7px` da linha, que sobra. */
 .projeto-expandir {
-  flex: 0 0 auto;
-  width: 14px;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  margin: -3px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
+  border-radius: 5px;
   color: var(--fg3);
-  font-size: 9px;
+  font-size: 11px;
   padding: 0;
 }
+
+.projeto-expandir:hover { color: var(--fg2); background: var(--bg3); }
+
+/* `visibility`, e nao o atributo `hidden`: aquele cai na regra global
+   `[hidden] { display: none !important }`, e sumir do flex leva junto um dos
+   `gap: 9px` -- o quadradinho de cor dos projetos SEM GIT ficava desalinhado de
+   todos os outros. Aqui a caixa continua ocupando lugar, sem receber clique nem
+   foco. */
+.projeto-expandir:disabled { visibility: hidden; }
 
 /* Botao, e nao mais um `span`: e onde a cor esta, entao e onde se procura para
    troca-la. Cresceu de 6 para 9px para virar alvo de clique de verdade. */
@@ -662,6 +687,35 @@ button:focus-visible, input:focus-visible {
   border-radius: 5px;
   padding: 1px 5px;
 }
+
+/* Chip vazio nao e chip.
+   `.projeto-marca` e criada SEMPRE (projetos.js) e so recebe texto em dois ramos
+   -- `sumiu` e `sem git` --, sem `else` e sem guarda no append. No projeto
+   normal ela ficava vazia mas com borda e padding: uma pilula de ~12x4px, mais
+   os dois `gap: 9px` em volta, na linha de todo projeto saudavel.
+
+   A regra resolve na fonte do desenho, e vale para qualquer ramo futuro -- ao
+   contrario de uma condicao no append, que alguem precisaria lembrar de revisar.
+   E `:empty` (0,2,0) vence `.projeto-marca` (0,1,0), entao ela sobrevive a
+   alguem acrescentar `display` ao bloco de cima. */
+.projeto-marca:empty { display: none; }
+
+/* O atraso do remoto, na linha FECHADA do projeto.
+   Antes o fetch rodava para todos e o aviso so aparecia dentro do card
+   expandido: gastava-se a rede e jogava-se o resultado fora.
+   Reusa o par `--warn` sobre `--warnd`, ja medido pelo teste de contraste. */
+.projeto-atras {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--warn);
+  background: var(--warnd);
+  border-radius: 5px;
+  padding: 1px 5px;
+  cursor: pointer;
+}
+
+.projeto-atras:empty { display: none; }
 
 .projeto-remover {
   flex: 0 0 auto;
@@ -972,12 +1026,20 @@ button:focus-visible, input:focus-visible {
   transition: transform .16s ease;
 }
 
-#btn-hooks.hooks-ok .switch { background: var(--acc); }
-#btn-hooks.hooks-ok .switch-bolota {
+/* O `.switch` sempre foi generico; so as cores estavam presas ao `#btn-hooks`.
+   Um segundo interruptor no rodape obrigou a soltar isso: quem manda agora e a
+   classe `ligado`, no botao.
+
+   Especificidade importa aqui: `#lateral-pe button.ligado .mono` e (1,2,1) e
+   vence o `#lateral-pe button .mono` generico (1,1,1); e as regras de
+   `hooks-parcial` logo abaixo sao (2,1,0) e continuam vencendo estas, que e o
+   que se quer -- "desatualizados" nao pode se pintar de verde. */
+#lateral-pe button.ligado .switch { background: var(--acc); }
+#lateral-pe button.ligado .switch-bolota {
   background: var(--acc-texto);
   transform: translateX(11px);
 }
-#btn-hooks.hooks-ok #hooks-rotulo { color: var(--acc); }
+#lateral-pe button.ligado .mono { color: var(--acc); }
 
 /* Registro incompleto: nem verde nem desligado. Ambar porque e exatamente o
    caso em que parte dos avisos deixa de chegar sem nada denunciar. */

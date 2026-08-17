@@ -53,10 +53,19 @@ contextBridge.exposeInMainWorld('orq', {
   worktreesTamanhos: (caminhos) => ipcRenderer.invoke('worktrees:tamanhos', caminhos),
   worktreesArquivarVarias: (projeto, caminhos, confirmar = true) =>
     ipcRenderer.invoke('worktrees:arquivarVarias', { projeto, caminhos, confirmar }),
+  // Push, e nao invoke: o lote leva dezenas de segundos e quem espera precisa
+  // ver que alguma coisa esta acontecendo.
+  aoArquivarProgresso: (fn) => ipcRenderer.on('worktrees:progresso', (_e, p) => fn(p)),
   includeSituacao: (projeto) => ipcRenderer.invoke('worktrees:situacaoInclude', projeto),
 
   gitSituacao: (projeto) => ipcRenderer.invoke('git:situacao', projeto),
   gitBuscar: (projeto) => ipcRenderer.invoke('git:buscar', projeto),
+  gitBuscarUm: (projeto) => ipcRenderer.invoke('git:buscarUm', projeto),
+  gitBuscarTodos: () => ipcRenderer.invoke('git:buscarTodos'),
+  gitEstado: () => ipcRenderer.invoke('git:estado'),
+  // Push, no molde do `aoMudarUso`: o relogio da busca vive no processo
+  // principal, entao quem sabe que a base ficou para tras e ele.
+  aoMudarGit: (fn) => ipcRenderer.on('git:estado', (_e, lista) => fn(lista)),
   gitAtualizar: (projeto) => ipcRenderer.invoke('git:atualizar', projeto),
   includeCriar: (projeto, linhas, confirmar = true) =>
     ipcRenderer.invoke('worktrees:criarInclude', { projeto, linhas, confirmar }),

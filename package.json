@@ -27,6 +27,7 @@
     "teste:fase7": "node testes/fase7.js",
     "teste:ui": "node testes/ui.js",
     "teste:historico": "node testes/historico.js",
+    "teste:registro": "node testes/registro.js",
     "teste:uso": "node testes/uso-ui.js",
     "teste:uso-real": "node testes/uso-real.js",
     "teste:layouts": "node testes/layouts.js",

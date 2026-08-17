@@ -78,18 +78,31 @@ function tratar(req, res) {
       }
       if (!corpo) console.error(`[eventos] ${evento}/${tipo}: corpo VAZIO`);
 
-      const r = estado.aplicar({
-        evento: evento || json.hook_event_name || '',
-        tipo,
-        cwd: json.cwd || '',
-        orqId,
-        sessionId: json.session_id,
-        // A frase que o Claude mostraria na notificacao do sistema. E o que a
-        // faixa de aprovacao exibe -- sem isto ela so teria "Esperando voce".
-        mensagem: typeof json.message === 'string' ? json.message : '',
-      });
+      // Guarda propria, alem da rede global do `index.js`.
+      //
+      // Este `setImmediate` nao tem NADA acima dele na pilha: sem try/catch, um
+      // throw aqui e um `uncaughtException` que mataria o processo principal e
+      // levaria todas as sessoes vivas junto -- por causa de um hook. E ele roda
+      // para TODO hook que chega, entao e o caminho mais exercitado do app.
+      //
+      // A rede global e o cinto; esta e o suspensorio, e e a que produz log util:
+      // so aqui da para dizer QUAL evento quebrou.
+      try {
+        const r = estado.aplicar({
+          evento: evento || json.hook_event_name || '',
+          tipo,
+          cwd: json.cwd || '',
+          orqId,
+          sessionId: json.session_id,
+          // A frase que o Claude mostraria na notificacao do sistema. E o que a
+          // faixa de aprovacao exibe -- sem isto ela so teria "Esperando voce".
+          mensagem: typeof json.message === 'string' ? json.message : '',
+        });
 
-      if (aoEvento) aoEvento({ evento, tipo, orqId, cwd: json.cwd, resultado: r });
+        if (aoEvento) aoEvento({ evento, tipo, orqId, cwd: json.cwd, resultado: r });
+      } catch (err) {
+        console.error(`[eventos] ${evento}/${tipo} falhou:`, (err && err.stack) || err);
+      }
     });
   };
 
@@ -111,9 +124,23 @@ function tratar(req, res) {
 const TENTATIVAS = 8;
 const MS_ENTRE_TENTATIVAS = 250;
 
+// `tratar` roda como ouvinte de `request`, ou seja sem nada acima dele na
+// pilha: um throw ali e morte do processo principal. E ele e alcancavel de fora
+// -- `decodeURIComponent` estoura com `%ZZ`, e `new URL` com caminho torto.
+// Responder 200 e seguir e o certo: o hook nao pode ficar esperando, e um evento
+// perdido custa uma bolinha, nao o app.
+function tratarSeguro(req, res) {
+  try {
+    tratar(req, res);
+  } catch (err) {
+    console.error('[eventos] pedido invalido:', (err && err.message) || err);
+    try { responder(res); } catch { /* conexao ja foi embora */ }
+  }
+}
+
 function tentarEscutar() {
   return new Promise((ok, falha) => {
-    const s = http.createServer(tratar);
+    const s = http.createServer(tratarSeguro);
     s.once('error', (err) => { s.close(); falha(err); });
     s.listen(PORTA, ENDERECO, () => { servidor = s; ok(PORTA); });
   });

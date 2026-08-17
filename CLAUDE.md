@@ -38,6 +38,7 @@ npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
 npm run teste:fase7       # sessao salva, painel dormindo, retomar
 npm run teste:ui          # tokens, tema, densidade, fontes, paleta, overlays e contraste
 npm run teste:historico   # Node puro, sem app: agregacao de tempo por feature
+npm run teste:registro    # Node puro: o registro de sessoes do CLI como fonte de status
 npm run teste:uso         # o medidor de uso no topo: leitura, faixas, compressao
 npm run teste:uso-real    # o spike: fala com a API de uso de verdade (nao consome tokens)
 npm run teste:layouts     # Node puro: gravar, substituir e normalizar layouts
@@ -200,6 +201,30 @@ atualizacoes). Release publicada pelo GitHub Actions ao criar uma tag `v*`:
   segundo plano, mas aplicar e decisao do usuario, e o dialogo diz quantos painéis serao fechados.
   `autoInstallOnAppQuit` cobre o caso tranquilo: fechou o app, aplica na saida.
 - Erro de atualizacao **nunca** vira dialogo — sem internet ou GitHub fora do ar, so log.
+- **"Preciso fechar e abrir o app para aparecer o botao de reiniciar" — e nao era o intervalo de 4h.**
+  Nao havia gatilho NENHUM alem do relogio: nem ao voltar para a janela, nem `powerMonitor`, nem botao
+  manual (o IPC `atualizacao:verificar` existia com chamador **so nos testes**). Fechar e reabrir
+  "funcionava" porque a primeira checagem sai 10s depois do arranque. Entrou o `aoVoltar` em
+  `show`/`restore`/`focus` no molde do `uso.js`, com piso de **30min** — `focus` dispara a cada
+  alt-tab, e sem piso um dia de trabalho viraria dezenas de consultas ao GitHub. O carimbo
+  (`verificadaEm`) e gravado dentro do `verificar()`, mas o piso so e consultado no `aoVoltar`: se
+  valesse la dentro, o "verificar agora" da paleta ficaria refem dele. **O intervalo continua 4h** —
+  encurtar nao conserta o relato e, no caminho leve, cada checagem **baixa 4 MB** na mesma passada.
+- **O toast do `update-downloaded` NAO ganhou `avisoPendente`.** Aquele mecanismo existe porque sessao
+  esperando e um EVENTO com prazo e o toast e o unico canal fora da janela. Atualizacao e **estado
+  duravel**: o botao no rodape e a bolinha ficam la, sao reescritos a cada `avisarJanela()` e relidos
+  no arranque. Toast perdido nao custa informacao — e o contrario programaria o app para jogar um
+  toast sobre a coisa menos urgente que ele sabe.
+- **`baixada` nao dizia de QUE VERSAO, e o defeito era do pior tipo: a tela certa e o arquivo errado.**
+  No caminho leve, `if (!info.leve || situacao.baixada) return;` fazia uma release publicada DEPOIS,
+  na mesma execucao, atualizar `disponivel` para Y sem baixar o asar de Y — e o rodape passava a
+  prometer "Atualizar para Y e reiniciar" com o `app.asar.novo` de X no disco. Agora ha um
+  `versaoBaixada` e a comparacao e por versao; e sem versao nova tudo e zerado, que era o equivalente
+  do `update-not-available` que o leve nunca teve. No `catch`, `situacao.leve = false` virou
+  `if (!situacao.baixada)`: uma falha de rede transformava "atualizar e reiniciar" em "baixe pelo
+  site" **com o arquivo pronto ao lado**.
+- `parar()` remove os ouvintes de janela, e nao so o relogio: `iniciar()` roda de novo pelo
+  `app.on('activate')`.
 - Desinstalar roda `--remover-hooks` pelo `recursos/instalador.nsh`. Sem isso os hooks ficariam no
   `settings.json` para sempre e toda sessao pagaria ~310ms por evento falando com um app que nao
   existe mais.
@@ -908,6 +933,56 @@ explicito, e com o dialogo nativo nomeando o que vai embora, inclusive os arquiv
 - O contador no card (`N worktrees · N prontas para arquivar`) e o que transforma "nunca lembro de
   limpar" em "da para ver que esta sujo".
 
+### O lote era QUADRATICO, e o sintoma foi "a aplicacao crashou"
+
+Relatado assim: limpar umas dez worktrees de um projeto funcionou, e o app morreu no fim. **Nao era
+crash.** `arquivar()` chamava `listar(projeto)` para achar o alvo (`worktrees.js`), e `listar()`
+dispara `2 + 4N` comandos git **sincronos**. Num lote, cada item relia o projeto inteiro:
+`Σ(6+4k)` — 34 comandos com 3 worktrees, **280 com 10**. Somando a triagem, a abertura da tela e o
+pos-lote, dava **~379 comandos sincronos**, e o processo principal ficava **20-60s sem responder**:
+sem IPC, sem hooks aceitos, e o Windows oferecendo fechar a janela que nao responde.
+
+Tres consertos, e o primeiro e o que importa:
+
+- **`lerUma(projeto, caminho)`, 3 comandos em vez de 42.** `podeArquivar` le **so campos do alvo** —
+  conferido campo a campo —, entao revalidar o projeto inteiro nunca foi necessario. A invariante
+  ("`arquivar` revalida tudo na hora") e sobre **frescor**, e continua de pe: o teste tranca a
+  segunda worktree com PID vivo **entre** a triagem e a execucao e exige a recusa. Receber o objeto
+  ja triado, ou memoizar o `listar` por lote, foram **recusados** — os dois congelam o mundo no
+  instante da triagem, que e exatamente o cenario que o portao existe para pegar.
+- **Git assincrono no caminho de ESCRITA** (`gitLento`). Ceder o loop so entre itens nao resolveria:
+  o comando caro e o `worktree remove` apagando `node_modules`. `listar()` continua sincrono — e o
+  que mantem `teste:worktrees` rodando em Node puro, sem app. A sequencialidade continua de
+  proposito (`for` com `await`, nunca `Promise.all`).
+- **`timeout` no `git()`**, que nao existia: 15s para leitura, 120s para `worktree remove` (apagar
+  5 GB legitimamente passa de 15s, e matar no meio deixa o meio-arquivamento que este modulo
+  proibe). **Timeout chega com `err.stderr` VAZIO**, e a recusa saia como
+  `"Nao consegui remover o worktree: "` — frase cortada. `motivoDoErro` traduz.
+
+Medido pelo teste, que conta spawns de git e falha se o custo voltar a crescer: **lote de 5 passou
+de 90 para 31 comandos**, e o `teste:worktrees-ui` prova que `cdp.avaliar('1+1')` responde em **1ms**
+no meio do lote.
+
+Junto vieram: `worktree prune` **uma vez por lote** em vez de uma por item; progresso na tela
+(`worktrees:progresso`, com o callback no MODULO e nao no handler, porque handler de IPC nao se
+testa em Node puro); `try/finally` no `arquivarMarcadas` (sem ele, qualquer rejeicao do main deixava
+o botao preso em `arquivando…` **para sempre**, e era por ai que toda excecao virava "travou" na
+tela); e o pos-lote deixou de chamar `abrir()`, que **reabria o overlay ja fechado com Esc**.
+
+### `dentroDe`, e a rede de seguranca que faltava
+
+- **O portao de painel aberto comparava caminho EXATO.** Painel aberto em `<worktree>/src` passava, e
+  o `worktree remove` apagava a pasta debaixo do terminal de alguem. `dentroDe(pai, filho)` exige
+  `pai + separador` — sem isso `wt-auth` casaria com `wt-auth-refresh`.
+- **Nao existia `uncaughtException` nem `unhandledRejection` em todo o `src/`.** Este processo
+  hospeda as sessoes: quando ele morre, todas morrem junto. O caminho mais exposto era o
+  `setImmediate` do `eventos.js`, que roda para **todo hook que chega** e nao tinha guarda nenhuma —
+  um throw ali matava o app em silencio. Agora sao duas camadas (a global no `index.js`, e um
+  `try/catch` dentro do `setImmediate`, que e o unico lugar que sabe QUAL hook quebrou), e as duas
+  so **logam**. Nunca dialogo: excecao que se repete viraria fila de modais em cima de sessoes
+  rodando. O custo assumido — rede global mascara defeito — e mitigado pelo prefixo
+  `[falha-contida]` e pela stack inteira no log.
+
 **Retomar** abre painel na pasta do worktree com `cls && claude -c`. Sem fallback de proposito:
 medido, `claude -c` num diretorio sem conversa anterior sai com codigo **0** e simplesmente abre
 sessao nova, entao um `|| claude` nunca dispararia.
@@ -1003,6 +1078,21 @@ lista era `['var(--acc)', 'var(--info)', 'var(--warn)', ...]`: um projeto podia 
   escolher a mao clicando no quadradinho da arvore (`cor-projeto.js`). O que se guarda no
   `projetos.json` e o **indice** 1..10, nunca o valor: o token e quem decide o tom em cada tema, e um
   `#a78bfa` gravado ali ficaria errado no tema claro para sempre. Sem `cor` valida, volta ao sorteio.
+- **Chip vazio nao e chip.** `.projeto-marca` e criada SEMPRE e so recebe texto em dois ramos
+  (`sumiu`, `sem git`) — sem `else` e sem guarda no append. Com `border` e `padding`, o vazio virava
+  uma pilula de ~12x4px na linha de **todo projeto saudavel**, mais os dois `gap: 9px` em volta.
+  Resolvido com `.projeto-marca:empty { display: none }`, e nao com uma condicao no append: a regra
+  vale para qualquer ramo futuro, e `:empty` (0,2,0) vence `.projeto-marca` (0,1,0), sobrevivendo a
+  alguem acrescentar `display` ao bloco de cima — que e a armadilha n1 deste arquivo.
+- **`.projeto-expandir` media ~14x11px**, contra os 24x24 da WCAG 2.2 — era o menor alvo de clique da
+  lateral, e o relato foi "precisa clicar muito exatamente no icone". O truque para crescer sem
+  crescer a linha e `margin: -3px 0` numa caixa de 24px: a altura do conteudo da linha e 18px (a do
+  `.projeto-remover`), entao a margem-box continua 18px e a **border-box**, que e a caixa de clique, e
+  24x24 de verdade.
+  - E ele usa **`disabled` + `visibility: hidden`, nunca o atributo `hidden`**: aquele cai na regra
+    global `[hidden] { display: none !important }`, e sumir do flex leva junto um dos `gap: 9px` — o
+    quadradinho de cor dos projetos SEM GIT ficava desalinhado de todos os outros. O `teste:projetos`
+    compara a coluna do `.projeto-tinta` das duas linhas.
 - Um botao de TEXTO nao pode ter id terminado em `-fechar`: existe uma regra generica
   `[id$="-fechar"]` para o `×` dos overlays (26x26 e `margin-left: auto`), e o botao sai deformado e
   fora da caixa. Aconteceu com o "Fechar" deste modal.
@@ -1030,9 +1120,47 @@ rede.
 - **O portao de arvore suja conta so arquivo RASTREADO** (`--untracked-files=no`): um `.env` ou um
   `dist/` parado na raiz nao impede fast-forward nenhum, e recusar por causa deles seria recusar
   quase sempre.
-- A busca periodica segue o padrao do `atualizacao.js` (10min, primeira depois de 20s, so com a
-  janela visivel), e nunca o do `metricas.js` — rede a cada 2s contraria a meta de consumo parado.
+- A busca periodica fica em **10min, primeira depois de 20s, so com a janela visivel**, e nunca no
+  ritmo do `metricas.js` — rede a cada 2s contraria a meta de consumo parado.
 - `atrasDaBase` por worktree e o outro lado da mesma conta: a base andou e a worktree ficou.
+
+### O relogio da busca mudou de processo, e nao foi encurtado
+
+Relatado como "as vezes demora a aparecer o botao de pull". **Nao era o intervalo.** O relogio vivia
+no RENDERER (`projetos.js`) e tinha tres defeitos somados:
+
+1. `if (document.hidden) return;` **pulava o tique sem reagendar**, com o `setInterval` seguindo
+   correndo — um tique perdido custava **dez minutos inteiros**, e abrir o app minimizado jogava fora
+   o dos 20s: o primeiro fetch real so saia em **10min20s**;
+2. nao havia gatilho nenhum alem do proprio relogio. Expandir um projeto **nao** buscava, e nao havia
+   botao manual;
+3. a rede era gasta com TODOS os projetos e **o resultado era jogado fora para os fechados** — o
+   aviso so era desenhado no card expandido.
+
+`src/main/remoto.js` e o `uso.js` aplicado a isso: `aoVoltar` em `show`/`restore`/`focus`, piso de
+60s por projeto, coalescencia por caminho, retentativa unica, e **push** `git:estado` em vez de pull.
+
+- **O relogio TEM de ficar no main**: o renderer nao tem os eventos da `BrowserWindow`, o aviso
+  precisa chegar em projeto FECHADO (o que exige push de qualquer jeito), e recarregar o renderer
+  zerava o relogio. Ele nao vai dentro do `worktrees.js` porque aquele e **Node puro sem Electron**,
+  e e o que permite `teste:worktrees` rodar sem app.
+- **Concorrencia 3 nao contraria "o git nao gosta de concorrencia"** — aquela regra e sobre o MESMO
+  repositorio, e a coalescencia garante que um repo nunca tem dois `fetch` no ar. Pior caso por ciclo
+  caiu de N x 20s (2min com 6 projetos e um remoto morto) para ~40s.
+- **`MS_ENTRE` fica em 10 minutos.** Os dois casos reais sao "abri o app agora" e "voltei para a
+  janela agora", e os gatilhos resolvem ambos em segundos. Encurtar multiplicaria os `fetch` de fundo
+  sem tocar no que doia.
+- **Expandir busca, mas FORA do `Promise.all`** — disparado e esquecido. A invariante continua
+  valendo: desenhar o card nunca depende de internet; o push corrige a tela quando o fetch voltar.
+- **O aviso de atraso saiu para a LINHA do projeto** (`.projeto-atras`, `↓ N`), ao lado da
+  `.projeto-marca`. Clicar EXPANDE o card em vez de atualizar: `--ff-only` e seguro, mas um chip de
+  20px rodando merge no checkout de alguem e surpresa, e o card aberto e onde a frase inteira
+  explica o que vai acontecer.
+- **Ganho colateral grande:** cada ciclo chamava `carregarDetalhes` por projeto aberto, e cada uma
+  disparava um `worktreesListar` **sincrono**. Com 6 projetos e 1 expandido com 10 worktrees, o ciclo
+  caiu de **83 spawns (77 sincronos, ~4,6s de main travado) para 24 (18 sincronos, ~1,1s)**.
+- O `ehRepositorio` que abria o `buscar()` saiu: era um comando sincrono por projeto, a cada ciclo,
+  para descobrir o que o proprio `fetch` responde de graca.
 
 ## Arrastar arquivo para dentro do terminal
 
@@ -1252,6 +1380,112 @@ no CLIQUE.
   amarelo morria, e a lateral dizia "ligados". Agora `situacao()` confere o conjunto inteiro e diz
   **`desatualizados`** quando falta algo.
 
+### Desligar os avisos: o portao vai no MAIN, e nao no `lateral.js`
+
+`src/main/avisos.js` concentra os dois canais que incomodam fora da janela (o toast e o
+`flashFrame`), com a preferencia `avisos: 'ligados' | 'desligados'` no `ui.json`. Quatro razoes para
+ele nao ficar no renderer, e a primeira e a que decide:
+
+1. **O portao no renderer corrompe a contabilidade.** `lateral.js` guarda `jaAvisado` (avisa uma vez
+   por episodio) e o lembrete de 5min **exige `jaAvisado.has(id)`**. Desistir ANTES de marcar
+   deixaria a sessao sem lembrete para sempre, **mesmo depois de religar**; desistir DEPOIS queimaria
+   o slot sem ter avisado. Nao ha posicao boa dentro de `avisar()`. Com o portao no main, a
+   contabilidade la continua correta e so o efeito e suprimido.
+2. Invariante da casa: o processo principal e o dono da verdade.
+3. **`flashFrame` so existe no main**, e e o unico sinal que sobra quando o Windows descarta o toast.
+4. **O toast de atualizacao nao passa pelo `app:notificar`** — ele montava o proprio `Notification`.
+   Num portao no renderer ele escaparia por construcao. Centralizar matou de quebra a duplicacao do
+   handler de clique, que estava copiado no `index.js` e no `atualizacao.js`.
+
+Dois estados, nao tres: o projeto padroniza pares (`aberta/fechada`, `barras/oculto`), e o
+meio-termo obrigaria a explicar na ajuda dois canais que a pessoa nem sabe que existem. **O toast de
+atualizacao obedece ao mesmo interruptor** — quem desliga esta dizendo "nao me interrompa", e manter
+ligado justamente o menos urgente seria o pior resultado; e ali nao se perde nada, porque
+atualizacao tem canal DURAVEL (o botao no rodape e a bolinha do `data-atualizacao`).
+
+O `.switch` deixou de ser do `#btn-hooks`: as cores saem da classe `ligado` em
+`#lateral-pe button.ligado` (1,2,1), que vence o `.mono` generico (1,1,1) e perde para as regras de
+`hooks-parcial` (2,1,0) — que e o que se quer, porque "desatualizados" nao pode se pintar de verde.
+
+**O CDP nao enxerga toast do sistema operacional.** Por isso a DECISAO mora em
+`preferencias.avisosLigados()`, que o `teste:preferencias` cobra em Node puro, e o `teste:ui` cobra
+so a fiacao da tela.
+
+## O registro de sessoes do CLI: a terceira fonte de status
+
+`~/.claude/sessions/<pid>.json`, lido por `claude-dados.sessoes()` e consumido por
+`src/main/registro.js`. Veio da investigacao do **cross-session messaging** anunciado para macOS e
+Linux: o recurso e bloqueado no Windows por um portao de plataforma dentro do binario
+(`function PS(){ if(Yt()==="windows") return !1; ... }`, antes da flag de rollout e da env — ver
+`docs/fase-9-extras.md`, e **nao tente de novo**). Mas o registro que ele usa continua sendo escrito
+aqui.
+
+**Medido no `npm run spike:aprovacao`** (que agora amostra o registro no mesmo instante de cada
+captura de tela), com um pedido de permissao real contra o CLI 2.1.227:
+
+| momento | tela | app | registro |
+|---|---|---|---|
+| prompt na tela, 3,7s | `pedido=permissao` | `rodando` | **`waiting`** |
+| prompt na tela, 5,3s | `pedido=permissao` | `esperando` | **`waiting`** |
+| respondido, 6,3s | `trabalhando=SIM` | `rodando` | `busy` |
+| acabou, 7,3s | — | `terminou` | `idle` |
+
+Existe um status **`waiting`**, e ele e **afirmativo**: o CLI dizendo "estou parado esperando a
+pessoa", sem deduzir nada de texto de tela. Naquela corrida ele apareceu **1,5s antes do farejador**,
+e o hook de permissao nem chegou a disparar antes da resposta (o CLI arma ~6s antes de notificar).
+
+**As regras, e so estas:**
+- **`waiting` ACENDE** `esperando` — mesma direcao do farejador, e o erro barato.
+- **`busy` APAGA** um `esperando` preso — mesmo papel do `MARCA_TRABALHANDO`, e pela mesma razao: e
+  sobre o AGORA. O spike mostrou `busy` so no instante em que a tela tinha sinal de trabalho, nunca
+  com o prompt na tela.
+- **`idle` nao faz nada.** Sessao ociosa pode ter acabado OU estar esperando voce digitar, e
+  confundir os dois foi exatamente o bug do `idle_prompt` acendendo amarelo em sessao que terminou.
+
+O que ele acrescenta ao farejador, que ja faz duas dessas coisas: funciona com **painel fora da
+vista** (o farejador so le painel visivel), funciona **sem hooks instalados**, e nao depende de casar
+texto de tela.
+
+### A correlacao e pelo NOME, e isso nao e detalhe
+
+Casar por `cwd` esta ERRADO, e o `teste:ui` denunciou na primeira corrida com dois testes de
+ordenacao falhando do nada: o registro lista **todas** as sessoes da maquina, entao uma sessao aberta
+a mao na pasta do projeto — o desenvolvimento deste proprio app — casava com qualquer painel dali e
+passava a mandar no status dele.
+
+O portao e o nome: `montarComando` lanca com **`--name <slug>`**, e esse slug e exatamente o
+`feature` do painel. Sessao que o app nao nomeou nao tem como ser provada nossa, e entao **nao decide
+nada**. O `cwd` fica como segunda confirmacao, nunca como chave. Consequencia honesta, e preferivel:
+painel aberto sem nome de feature (`cls && claude` puro) nao recebe status por esta via.
+
+**`-n, --name` foi medido**: e independente do `-w` (o `(requires --worktree)` que aparece perto no
+`--help` e do **`--tmux`**), os dois convivem, e o registro passa a gravar o nome dado — sem ele vem
+um `nameSource: "derived"` com um nome que o CLI inventa. De quebra, o titulo do terminal, a caixa de
+prompt e o seletor do `/resume` passam a dizer a feature. **Nao confundir com o nome do BRANCH**, que
+continua `worktree-<slug>` e nao tem como ser escolhido.
+
+Como todo o `claude-dados.js`, isto e **layout interno e nao contrato**: se mudar, `sessoes()`
+devolve vazio e o app volta a depender do Canal 2 e do farejador. Degrada sem quebrar.
+
+### O intervalo de 5s foi medido, e comecou errado
+
+Nasceu em 2s, no ritmo do `metricas.js`. Isso custou **um quarto do orcamento de CPU do app** — e o
+`teste:fase2` pegou:
+
+| `MS_ENTRE` | CPU parado, 8 painéis (meta: < 2%) |
+|---|---|
+| 2s | **1,86%** (1,88 e 1,84 em duas corridas) |
+| 5s | **1,63%** |
+| 60s | 1,42% |
+
+O custo nao esta em ler tres arquivos de 1 KB: esta em **acordar o processo o tempo todo**, o que
+impede o Windows de agrupar temporizadores e deixar a CPU dormir. A licao vale para qualquer relogio
+novo aqui — meca antes de escolher a cadencia, e nao copie a do vizinho.
+
+Cinco segundos e o ponto certo porque **so um dos tres ganhos depende da cadencia**: painel fora da
+vista e ausencia de hooks valem igual em qualquer ritmo, e "chegar antes do hook" so precisa vencer
+os ~6s do temporizador do CLI. Para painel visivel, o farejador ja acende em ~1,5s.
+
 ## Ler o buffer do terminal: `isWrapped` decide se funciona
 
 `textoDoBuffer()` e `textoDaTela()` juntam as linhas **respeitando `isWrapped`**: continuacao de
@@ -1378,3 +1612,10 @@ custo de painel. O CPU parado subiu porque agora ele e medido com a **janela em 
 (`aoFrente` no `fase2`), e quase tudo dele esta no **processo de GPU** compondo as animacoes de
 pulso — com a janela oculta o Chromium pausa a renderizacao e o mesmo app le 0,02%. O numero maior e
 o honesto: e o caso real, com alguem olhando a tela.
+
+**O orcamento de CPU parado ja esta apertado, e todo relogio novo cobra dele.** Medido: o poller do
+`registro.js` a cada 2s levava os 1,6% para **1,86%** — 0,25pp por um modulo que le tres arquivos de
+1 KB. O custo nao e o trabalho, e **acordar o processo**: temporizador frequente impede o Windows de
+agrupar timers e deixar a CPU dormir. Antes de escolher a cadencia de qualquer relogio novo, rode o
+`teste:fase2` com dois valores e compare — copiar o intervalo do modulo vizinho e como este passou
+perto de estourar a meta.

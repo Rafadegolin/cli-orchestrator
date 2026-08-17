@@ -1638,12 +1638,66 @@ async function arrastarAlca(cdp, id, dx, dy) {
     voltou.guardouX === 777 && voltou.guardouW === 620,
     JSON.stringify({ x: voltou.guardouX, w: voltou.guardouW }));
 
+  // --- 20. o interruptor de notificacoes -----------------------------------
+  //
+  // O que o CDP NAO alcanca: se o toast do Windows apareceu. Por isso a DECISAO
+  // mora em `preferencias.avisosLigados()` (Node puro, cobrada pelo
+  // `teste:preferencias`), e aqui se cobra a fiacao da tela.
+  await cdp.avaliar(`window.OrqLateral.alternarAvisos()`);
+  await esperar(300);
+  const av = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    pref: window.OrqCasca.ui().avisos,
+    rotulo: document.getElementById('avisos-rotulo').textContent,
+    ligado: document.getElementById('btn-avisos').classList.contains('ligado'),
+    pressed: document.getElementById('btn-avisos').getAttribute('aria-pressed'),
+  })`));
+  checar('desligar avisos grava a preferencia, e o rotulo e o switch acompanham',
+    av.pref === 'desligados' && av.rotulo === 'desligados'
+    && av.ligado === false && av.pressed === 'false', JSON.stringify(av));
+
+  // O rodape da lateral some com Ctrl+B, entao a paleta nao e um extra: e o
+  // outro caminho. E o rotulo dela tem de dizer o que o clique VAI fazer.
+  const naPaleta = JSON.parse(await cdp.avaliar(
+    `JSON.stringify(window.OrqPaleta.comandos().map((c) => c.rotulo)
+      .filter((r) => /notifica/i.test(r)))`));
+  checar('a paleta oferece o caminho de volta, com o texto do estado atual',
+    naPaleta.length === 1 && /^Ligar/.test(naPaleta[0]), JSON.stringify(naPaleta));
+
+  await cdp.avaliar(`window.OrqLateral.alternarAvisos()`);
+  await esperar(300);
+  checar('e religar volta o rotulo',
+    await cdp.avaliar(`document.getElementById('avisos-rotulo').textContent`) === 'ligados', '');
+
+  // O `.switch` deixou de ser do `#btn-hooks`: as cores agora vem da classe
+  // `ligado`, e os dois interruptores dividem o mesmo CSS.
+  const switchGenerico = await cdp.avaliar(`(() => {
+    const b = document.getElementById('btn-avisos');
+    const s = b.querySelector('.switch-bolota');
+    return getComputedStyle(s).transform;
+  })()`);
+  checar('o switch de avisos usa o mesmo CSS do de hooks (bolota deslocada)',
+    switchGenerico !== 'none', switchGenerico);
+
+  // --- 21. "verificar se ha versao nova" -----------------------------------
+  //
+  // Em dev o updater esta desligado, entao aqui se prova a PRESENCA do comando e
+  // o ramo honesto -- um botao que "nao faz nada" em silencio e o que este ramo
+  // existe para evitar.
+  const temVerificar = JSON.parse(await cdp.avaliar(
+    `JSON.stringify(window.OrqPaleta.comandos().map((c) => c.rotulo)
+      .filter((r) => /versão nova/i.test(r)))`));
+  checar('a paleta oferece verificar atualizacao', temVerificar.length === 1,
+    JSON.stringify(temVerificar));
+  const verif = await cdp.avaliar(
+    `(async () => String(await window.OrqLateral.verificarAtualizacao()))()`);
+  checar('e em dev ela avisa que esta copia nao se atualiza sozinha', verif === 'false', verif);
+
   await zerarGrade(cdp);
   // A lateral entra na devolucao explicitamente: ela terminou 'aberta' porque o
   // Ctrl+B alternou de volta, e contar com isso e contar com a ordem dos testes.
   // Suite que so limpa por acidente quebra a proxima quando alguem reordena.
   await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', densidade: 2, ordem: 'urgencia',
-    lateral: 'aberta' })`);
+    lateral: 'aberta', avisos: 'ligados' })`);
   // Limpa a sessao SALVA, e nao so a grade: sobrando painel no sessao.json, a
   // fase7 restaura os dela mais o nosso e conta a ordem errada. Suite que
   // deixa estado em disco quebra a proxima.

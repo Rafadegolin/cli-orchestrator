@@ -21,6 +21,7 @@ let constantes = {
   pastaDados: '~/.orquestrador',
   arquivoHooks: '~/.claude/settings.json',
   minutosUso: 5,
+  minutosBusca: 10,
 };
 
 const p = (texto) => ({ tipo: 'p', texto });
@@ -132,7 +133,12 @@ const SECOES = [
         'A fila é sempre por <b>quem espera há mais tempo</b>, mesmo com a grade ordenada por projeto.',
         '<b>Ctrl+Enter</b> pula direto para a mais antiga e já põe o cursor lá.',
         'Clicar num item da fila (ou num card de SESSÕES) foca o painel correspondente.',
-        'Quando o app não está em primeiro plano, uma <b>notificação do sistema</b> avisa.',
+        'Quando o app não está em primeiro plano, uma <b>notificação do sistema</b> avisa, e a '
+          + 'janela pisca na barra de tarefas — o Windows descarta toast em silêncio, e o piscar '
+          + 'é o sinal que sobra.',
+        'Dá para desligar os dois no botão <b>Avisos</b>, no rodapé da lateral (ou por '
+          + '<b>Ctrl+K</b> → avisos). A bolinha amarela, a fila e o <b>Ctrl+Enter</b> continuam '
+          + 'iguais: o que sai é a interrupção fora da janela.',
       ]),
       p('A lista de SESSÕES segue a mesma ordem da grade, e o placar no alto mostra quantas sessões '
         + 'estão vivas e quanto do processador o app está usando.'),
@@ -238,10 +244,14 @@ const SECOES = [
         + 'ao ser reiniciada — não existe comando para remover um diretório de uma sessão viva.'),
       p('<b>Quando o repositório fica para trás:</b> se o merge acontece no servidor enquanto você '
         + 'trabalha numa worktree, o checkout principal envelhece sem avisar — e as worktrees novas '
-        + 'nascem a partir dele. O app busca do remoto de tempos em tempos e, quando há atraso, '
-        + 'mostra <b>&lt;branch&gt; está N commits atrás</b> ao expandir o projeto, com um botão '
-        + 'para atualizar. A atualização é sempre <b>fast-forward</b>: se não der, ela recusa em vez '
-        + 'de criar merge ou conflito no seu checkout.'),
+        + 'nascem a partir dele. O app busca do remoto <b>ao expandir um projeto</b>, <b>quando você '
+        + 'volta para a janela</b> e a cada {minutosBusca} minutos. Havendo atraso, a linha do '
+        + 'projeto ganha uma marca <b>↓</b> mesmo com o card fechado; abrir o card mostra '
+        + '<b>&lt;branch&gt; está N commits atrás</b>, com um botão para atualizar. A atualização é '
+        + 'sempre <b>fast-forward</b>: se não der, ela recusa em vez de criar merge ou conflito no '
+        + 'seu checkout.'),
+      p('Para conferir na hora, procure <b>remoto</b> na paleta (<b>Ctrl+K</b>) — é o único caminho '
+        + 'que ignora o intervalo mínimo entre duas buscas do mesmo projeto.'),
     ],
   },
   {
@@ -355,6 +365,9 @@ const SECOES = [
         + 'reinicia</b> — inclusive nos pacotes em pasta, que não têm instalador: ali o app baixa '
         + 'só o próprio código (alguns MB, não o pacote inteiro), confere a integridade e troca ao '
         + 'reiniciar.'),
+      p('A checagem acontece de tempos em tempos e <b>também quando você volta para a janela</b> — '
+        + 'não é preciso fechar e reabrir o app para o aviso aparecer. Para conferir na hora, '
+        + 'procure <b>versão</b> na paleta (<b>Ctrl+K</b>).'),
       p('Quando a versão nova muda algo além do nosso código — o Electron, por exemplo —, a troca '
         + 'leve não serve, e aí o botão volta a levar você para a página da release dizendo por quê.'),
       p('Seus dados ficam em <code>{pastaDados}</code>, fora da pasta do app: projetos, arranjo de '

@@ -105,6 +105,12 @@ const textoDaAjuda = `(() => document.getElementById('ajuda-corpo').textContent)
     conteudo.includes(String(real.portaEventos)), `codigo diz ${real.portaEventos}`);
   checar('a pasta de dados citada e a real',
     conteudo.includes(real.pastaDados), real.pastaDados);
+  // `includes(String(n))` puro passaria a toa aqui: o teto da fila tambem e 4, e
+  // "10" aparece em qualquer texto. A unidade junto e o que amarra o numero.
+  checar('o intervalo da busca do remoto confere',
+    conteudo.includes(`${real.minutosBusca} minutos`), `codigo diz ${real.minutosBusca}`);
+  checar('o intervalo do medidor de uso confere',
+    conteudo.includes(`${real.minutosUso} minutos`), `codigo diz ${real.minutosUso}`);
 
   // Nenhum marcador de substituicao pode ter escapado para a tela.
   const sobrou = (conteudo.match(/\{[a-zA-Z]+\}/g) || []);

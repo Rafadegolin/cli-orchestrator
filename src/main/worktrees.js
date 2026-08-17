@@ -30,24 +30,71 @@ const CANDIDATOS_ENV = [
   '.npmrc',
 ];
 
+// Prazo do git de DISCO. Ate existir, um `index.lock` preso congelava o app
+// para sempre, sem sintoma nenhum: nao ha erro, nao ha log, a janela so para de
+// responder. Quinze segundos e generoso para disco local.
+const MS_GIT = 15_000;
+
+// `worktree remove` tem prazo proprio, e muito maior: ele apaga um checkout
+// inteiro com `node_modules`, e passar de 15s ali e NORMAL, nao sintoma. Matar
+// no meio deixaria exatamente o meio-arquivamento que este modulo proibe.
+const MS_GIT_REMOVER = 120_000;
+
 // execFile com argumentos em ARRAY, nunca string com shell: os caminhos vem do
 // usuario e podem conter espaco, & ou aspas. Montar linha de comando aqui seria
 // injecao de shell servida de bandeja.
-function git(cwd, args) {
-  return execFileSync('git', args, {
+function opcoesGit(cwd, ms) {
+  return {
     cwd,
     encoding: 'utf8',
     windowsHide: true,
     maxBuffer: 8 * 1024 * 1024,
-  });
+    timeout: ms,
+  };
 }
 
-function gitSilencioso(cwd, args) {
+// Timeout e estouro de buffer chegam SEM `stderr`: o `err.stderr` vem vazio e a
+// recusa virava "Nao consegui remover o worktree: " -- frase cortada no meio,
+// que nao diz nada a quem le. Traduzir aqui e o que mantem a promessa do modulo
+// de sempre dizer QUAL portao impediu.
+function motivoDoErro(err, ms) {
+  if (err && err.killed) return `o git nao respondeu em ${Math.round(ms / 1000)} segundos`;
+  if (err && err.code === 'ENOBUFS') return 'o git respondeu mais do que cabia na leitura';
+  return ((err && (err.stderr || err.message)) || '').toString().trim();
+}
+
+function git(cwd, args, { ms = MS_GIT } = {}) {
+  return execFileSync('git', args, opcoesGit(cwd, ms));
+}
+
+function gitSilencioso(cwd, args, { ms = MS_GIT } = {}) {
   try {
-    return { ok: true, saida: git(cwd, args) };
+    return { ok: true, saida: git(cwd, args, { ms }) };
   } catch (err) {
-    return { ok: false, saida: '', erro: (err.stderr || err.message || '').toString().trim() };
+    return { ok: false, saida: '', erro: motivoDoErro(err, ms) };
   }
+}
+
+// O MESMO git, assincrono. Existe para o caminho de ESCRITA (arquivar), e nao
+// para leitura: `listar()` segue sincrono, e e isso que mantem este modulo
+// utilizavel em Node puro, sem app, pelo `teste:worktrees`.
+//
+// A razao de existir e medida: um lote de 10 worktrees eram ~280 comandos
+// sincronos mais dez `worktree remove` apagando `node_modules`, e o processo
+// principal ficava 20-60s sem responder -- o Windows oferecia fechar a janela, e
+// o relato chegou como "a aplicacao crashou". Com `await`, o loop de eventos
+// respira entre cada comando: o servidor de hooks continua aceitando conexao e a
+// tela mostra progresso.
+//
+// NAO CONFUNDIR COM `gitDeRede` logo abaixo: aquele carrega o ambiente que
+// proibe o Git Credential Manager de perguntar, e e so para rede.
+function gitLento(cwd, args, { ms = MS_GIT } = {}) {
+  return new Promise((resolve) => {
+    execFile('git', args, opcoesGit(cwd, ms), (err, saida) => {
+      if (err) resolve({ ok: false, saida: '', erro: motivoDoErro(err, ms) });
+      else resolve({ ok: true, saida: String(saida) });
+    });
+  });
 }
 
 // Git que TOCA A REDE. Caminho proprio, e por dois motivos que o `git()` acima
@@ -97,6 +144,33 @@ function processoVivo(pid) {
   }
 }
 
+// Caminho normalizado para COMPARAR, nunca para usar.
+//
+// O git imprime com barra normal, um dialogo do Windows devolve com barra
+// invertida, e o Windows nao distingue maiuscula de minuscula. Sem normalizar,
+// o mesmo caminho vindo por outra rota deixa de casar e o defeito aparece longe
+// da causa. E a irma do `projetoDe()` do renderer -- que o main nao pode
+// importar, porque `src/janela` nao existe do lado de ca.
+function chave(p) {
+  return path.resolve(String(p || '')).replace(/[\\/]+$/, '').toLowerCase();
+}
+
+function mesmoCaminho(a, b) {
+  return chave(a) === chave(b);
+}
+
+// `filho` esta DENTRO de `pai` (ou e o proprio).
+//
+// O `+ path.sep` nao e detalhe: sem ele, `wt-auth` casaria com
+// `wt-auth-refresh` e arquivar uma feature seria barrado por outra de nome
+// parecido -- ou pior, no portao de painel aberto, NAO seria barrado quando
+// devia.
+function dentroDe(pai, filho) {
+  const a = chave(pai);
+  const b = chave(filho);
+  return b === a || b.startsWith(a + path.sep);
+}
+
 function ehRepositorio(projeto) {
   return gitSilencioso(projeto, ['rev-parse', '--git-dir']).ok;
 }
@@ -119,6 +193,73 @@ function blocos(saida) {
     });
 }
 
+// UM montador do objeto `wt`, usado pelo `listar()` e pelo `lerUma()`.
+//
+// Dois montadores separados seria o mesmo defeito que o `rotuloDe()` resolveu na
+// fatia 2: cada lado monta o seu, e um dia os dois ja divergiram. Aqui o preco
+// de divergir seria pior que um rotulo errado -- `podeArquivar` le este objeto,
+// entao um campo montado diferente vira um portao que abre quando devia fechar.
+//
+// `completo: false` pula os dois campos que so a TELA usa (`ignorados` para o
+// texto do dialogo, `ultimoCommit` para a coluna de idade). Nenhum dos dois
+// alimenta `podeArquivar` -- conferido campo a campo -- entao quem so precisa do
+// veredito paga 2 comandos em vez de 4.
+function montarWt(p, { projeto, baseBranch, completo = true }) {
+  const caminho = path.resolve(p.worktree);
+  const branch = (p.branch || '').replace('refs/heads/', '');
+  const motivoLock = 'locked' in p ? (p.locked || 'sem motivo informado') : null;
+  const pid = motivoLock ? Number((motivoLock.match(/pid\s+(\d+)/) || [])[1]) || null : null;
+
+  const existe = fs.existsSync(caminho);
+
+  // Worktree cuja pasta sumiu nao tem status para consultar.
+  const st = existe ? gitSilencioso(caminho, ['status', '--porcelain']) : { ok: false, saida: '' };
+  const sujos = st.ok ? st.saida.split(/\r?\n/).filter((l) => l.trim()).length : 0;
+
+  let naoMesclados = 0;
+  // O outro lado da mesma conta: quanto a worktree esta ATRAS da base. E
+  // literalmente o caso do aviso que motivou isto -- a base andou e a worktree
+  // continuou onde estava.
+  let atrasDaBase = 0;
+  if (branch && baseBranch && branch !== baseBranch) {
+    const c = contar(projeto, `${branch}...${baseBranch}`);
+    if (c) {
+      naoMesclados = c.frente;
+      atrasDaBase = c.atras;
+    }
+  }
+
+  const wt = {
+    nome: path.basename(caminho),
+    caminho,
+    branch,
+    baseBranch,
+    existe,
+    travado: Boolean(motivoLock),
+    motivoLock,
+    pid,
+    sessaoViva: processoVivo(pid),
+    limpo: existe && st.ok && sujos === 0,
+    sujos,
+    naoMesclados,
+    atrasDaBase,
+    // O que o `limpo` NAO enxerga, e o `git worktree remove` apaga assim
+    // mesmo. Ver `ignorados()`.
+    ignorados: completo && existe ? ignorados(caminho) : [],
+    prunable: 'prunable' in p,
+    // Quando esta feature foi mexida pela ultima vez. E a data do COMMIT, e
+    // nao o mtime da pasta: um `npm install` ou um build reescreve arquivo e
+    // faria uma worktree parada ha um mes parecer de hoje.
+    ultimoCommit: completo && branch ? ultimoCommit(projeto, branch) : '',
+  };
+
+  // Derivado, e nao uma regra nova: quem decide continua sendo `podeArquivar`.
+  // Reimplementar o criterio na tela era o caminho curto para a lista dizer
+  // uma coisa e o clique fazer outra.
+  wt.candidata = podeArquivar(wt).pode;
+  return wt;
+}
+
 function listar(projeto) {
   if (!projeto || !fs.existsSync(projeto) || !ehRepositorio(projeto)) return [];
 
@@ -131,61 +272,39 @@ function listar(projeto) {
   const principal = partes[0];
   const baseBranch = (principal.branch || '').replace('refs/heads/', '');
 
-  return partes.slice(1).map((p) => {
-    const caminho = path.resolve(p.worktree);
-    const branch = (p.branch || '').replace('refs/heads/', '');
-    const motivoLock = 'locked' in p ? (p.locked || 'sem motivo informado') : null;
-    const pid = motivoLock ? Number((motivoLock.match(/pid\s+(\d+)/) || [])[1]) || null : null;
+  return partes
+    .slice(1)
+    // Bloco sem `worktree` nao existe no formato do git, mas o parser `blocos()`
+    // nao valida nada -- e `path.resolve(undefined)` e um ERR_INVALID_ARG_TYPE
+    // cru subindo de dentro de uma leitura. Descartar e a resposta certa: a
+    // lista fica sem o bloco torto em vez de nao existir.
+    .filter((p) => p && p.worktree)
+    .map((p) => montarWt(p, { projeto, baseBranch }));
+}
 
-    const existe = fs.existsSync(caminho);
+// UMA worktree, revalidada na hora, com comandos so DELA.
+//
+// Existe porque `arquivar()` chamava `listar(projeto)` para achar o alvo -- e
+// num lote isso e quadratico: cada item relia o projeto inteiro, e dez worktrees
+// viravam 280 comandos git sincronos. Medido; foi a causa do app parar de
+// responder no meio da faxina.
+//
+// O que NAO muda e a invariante: continua revalidando na hora, ignorando o que a
+// interface achava. Ela e sobre FRESCOR, e nao sobre reler o projeto inteiro --
+// `podeArquivar` le apenas campos do proprio alvo, entao o estado dos vizinhos
+// nunca entrou em decisao nenhuma. Sao 3 comandos em vez de 42.
+function lerUma(projeto, caminho) {
+  const r = gitSilencioso(projeto, ['worktree', 'list', '--porcelain']);
+  if (!r.ok) return null;
 
-    // Worktree cuja pasta sumiu nao tem status para consultar.
-    const st = existe ? gitSilencioso(caminho, ['status', '--porcelain']) : { ok: false, saida: '' };
-    const sujos = st.ok ? st.saida.split(/\r?\n/).filter((l) => l.trim()).length : 0;
+  const partes = blocos(r.saida).filter((p) => p && p.worktree);
+  if (!partes.length) return null;
 
-    let naoMesclados = 0;
-    // O outro lado da mesma conta: quanto a worktree esta ATRAS da base. E
-    // literalmente o caso do aviso que motivou isto -- a base andou e a worktree
-    // continuou onde estava.
-    let atrasDaBase = 0;
-    if (branch && baseBranch && branch !== baseBranch) {
-      const c = contar(projeto, `${branch}...${baseBranch}`);
-      if (c) {
-        naoMesclados = c.frente;
-        atrasDaBase = c.atras;
-      }
-    }
+  const baseBranch = (partes[0].branch || '').replace('refs/heads/', '');
+  const alvo = partes.slice(1).find((p) => mesmoCaminho(p.worktree, caminho));
+  if (!alvo) return null;
 
-    const wt = {
-      nome: path.basename(caminho),
-      caminho,
-      branch,
-      baseBranch,
-      existe,
-      travado: Boolean(motivoLock),
-      motivoLock,
-      pid,
-      sessaoViva: processoVivo(pid),
-      limpo: existe && st.ok && sujos === 0,
-      sujos,
-      naoMesclados,
-      atrasDaBase,
-      // O que o `limpo` NAO enxerga, e o `git worktree remove` apaga assim
-      // mesmo. Ver `ignorados()`.
-      ignorados: existe ? ignorados(caminho) : [],
-      prunable: 'prunable' in p,
-      // Quando esta feature foi mexida pela ultima vez. E a data do COMMIT, e
-      // nao o mtime da pasta: um `npm install` ou um build reescreve arquivo e
-      // faria uma worktree parada ha um mes parecer de hoje.
-      ultimoCommit: branch ? ultimoCommit(projeto, branch) : '',
-    };
-
-    // Derivado, e nao uma regra nova: quem decide continua sendo `podeArquivar`.
-    // Reimplementar o criterio na tela era o caminho curto para a lista dizer
-    // uma coisa e o clique fazer outra.
-    wt.candidata = podeArquivar(wt).pode;
-    return wt;
-  });
+  return montarWt(alvo, { projeto, baseBranch, completo: false });
 }
 
 // Data ISO do ultimo commit do branch, ou '' se nao der para saber.
@@ -278,7 +397,9 @@ function situacaoRemoto(projeto) {
 }
 
 async function buscar(projeto) {
-  if (!ehRepositorio(projeto)) return { ok: false, erro: 'nao e um repositorio' };
+  // Sem o `ehRepositorio` que havia aqui: era um comando SINCRONO a mais por
+  // projeto, a cada ciclo da busca de fundo, para descobrir o que o proprio
+  // `fetch` responde de graca uma linha abaixo.
   const r = await gitDeRede(projeto, ['fetch', '--quiet', '--no-tags']);
   return r.ok ? { ok: true, ...situacaoRemoto(projeto) } : { ok: false, erro: r.erro };
 }
@@ -382,22 +503,30 @@ function podeArquivar(wt) {
 // Arquivar e irreversivel. Revalida TUDO na hora, ignorando o que a interface
 // achava: a lista da tela pode ter minutos de idade e uma sessao pode ter
 // subido nesse meio tempo.
-function arquivar(projeto, caminho) {
-  const alvo = listar(projeto).find((w) => path.resolve(w.caminho) === path.resolve(caminho));
+//
+// ASSINCRONA de proposito. Nao e enfeite: o `worktree remove` apaga um checkout
+// inteiro com `node_modules`, e sincrono ele bloqueava o processo principal --
+// nada de IPC, nada de hooks, e a janela que o Windows oferece fechar. O `await`
+// devolve o loop entre cada comando.
+//
+// `prune` NAO roda aqui quando ha lote: e limpeza de metadado GLOBAL, entao
+// `arquivarVarias` a faz uma vez no fim, em vez de N vezes.
+async function arquivar(projeto, caminho, { podar = true } = {}) {
+  const alvo = lerUma(projeto, caminho);
   const veredito = podeArquivar(alvo);
   if (!veredito.pode) return { ok: false, ...veredito };
 
   // Trancado pelo Claude: destrancar so aqui, depois de comprovado que o lock
   // e orfao (sessaoViva ja foi checado acima).
   if (alvo.travado) {
-    const un = gitSilencioso(projeto, ['worktree', 'unlock', alvo.caminho]);
+    const un = await gitLento(projeto, ['worktree', 'unlock', alvo.caminho]);
     if (!un.ok) return { ok: false, motivo: 'unlock', texto: `Nao consegui destrancar: ${un.erro}` };
   }
 
-  const rm = gitSilencioso(projeto, ['worktree', 'remove', alvo.caminho]);
+  const rm = await gitLento(projeto, ['worktree', 'remove', alvo.caminho], { ms: MS_GIT_REMOVER });
   if (!rm.ok) {
     // Deixa como estava: retrancar evita meio-arquivamento silencioso.
-    if (alvo.travado) gitSilencioso(projeto, ['worktree', 'lock', '--reason', alvo.motivoLock, alvo.caminho]);
+    if (alvo.travado) await gitLento(projeto, ['worktree', 'lock', '--reason', alvo.motivoLock, alvo.caminho]);
     return { ok: false, motivo: 'remove', texto: `Nao consegui remover o worktree: ${rm.erro}` };
   }
 
@@ -406,12 +535,12 @@ function arquivar(projeto, caminho) {
   let branchRemovido = false;
   let avisoBranch = '';
   if (alvo.branch) {
-    const br = gitSilencioso(projeto, ['branch', '-d', alvo.branch]);
+    const br = await gitLento(projeto, ['branch', '-d', alvo.branch]);
     branchRemovido = br.ok;
     if (!br.ok) avisoBranch = `A pasta foi removida, mas o branch ${alvo.branch} ficou: ${br.erro}`;
   }
 
-  gitSilencioso(projeto, ['worktree', 'prune']);
+  if (podar) await gitLento(projeto, ['worktree', 'prune']);
 
   return { ok: true, nome: alvo.nome, branch: alvo.branch, branchRemovido, avisoBranch };
 }
@@ -425,25 +554,27 @@ function arquivar(projeto, caminho) {
 // `bloqueados` sao caminhos com painel deste app aberto: o unico portao que
 // este modulo nao tem como conhecer sozinho (quem sabe de PTY e o index.js).
 function triarLote(projeto, caminhos, { bloqueados = [] } = {}) {
-  const norm = (p) => path.resolve(String(p || '')).toLowerCase();
-  const presos = new Set(bloqueados.map(norm));
   const lista = listar(projeto);
 
   const aptas = [];
   const recusadas = [];
 
   for (const caminho of (Array.isArray(caminhos) ? caminhos : [])) {
-    const alvo = lista.find((w) => norm(w.caminho) === norm(caminho));
+    const alvo = lista.find((w) => mesmoCaminho(w.caminho, caminho));
     if (!alvo) {
       recusadas.push({
         caminho, nome: path.basename(String(caminho)), texto: 'Worktree nao encontrado.',
       });
       continue;
     }
-    if (presos.has(norm(caminho))) {
+    // `dentroDe`, e nao igualdade: um painel aberto numa SUBPASTA do worktree
+    // passava por este portao, e o `worktree remove` apagava a pasta debaixo do
+    // terminal de alguem. A direcao importa -- painel na raiz do projeto nao
+    // impede arquivar uma worktree dele.
+    if (bloqueados.some((b) => dentroDe(caminho, b))) {
       recusadas.push({
         caminho, nome: alvo.nome,
-        texto: 'Ha um painel deste app aberto nesta pasta. Feche o painel antes de arquivar.',
+        texto: 'Ha um painel deste app aberto dentro desta pasta. Feche o painel antes de arquivar.',
       });
       continue;
     }
@@ -462,22 +593,33 @@ function triarLote(projeto, caminhos, { bloqueados = [] } = {}) {
 // Cada `arquivar` revalida tudo por dentro de novo, entao uma sessao que suba
 // no meio do lote ainda encontra portao fechado -- e uma recusa no meio nao
 // derruba as outras, que e a razao de `projetos.adicionarVarios` existir.
-function arquivarVarias(projeto, caminhos) {
+// `aoProgresso` fica no MODULO, e nao no handler de IPC: handler nao se testa em
+// Node puro, e e por isso que `triarLote` e `arquivarVarias` moram aqui desde o
+// comeco. Quem avisa a janela e o `index.js`.
+async function arquivarVarias(projeto, caminhos, { aoProgresso = null } = {}) {
+  const lista = Array.isArray(caminhos) ? caminhos : [];
   const arquivadas = [];
   const recusadas = [];
   const avisos = [];
 
-  for (const caminho of (Array.isArray(caminhos) ? caminhos : [])) {
-    const r = arquivar(projeto, caminho);
+  for (let i = 0; i < lista.length; i += 1) {
+    const caminho = lista[i];
+    const nome = path.basename(String(caminho));
+    if (aoProgresso) aoProgresso({ feito: i, total: lista.length, nome });
+
+    // `podar: false`: o `worktree prune` limpa metadado do repositorio inteiro,
+    // entao roda UMA vez no fim em vez de uma por item.
+    const r = await arquivar(projeto, caminho, { podar: false });
     if (r.ok) {
       arquivadas.push({ nome: r.nome, branch: r.branch, branchRemovido: r.branchRemovido });
       if (r.avisoBranch) avisos.push(r.avisoBranch);
     } else {
-      recusadas.push({
-        caminho, nome: path.basename(String(caminho)), texto: r.texto || 'falhou',
-      });
+      recusadas.push({ caminho, nome, texto: r.texto || 'falhou' });
     }
   }
+
+  if (arquivadas.length) await gitLento(projeto, ['worktree', 'prune']);
+  if (aoProgresso) aoProgresso({ feito: lista.length, total: lista.length, nome: '' });
 
   return { ok: arquivadas.length > 0, arquivadas, recusadas, avisos };
 }
@@ -537,7 +679,9 @@ function diff(projeto, caminho) {
   if (!ehRepositorio(projeto)) return { ok: false, texto: 'nao e um repositorio git' };
   if (!fs.existsSync(caminho)) return { ok: false, texto: 'a pasta do worktree nao existe mais' };
 
-  const wt = listar(projeto).find((w) => path.resolve(w.caminho) === path.resolve(caminho));
+  // `lerUma` e nao `listar`: daqui so saem `baseBranch` e `branch`, e reler o
+  // projeto inteiro custava 42 comandos git sincronos para abrir um diff.
+  const wt = lerUma(projeto, caminho);
   if (!wt) return { ok: false, texto: 'worktree nao encontrado neste projeto' };
 
   const comum = ['--no-color', '--no-ext-diff'];
@@ -603,11 +747,17 @@ function criarInclude(projeto, linhas) {
 module.exports = {
   CANDIDATOS_ENV,
   MS_TAMANHO,
+  MS_GIT,
+  MS_GIT_REMOVER,
   ignorados,
   situacaoRemoto,
   buscar,
   atualizar,
   listar,
+  lerUma,
+  dentroDe,
+  mesmoCaminho,
+  processoVivo,
   ultimoCommit,
   tamanhoDe,
   podeArquivar,

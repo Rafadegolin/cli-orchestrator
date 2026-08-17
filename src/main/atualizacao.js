@@ -6,9 +6,10 @@
 // por conta propria mataria os painéis abertos no meio de uma tarefa. Entao o
 // download acontece sozinho, mas quem decide aplicar e sempre o usuario.
 
-const { app, dialog, Notification, shell } = require('electron');
+const { app, dialog, shell } = require('electron');
 const terminais = require('./terminais');
 const leve = require('./atualizacao-asar');
+const avisos = require('./avisos');
 const { ehEmpacotado, ehPortatil } = require('./empacotamento');
 
 const PAGINA_RELEASES = 'https://github.com/Rafadegolin/cli-orchestrator/releases/latest';
@@ -44,6 +45,10 @@ const situacao = {
   // ignorar.
   leve: false,
   motivoPesado: null,
+  // Quando a ultima checagem saiu. Vai para a janela junto do resto porque e o
+  // unico fato observavel de fora que prova o gancho de foco funcionando -- e
+  // `atualizacao:situacao` ja e IPC publico.
+  verificadaEm: 0,
 };
 
 function avisarJanela() {
@@ -69,9 +74,7 @@ function iniciar(j) {
   // -- a checagem e a troca sao do atualizacao-asar.js, que baixa 4 MB em vez
   // de 142 e nao depende de nada assinado.
   if (situacao.portatil) {
-    situacao.ativo = true;
-    setTimeout(verificar, MS_PRIMEIRA_CHECAGEM);
-    timer = setInterval(verificar, MS_ENTRE_CHECAGENS);
+    agendar(j);
     return;
   }
 
@@ -124,13 +127,42 @@ function iniciar(j) {
     console.error('[atualizacao] falhou:', err?.message || err);
   });
 
-  situacao.ativo = true;
+  agendar(j);
+}
 
+// O relogio, mais o gancho de janela. Extraido porque o ramo portatil da
+// `return` antes de chegar aqui, e os dois precisam das mesmas tres coisas.
+function agendar(j) {
+  situacao.ativo = true;
   setTimeout(verificar, MS_PRIMEIRA_CHECAGEM);
   timer = setInterval(verificar, MS_ENTRE_CHECAGENS);
+  for (const evento of ['show', 'restore', 'focus']) j.on(evento, aoVoltar);
+}
+
+// A janela voltou.
+//
+// Este e o conserto do relato "quando sai uma release, preciso fechar e abrir o
+// app para aparecer o botao de reiniciar". A causa nao era o intervalo: era nao
+// existir gatilho NENHUM alem do relogio -- nem ao voltar para a janela, nem
+// botao manual (o IPC `atualizacao:verificar` existia com chamador so nos
+// testes). Fechar e reabrir "funcionava" porque a primeira checagem sai 10s
+// depois do arranque.
+//
+// Molde do `uso.js`: piso de tempo, porque `focus` dispara a cada alt-tab e sem
+// ele um dia normal de trabalho viraria dezenas de consultas ao GitHub.
+const MS_PISO_FOCO = 30 * 60 * 1000;
+
+function aoVoltar() {
+  if (!situacao.ativo) return;
+  if (Date.now() - situacao.verificadaEm < MS_PISO_FOCO) return;
+  verificar();
 }
 
 function verificar() {
+  // O carimbo e gravado aqui, mas o piso so e consultado no `aoVoltar`: se ele
+  // valesse aqui dentro, o "verificar agora" da paleta ficaria refem dele --
+  // que e justamente o comando de quem nao quer esperar.
+  situacao.verificadaEm = Date.now();
   if (situacao.portatil) return verificarLeve();
   if (!atualizador) return;
   atualizador.checkForUpdates().catch((err) => {
@@ -144,17 +176,42 @@ function verificar() {
 // Baixa ja na checagem, como o updater faz no instalado -- sao ~4 MB, e ter o
 // arquivo pronto e o que torna "atualizar e reiniciar" instantaneo em vez de
 // uma espera depois do clique.
+// Qual versao esta preparada no disco.
+//
+// `situacao.baixada` sozinha nao dizia isso, e o defeito era do tipo pior
+// possivel: a tela certa e o arquivo errado. Uma release publicada DEPOIS, na
+// mesma execucao, atualizava `disponivel` para Y e caia no `if (baixada) return`
+// -- entao o rodape passava a prometer "Atualizar para Y e reiniciar" com o
+// `app.asar.novo` de X ainda no disco.
+let versaoBaixada = null;
+
 async function verificarLeve() {
   try {
     const info = await leve.verificar();
-    situacao.disponivel = info.disponivel ? info.versao : null;
+
+    // O equivalente do `update-not-available` do NSIS, que o caminho leve nunca
+    // teve: sem versao nova, nao ha nada baixado para anunciar.
+    if (!info.disponivel) {
+      versaoBaixada = null;
+      Object.assign(situacao, {
+        disponivel: null, baixada: false, leve: false, motivoPesado: null, percentual: 0,
+      });
+      avisarJanela();
+      return;
+    }
+
+    situacao.disponivel = info.versao;
     situacao.leve = info.leve;
     situacao.motivoPesado = info.motivo;
+    // Por VERSAO, e nao por "ja baixei alguma coisa".
+    situacao.baixada = versaoBaixada === info.versao;
+    situacao.percentual = situacao.baixada ? 100 : 0;
     avisarJanela();
 
     if (!info.leve || situacao.baixada) return;
 
     const r = await leve.preparar(info);
+    versaoBaixada = info.versao;
     situacao.baixada = true;
     situacao.percentual = 100;
     console.log(`[atualizacao] asar ${info.versao} pronto (${Math.round(r.bytes / 1024)} KB)`);
@@ -164,27 +221,32 @@ async function verificarLeve() {
     // Mesma regra de sempre: sem internet ou release malformada nao vira
     // dialogo, so log. E a atualizacao leve cai para o caminho do site.
     console.error('[atualizacao] checagem leve falhou:', err?.message || err);
-    situacao.leve = false;
+    // ...MAS so se nao houver asar pronto. Antes isto derrubava `leve` sempre, e
+    // uma falha de rede transformava "atualizar e reiniciar" em "baixe pelo
+    // site" com o arquivo ja no disco ao lado, esperando.
+    if (!situacao.baixada) situacao.leve = false;
     avisarJanela();
   }
 }
 
+// Passa pelo `avisos.js`, o mesmo caminho do aviso de sessao esperando: ele
+// carrega o portao da preferencia e o handler de clique, que antes estava
+// copiado aqui e no `index.js`.
+//
+// Obedecer ao interruptor e deliberado. Quem desliga avisos esta dizendo "nao me
+// interrompa", e manter ligado justamente o menos urgente seria o pior
+// resultado. E aqui nao se perde nada: atualizacao tem canal DURAVEL -- o botao
+// no rodape da lateral e a bolinha do `data-atualizacao` --, reescrito a cada
+// `avisarJanela()` e relido no arranque. Toast perdido nao custa informacao.
 function notificar() {
-  if (!Notification.isSupported()) return;
+  // A janela em foco ja mostra o botao no rodape; toast por cima seria ruido.
   if (janela && !janela.isDestroyed() && janela.isFocused()) return;
 
-  const n = new Notification({
-    title: 'Atualizacao pronta',
-    body: `A versao ${situacao.disponivel} esta baixada. Reinicie o app quando quiser aplicar.`,
-    silent: true,
+  avisos.notificar({
+    titulo: 'Atualizacao pronta',
+    corpo: `A versao ${situacao.disponivel} esta baixada. Reinicie o app quando quiser aplicar.`,
+    silencioso: true,
   });
-  n.on('click', () => {
-    if (!janela || janela.isDestroyed()) return;
-    if (janela.isMinimized()) janela.restore();
-    janela.show();
-    janela.focus();
-  });
-  n.show();
 }
 
 // Chamado pela janela depois que o usuario clica em atualizar. O dialogo diz
@@ -247,6 +309,11 @@ function parar() {
   if (timer) {
     clearInterval(timer);
     timer = null;
+  }
+  // Os ouvintes tambem, e nao so o relogio: `iniciar()` pode rodar de novo pelo
+  // `app.on('activate')`, e sem isto cada volta empilharia mais um `aoVoltar`.
+  if (janela && !janela.isDestroyed()) {
+    for (const evento of ['show', 'restore', 'focus']) janela.removeListener(evento, aoVoltar);
   }
 }
 

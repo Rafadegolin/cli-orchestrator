@@ -11,6 +11,8 @@ const elFilaContagem = document.getElementById('fila-contagem');
 const btnFilaDica = document.getElementById('fila-dica');
 const btnHooks = document.getElementById('btn-hooks');
 const elHooksRotulo = document.getElementById('hooks-rotulo');
+const btnAvisos = document.getElementById('btn-avisos');
+const elAvisosRotulo = document.getElementById('avisos-rotulo');
 const btnAtualizar = document.getElementById('btn-atualizar');
 const btnRetomarTodas = document.getElementById('btn-retomar-todas');
 const elVersao = document.getElementById('lateral-versao');
@@ -370,6 +372,46 @@ window.addEventListener('keydown', (ev) => {
 window.orq.aoMudarEstado(({ id, status, motivo, desde, pergunta, tipo }) =>
   definirStatus(id, status, motivo, desde, { pergunta, tipo }));
 
+// ------------------------------------------------ o interruptor de avisos
+
+// Ele NAO mexe na maquina de avisos daqui (`jaAvisado`, `avisoPendente`,
+// `jaLembrado`): quem suprime e o processo principal, no `avisos.js`. Assim a
+// contabilidade de "avisa uma vez por episodio" continua correta com o
+// interruptor desligado, e religar no meio de uma espera ainda produz o
+// lembrete de 5min. Ver o comentario do `preferencias.avisosLigados`.
+function avisosLigados() {
+  return window.OrqCasca?.ui().avisos !== 'desligados';
+}
+
+function alternarAvisos() {
+  const antes = avisosLigados();
+  window.OrqCasca?.mudar({ avisos: antes ? 'desligados' : 'ligados' });
+  window.OrqToast?.mostrar(antes
+    ? 'Notificações desligadas — a fila ESPERANDO VOCÊ continua marcando quem parou'
+    : 'Notificações ligadas');
+  return !antes;
+}
+
+function atualizarBotaoAvisos() {
+  if (!btnAvisos) return;
+  const ligados = avisosLigados();
+  // Escreve so no rotulo, como o de hooks: mexer no textContent do botao
+  // apagaria o switch, que e markup irmao.
+  if (elAvisosRotulo) elAvisosRotulo.textContent = ligados ? 'ligados' : 'desligados';
+  btnAvisos.classList.toggle('ligado', ligados);
+  btnAvisos.setAttribute('aria-pressed', String(ligados));
+  btnAvisos.title = ligados
+    ? 'Avisa por notificação do Windows quando uma sessão para esperando você, e pisca na '
+      + 'barra de tarefas. Clique para desligar os dois.'
+    : 'As notificações estão desligadas. A bolinha amarela, a fila ESPERANDO VOCÊ e o '
+      + 'Ctrl+Enter continuam funcionando normalmente.';
+}
+
+btnAvisos?.addEventListener('click', alternarAvisos);
+// Reage a mudanca vinda de outro caminho (a paleta), como o medidor de uso faz.
+window.OrqCasca?.aoMudar(atualizarBotaoAvisos);
+atualizarBotaoAvisos();
+
 btnHooks?.addEventListener('click', async () => {
   const s = await window.orq.hooksSituacao();
   if (s.instalado) await window.orq.hooksDesinstalar();
@@ -390,7 +432,7 @@ async function atualizarBotaoHooks() {
   // Escreve so no rotulo: mexer no textContent do botao apagaria o switch, que
   // e markup irmao. O estado visual do switch sai da classe.
   if (elHooksRotulo) elHooksRotulo.textContent = rotulo;
-  btnHooks.classList.toggle('hooks-ok', Boolean(s.instalado));
+  btnHooks.classList.toggle('ligado', Boolean(s.instalado));
   btnHooks.classList.toggle('hooks-parcial', Boolean(s.parcial));
   btnHooks.title = s.instalado
     ? `Hooks registrados em ${s.arquivo} (clique para remover)`
@@ -500,6 +542,28 @@ btnAtualizar?.addEventListener('click', async () => {
   if (!r?.aplicado) btnAtualizar.disabled = false;
 });
 
+// "Verificar se há versão nova", da paleta.
+//
+// O IPC `atualizacao:verificar` existia desde sempre com chamador SO nos testes.
+// Ele fecha o outro lado do relato "preciso fechar e abrir o app": o gancho de
+// foco cobre o caso comum, e isto cobre "acabei de publicar e quero ver agora".
+//
+// A logica mora aqui, e nao na paleta: a paleta nao tem logica propria, so chama
+// funcao que ja existe no modulo dono do assunto.
+async function verificarAtualizacao() {
+  const s = await window.orq.atualizacaoSituacao();
+  if (!s.ativo) {
+    // Nao e enfeite: em `npm run dev` o updater esta desligado, e sem este ramo
+    // o comando nao faria nada em silencio -- o tipo de botao morto que este app
+    // evita.
+    window.OrqToast?.mostrar('Esta cópia não recebe atualização automática (app não empacotado)');
+    return false;
+  }
+  await window.orq.atualizacaoVerificar();
+  window.OrqToast?.mostrar('Procurando versão nova — se houver, o aviso aparece no rodapé da lateral');
+  return true;
+}
+
 window.orq.aoMudarAtualizacao(mostrarAtualizacao);
 
 (async () => {
@@ -511,4 +575,5 @@ window.orq.aoMudarAtualizacao(mostrarAtualizacao);
 window.OrqLateral = {
   registrar, remover, definirStatus, pularParaMaisAntigo, cards, ordenadas, mostrarAtualizacao,
   atualizarRetomarTodas, filaAtencao, rotuloDe, pesoDe, textoEspera, redesenhar,
+  verificarAtualizacao, alternarAvisos, avisosLigados,
 };

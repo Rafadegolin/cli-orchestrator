@@ -100,6 +100,17 @@
       });
     }
 
+    // Buscar do remoto acontece sozinho (ao expandir um projeto, ao voltar para
+    // a janela, e de tempos em tempos), mas o caso "sei que acabaram de mesclar
+    // e quero ver agora" nao e resolvido por nenhum dos tres: o piso de tempo
+    // barra. Este e o unico caminho que dispensa o piso.
+    lista.push({
+      tag: 'git',
+      rotulo: 'Buscar novidades no remoto',
+      dica: 'todos os projetos',
+      correr: () => window.OrqProjetos?.buscarAgora?.(),
+    });
+
     const dormindo = window.OrqGrade?.dormindos?.().length || 0;
     if (dormindo) {
       lista.push({
@@ -134,6 +145,28 @@
       rotulo: 'Ligar ou desligar os hooks de status',
       dica: '',
       correr: () => document.getElementById('btn-hooks')?.click(),
+    });
+
+    // O rodape da lateral some com Ctrl+B, e "recolher nao pode esconder o unico
+    // caminho para nada" -- a mesma razao pela qual o interruptor de hooks ja
+    // esta aqui.
+    lista.push({
+      tag: 'app',
+      rotulo: window.OrqLateral?.avisosLigados()
+        ? 'Desligar as notificações do sistema'
+        : 'Ligar as notificações do sistema',
+      dica: 'sessão esperando',
+      correr: () => window.OrqLateral?.alternarAvisos(),
+    });
+
+    // Atualizacao nunca vira dialogo neste app, entao o unico canal era o rodape
+    // da lateral -- que some com Ctrl+B. E a checagem so acontecia de tempos em
+    // tempos: este e o caminho para "acabou de sair uma release, quero agora".
+    lista.push({
+      tag: 'app',
+      rotulo: 'Verificar se há versão nova',
+      dica: 'atualização',
+      correr: () => window.OrqLateral?.verificarAtualizacao(),
     });
 
     for (const l of window.OrqLayouts?.listar() || []) {

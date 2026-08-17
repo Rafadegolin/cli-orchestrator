@@ -11,6 +11,40 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
+// Contador de comandos git.
+//
+// Ele existe para uma coisa so: impedir que o custo QUADRATICO do lote volte.
+// `arquivar()` chamava `listar(projeto)` para achar o alvo, entao cada item do
+// lote relia o projeto inteiro -- dez worktrees viravam ~280 comandos sincronos,
+// o processo principal ficava 20-60s sem responder, e o relato chegou como "a
+// aplicacao crashou". Um numero e a unica forma de isso nao voltar em silencio.
+//
+// Tem de ser instalado ANTES do require do modulo: `worktrees.js` desestrutura
+// `execFile`/`execFileSync` do child_process na carga, entao remendar depois nao
+// alcanca a referencia que ele guardou. E DEPOIS do `execFileSync` que este
+// teste usa para montar o repositorio, para a montagem nao entrar na conta.
+const cp = require('child_process');
+const spawns = { total: 0, porComando: new Map() };
+let contando = false;
+for (const nome of ['execFile', 'execFileSync']) {
+  const original = cp[nome];
+  cp[nome] = function contado(arquivo, args, ...resto) {
+    if (contando && arquivo === 'git') {
+      spawns.total += 1;
+      const chave = Array.isArray(args) ? args.slice(0, 2).join(' ') : '';
+      spawns.porComando.set(chave, (spawns.porComando.get(chave) || 0) + 1);
+    }
+    return original.call(this, arquivo, args, ...resto);
+  };
+}
+
+function contar(fn) {
+  spawns.total = 0;
+  spawns.porComando.clear();
+  contando = true;
+  return Promise.resolve(fn()).finally(() => { contando = false; });
+}
+
 const wt = require('../src/main/worktrees');
 
 const RAIZ = path.join(os.tmpdir(), 'orq-teste-worktrees');
@@ -102,7 +136,7 @@ function achar(nome) {
 
   // --- nenhuma recusa pode deixar residuo ---------------------------------
   for (const nome of ['viva', 'sujo', 'commitado']) {
-    const r = wt.arquivar(RAIZ, achar(nome).caminho);
+    const r = await wt.arquivar(RAIZ, achar(nome).caminho);
     checar(`recusa de "${nome}" nao executa nada`, r.ok === false, r.motivo);
   }
   const depoisDasRecusas = wt.listar(RAIZ);
@@ -172,7 +206,7 @@ function achar(nome) {
     somiu.bytes === 0 && somiu.parcial === false, JSON.stringify(somiu));
 
   // --- arquivar de verdade o que esta limpo -------------------------------
-  const r = wt.arquivar(RAIZ, dLimpo);
+  const r = await wt.arquivar(RAIZ, dLimpo);
   checar('arquiva o worktree limpo', r.ok === true, JSON.stringify(r));
   checar('a pasta do worktree sumiu do disco', !fs.existsSync(dLimpo), dLimpo);
   checar('o branch tambem foi removido', r.branchRemovido === true, r.avisoBranch || '');
@@ -212,7 +246,7 @@ function achar(nome) {
     triagem.recusadas.some((x) => /nao encontrado/i.test(x.texto)), '');
 
   // Executa o lote com uma boa e uma que vai falhar na revalidacao interna.
-  const lote = wt.arquivarVarias(RAIZ, [dLote, achar('sujo').caminho]);
+  const lote = await wt.arquivarVarias(RAIZ, [dLote, achar('sujo').caminho]);
   checar('o lote arquiva a que pode', lote.ok === true && lote.arquivadas.length === 1,
     JSON.stringify(lote.arquivadas));
   checar('e a falha no meio NAO derruba o resto', lote.recusadas.length === 1,
@@ -223,7 +257,94 @@ function achar(nome) {
     fs.existsSync(dPreso) && Boolean(achar('preso')), '');
 
   // Limpa o que o lote deixou para nao envenenar as contagens seguintes.
-  wt.arquivar(RAIZ, dPreso);
+  await wt.arquivar(RAIZ, dPreso);
+
+  // --- o custo do lote, em numero -----------------------------------------
+  //
+  // Este bloco e o que impede a regressao mais cara deste modulo voltar sem
+  // ninguem perceber: ela nao quebra funcionalidade nenhuma, so trava o app.
+  const dCinco = [];
+  for (let i = 1; i <= 5; i += 1) dCinco.push(criarWorktree(`lote${i}`, { pidDoLock: 999999 }));
+
+  // `lerUma` nao pode ser um segundo montador do objeto: quem le estes campos e
+  // o `podeArquivar`, e um campo montado diferente vira portao que abre quando
+  // devia fechar.
+  const umaCompleta = achar('lote1');
+  const umaEstreita = wt.lerUma(RAIZ, dCinco[0]);
+  const camposDoVeredito = ['nome', 'caminho', 'branch', 'baseBranch', 'existe', 'travado',
+    'pid', 'sessaoViva', 'limpo', 'sujos', 'naoMesclados', 'atrasDaBase', 'prunable', 'candidata'];
+  const divergentes = camposDoVeredito
+    .filter((c) => JSON.stringify(umaCompleta[c]) !== JSON.stringify(umaEstreita[c]));
+  checar('lerUma concorda com listar em todo campo que o veredito le',
+    divergentes.length === 0, divergentes.join(','));
+
+  await contar(() => wt.lerUma(RAIZ, dCinco[0]));
+  checar('e custa 3 comandos, nao um listar do projeto inteiro',
+    spawns.total === 3, `${spawns.total} comandos`);
+
+  // O progresso e o que a tela mostra durante os dezenas de segundos do lote.
+  const passos = [];
+  await contar(() => wt.arquivarVarias(RAIZ, dCinco, {
+    aoProgresso: (p) => passos.push(p),
+  }));
+  const gastos = spawns.total;
+
+  checar('as cinco foram arquivadas', dCinco.every((d) => !fs.existsSync(d)),
+    dCinco.filter((d) => fs.existsSync(d)).join(','));
+  // Antes: Sigma(6+4k) para k=1..5 = 90 comandos, todos SINCRONOS.
+  // Depois: 5 x (3 revalidacao + unlock + remove + branch -d) + 1 prune = 31.
+  checar('o lote de 5 deixou de ser quadratico', gastos < 40, `${gastos} comandos git (antes: 90)`);
+  checar('e o `worktree prune` roda UMA vez por lote, nao uma por item',
+    spawns.porComando.get('worktree prune') === 1,
+    String(spawns.porComando.get('worktree prune')));
+  checar('o progresso sai uma vez por item, mais o fim',
+    passos.length === 6 && passos[0].feito === 0 && passos[0].total === 5
+      && passos[5].feito === 5,
+    JSON.stringify(passos.map((p) => `${p.feito}/${p.total}`)));
+  checar('e cada passo diz de quem e a vez', passos[2].nome === 'lote3', passos[2].nome);
+
+  // --- a revalidacao continua FRESCA ---------------------------------------
+  //
+  // O corte acima so vale se `arquivar` seguir olhando o estado do momento. A
+  // prova: triar duas, e trancar a segunda com PID VIVO depois da triagem.
+  const dFresca = criarWorktree('fresca', { pidDoLock: 999999 });
+  const dSubiu = criarWorktree('subiu', { pidDoLock: 999999 });
+  const triadas = wt.triarLote(RAIZ, [dFresca, dSubiu]);
+  checar('as duas passam na triagem', triadas.aptas.length === 2,
+    triadas.aptas.map((w) => w.nome).join(','));
+
+  // A sessao "sobe" entre a triagem e a execucao, que e o caso real do lote
+  // longo: alguem abriu a feature enquanto as anteriores eram arquivadas.
+  git(RAIZ, 'worktree', 'unlock', dSubiu);
+  git(RAIZ, 'worktree', 'lock', '--reason',
+    `claude session subiu (pid ${process.pid} start 639219707467220630)`, dSubiu);
+
+  const depois = await wt.arquivarVarias(RAIZ, [dFresca, dSubiu]);
+  checar('a que estava livre saiu', depois.arquivadas.length === 1 && !fs.existsSync(dFresca),
+    JSON.stringify(depois.arquivadas.map((x) => x.nome)));
+  checar('e a que ganhou sessao no meio do lote foi RECUSADA',
+    depois.recusadas.length === 1 && /sessao do Claude/i.test(depois.recusadas[0].texto),
+    depois.recusadas.map((x) => x.texto).join(''));
+  checar('a pasta dela continua no disco', fs.existsSync(dSubiu), dSubiu);
+
+  git(RAIZ, 'worktree', 'unlock', dSubiu);
+  await wt.arquivar(RAIZ, dSubiu);
+
+  // --- dentroDe: o portao de painel aberto ---------------------------------
+  //
+  // Ele comparava caminho EXATO, entao um painel aberto numa subpasta do
+  // worktree passava e a pasta era apagada debaixo do terminal de alguem.
+  checar('painel em subpasta conta como dentro',
+    wt.dentroDe('C:/proj/wt-auth', 'C:/proj/wt-auth/src') === true, '');
+  checar('a propria pasta conta como dentro',
+    wt.dentroDe('C:/proj/wt-auth', 'C:/proj/wt-auth') === true, '');
+  // Sem o separador no fim do prefixo, este caso passaria e o portao mentiria.
+  checar('wt-auth NAO casa com wt-auth-refresh',
+    wt.dentroDe('C:/proj/wt-auth', 'C:/proj/wt-auth-refresh') === false, '');
+  checar('barra trocada e maiuscula nao atrapalham',
+    wt.dentroDe('C:/proj/wt-auth', 'C:\\proj\\WT-AUTH\\src') === true, '');
+  checar('painel na raiz do projeto nao impede arquivar a worktree',
+    wt.dentroDe('C:/proj/wt-auth', 'C:/proj') === false, '');
 
   // --- .worktreeinclude ---------------------------------------------------
   let inc = wt.situacaoInclude(RAIZ);

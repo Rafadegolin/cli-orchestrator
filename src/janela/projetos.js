@@ -71,6 +71,21 @@ function tintaDaPasta(caminho) {
 const expandidos = new Set();
 const detalhes = new Map(); // id -> { carregando, worktrees, include }
 
+// caminho achatado -> { ok, base, upstream, atras, frente }, empurrado pelo
+// processo principal no canal `git:estado`.
+//
+// A busca do remoto morava AQUI, num setInterval do renderer com
+// `if (document.hidden) return;` -- que pulava o tique sem reagendar, entao um
+// tique perdido custava dez minutos e abrir o app minimizado empurrava o
+// primeiro fetch para 10min20s. Agora o relogio e do `src/main/remoto.js`, que
+// tem os eventos de janela que o renderer nao tem.
+const gitPorProjeto = new Map();
+
+function atrasoDe(caminho) {
+  const s = gitPorProjeto.get(achatarCaminho(caminho));
+  return s && s.atras > 0 ? s : null;
+}
+
 // Transforma o nome digitado em algo seguro para DOIS destinos perigosos ao
 // mesmo tempo:
 //   1. uma linha de comando de shell -- "feature & shutdown -s" executaria o
@@ -91,12 +106,25 @@ function slugFeature(texto) {
 // `cls && claude`, e nao `cls; claude`: o shell do app e o cmd.exe, onde `;`
 // nao separa comandos (isso e PowerShell). O cmd.exe custa dezenas de ms para
 // abrir, contra centenas do PowerShell -- e o que segura a meta de abertura.
+// O `--name` e NOSSO, e nao do worktree.
+//
+// Medido contra o CLI 2.1.227: `-n, --name <name>` e independente do `-w` (o
+// "(requires --worktree)" que aparece perto no `--help` e do `--tmux`), os dois
+// convivem, e o registro que o CLI mantem em `~/.claude/sessions/<pid>.json`
+// passa a gravar o nome dado -- sem ele vem um `nameSource: "derived"` com um
+// nome que o proprio CLI inventa.
+//
+// Ganho concreto: o titulo do terminal, a caixa de prompt e o seletor do
+// `/resume` passam a dizer a feature. Nao confundir com o nome do BRANCH, que
+// continua sendo `worktree-<slug>` e nao tem como ser escolhido.
 function montarComando(feature, ehGit) {
   const slug = slugFeature(feature);
+  if (!slug) return 'cls && claude';
   // Sem repositorio git nao existe worktree: `claude -w` falharia e o usuario
-  // veria so um erro no terminal sem entender por que.
-  if (!slug || !ehGit) return 'cls && claude';
-  return `cls && claude -w ${slug}`;
+  // veria so um erro no terminal sem entender por que. O nome, esse, vale
+  // igual.
+  if (!ehGit) return `cls && claude --name ${slug}`;
+  return `cls && claude --name ${slug} -w ${slug}`;
 }
 
 // Caminho comparavel: separador unico, sem barra no fim, minusculo.
@@ -176,6 +204,11 @@ function desenharProjetos() {
     nome.className = 'projeto-nome';
     nome.textContent = p.nome;
 
+    // Fica VAZIA no caso normal (projeto que existe e tem git), e e assim desde
+    // sempre -- so que o CSS lhe dava borda e padding, entao o vazio virava uma
+    // pilula de ~12x4px na linha de todo projeto saudavel. Quem some com ela e a
+    // regra `.projeto-marca:empty`, no estilo.css: resolve na fonte do desenho e
+    // vale para qualquer ramo que apareca aqui depois.
     const marca = document.createElement('span');
     marca.className = 'projeto-marca';
     if (!p.existe) {
@@ -184,6 +217,32 @@ function desenharProjetos() {
     } else if (!p.git) {
       marca.textContent = 'sem git';
       marca.title = 'Não é um repositório git: abre sem worktree';
+    }
+
+    // O atraso do remoto, na linha FECHADA.
+    //
+    // Antes o fetch rodava para todos os projetos e o resultado era jogado fora
+    // para os fechados: o aviso so existia dentro do card expandido, e quem nao
+    // expandia nunca ficava sabendo que a base tinha envelhecido.
+    const atras = document.createElement('span');
+    atras.className = 'projeto-atras';
+    const situacao = p.existe && p.git ? atrasoDe(p.caminho) : null;
+    if (situacao) {
+      atras.textContent = `↓ ${situacao.atras}`;
+      atras.title = `${situacao.base} está ${situacao.atras} commit`
+        + `${situacao.atras === 1 ? '' : 's'} atrás de ${situacao.upstream}.\n`
+        + 'Clique para abrir o projeto e atualizar.';
+      // Expande em vez de atualizar direto. `--ff-only` e seguro, mas um chip de
+      // 20px rodando merge no checkout de alguem e surpresa -- e o card aberto e
+      // onde a frase inteira explica o que vai acontecer.
+      atras.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (!expandidos.has(p.id)) {
+          expandidos.add(p.id);
+          desenharProjetos();
+          carregarDetalhes(p.id);
+        }
+      });
     }
 
     const btnRemover = document.createElement('button');
@@ -198,17 +257,25 @@ function desenharProjetos() {
 
     // Seta de expandir: so faz sentido em repositorio git, que e onde existe
     // worktree para listar.
+    //
+    // `disabled`, e NAO `hidden`: o atributo cai na regra global
+    // `[hidden] { display: none !important }`, e sumir do flex leva junto um dos
+    // `gap: 9px` da linha -- o quadradinho de cor dos projetos sem git ficava
+    // desalinhado de todos os outros. O CSS usa `visibility: hidden`, que
+    // preserva a caixa e ja tira do tab order.
+    const aberto = expandidos.has(p.id);
     const btnAbrir = document.createElement('button');
     btnAbrir.className = 'projeto-expandir';
-    btnAbrir.textContent = expandidos.has(p.id) ? '▾' : '▸';
-    btnAbrir.title = 'Ver os worktrees deste projeto';
-    btnAbrir.hidden = !p.git || !p.existe;
+    btnAbrir.textContent = aberto ? '▾' : '▸';
+    btnAbrir.title = aberto
+      ? 'Ocultar os worktrees deste projeto'
+      : 'Ver os worktrees deste projeto';
+    btnAbrir.setAttribute('aria-label', btnAbrir.title);
+    btnAbrir.setAttribute('aria-expanded', String(aberto));
+    btnAbrir.disabled = !p.git || !p.existe;
     btnAbrir.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      if (expandidos.has(p.id)) expandidos.delete(p.id);
-      else expandidos.add(p.id);
-      desenharProjetos();
-      if (expandidos.has(p.id)) carregarDetalhes(p.id);
+      alternarWorktrees(p.id);
     });
 
     // O quadradinho de cor virou BOTAO: e onde a cor esta, entao e onde a gente
@@ -225,7 +292,7 @@ function desenharProjetos() {
 
     const linha = document.createElement('div');
     linha.className = 'projeto-linha';
-    linha.append(btnAbrir, tinta, nome, marca, btnRemover);
+    linha.append(btnAbrir, tinta, nome, atras, marca, btnRemover);
     linha.title = p.caminho;
     // Passa pela escolha: com conversa anterior guardada ela pergunta, e sem
     // nenhuma cai direto no `abrirProjeto`. A paleta continua indo direto ao
@@ -435,6 +502,14 @@ async function carregarDetalhes(id) {
   detalhes.set(id, { carregando: true, worktrees: [], include: null, git: null });
   desenharProjetos();
 
+  // Expandir tambem BUSCA, mas fora do `Promise.all` de proposito: disparado e
+  // esquecido, sem `await`. A invariante continua valendo -- expandir um projeto
+  // nao pode depender de internet para desenhar -- e o push `git:estado` corrige
+  // a tela quando o fetch voltar, um ou vinte segundos depois. O piso de 60s
+  // mora no processo principal, entao expandir e recolher em sequencia nao vira
+  // um fetch por clique.
+  if (p.existe && p.git) window.orq.gitBuscarUm?.(p.caminho);
+
   // `gitSituacao` e leitura pura: le o que o ultimo fetch ja trouxe, sem tocar a
   // rede. Quem busca e a rotina de fundo -- expandir um projeto nao pode
   // depender de internet para desenhar.
@@ -448,6 +523,18 @@ async function carregarDetalhes(id) {
   desenharProjetos();
 }
 
+// Expandir ou recolher os worktrees de um projeto.
+//
+// Numa funcao propria porque agora tem dois chamadores: a seta da linha e o chip
+// de atraso. A paleta pode virar o terceiro.
+function alternarWorktrees(id) {
+  if (expandidos.has(id)) expandidos.delete(id);
+  else expandidos.add(id);
+  desenharProjetos();
+  if (expandidos.has(id)) carregarDetalhes(id);
+  return expandidos.has(id);
+}
+
 // Redesenha os detalhes de todo projeto ABERTO na arvore.
 //
 // Existe para a tela de limpeza: arquivar em lote muda a lista de worktrees, e
@@ -458,31 +545,60 @@ function recarregarDetalhes() {
   for (const id of expandidos) carregarDetalhes(id);
 }
 
-// A BUSCA periodica.
+// O RESULTADO da busca, empurrado pelo processo principal.
 //
-// Segue o padrao do updater (intervalo longo, primeira checagem atrasada) e nao
-// o do medidor de CPU: rede de fundo a cada poucos segundos contraria a meta de
-// consumo parado, e versao nova de repositorio nao aparece a cada 2s.
+// O relogio ficava aqui e tinha tres defeitos somados: pulava o tique com a
+// janela oculta sem reagendar (um tique perdido custava dez minutos), nao tinha
+// gatilho nenhum alem do proprio relogio, e gastava rede com todos os projetos
+// jogando o resultado fora para os fechados. Hoje quem busca e o
+// `src/main/remoto.js`, que tem os eventos `show`/`restore`/`focus` da janela.
 //
-// Nada aqui bloqueia nem interrompe: se der erro, se nao houver credencial ou
-// se nao houver rede, o app simplesmente continua mostrando o que sabia.
-const MS_ENTRE_BUSCAS = 10 * 60 * 1000;
-const MS_PRIMEIRA_BUSCA = 20_000;
-
-async function buscarDeTodos() {
-  if (document.hidden) return;
-  for (const p of projetosCache) {
-    if (!p.existe || !p.git) continue;
-    await window.orq.gitBuscar(p.caminho);
-    // Redesenha so o que ja esta aberto: projeto fechado nao mostra isto.
-    if (expandidos.has(p.id)) await carregarDetalhes(p.id);
+// Ganho colateral: antes cada ciclo chamava `carregarDetalhes` por projeto
+// aberto, e cada uma disparava um `worktreesListar` SINCRONO de dezenas de
+// comandos git no processo principal. Agora o ciclo so atualiza este mapa.
+function aplicarEstadoGit(lista) {
+  if (!Array.isArray(lista)) return;
+  for (const s of lista) {
+    if (!s || !s.caminho) continue;
+    gitPorProjeto.set(achatarCaminho(s.caminho), s);
+    // O card aberto mostra a mesma informacao pela frase inteira, com o botao
+    // de atualizar: manter os dois de acordo sai de graca aqui.
+    const p = projetosCache.find((x) => achatarCaminho(x.caminho) === achatarCaminho(s.caminho));
+    const d = p && detalhes.get(p.id);
+    if (d && s.ok) d.git = { base: s.base, upstream: s.upstream, atras: s.atras, frente: s.frente };
   }
+  desenharProjetos();
 }
 
-setTimeout(() => {
-  buscarDeTodos();
-  setInterval(buscarDeTodos, MS_ENTRE_BUSCAS);
-}, MS_PRIMEIRA_BUSCA);
+window.orq.aoMudarGit?.(aplicarEstadoGit);
+
+// "Buscar novidades no remoto", da paleta. Dispensa o piso de tempo -- e o unico
+// caminho que dispensa: os outros tres (relogio, expandir, voltar para a janela)
+// existem para nao gastar rede a toa, e este existe para quando voce SABE que
+// acabaram de mesclar alguma coisa.
+async function buscarAgora() {
+  window.OrqToast?.mostrar('Buscando no remoto…');
+  const lista = await window.orq.gitBuscarTodos();
+  aplicarEstadoGit(lista);
+
+  const responderam = (lista || []).filter((s) => s.ok);
+  const atrasados = responderam.filter((s) => s.atras > 0).length;
+  if (!responderam.length) {
+    // Toast, NUNCA dialogo: e a mesma politica do `gitDeRede` e do updater --
+    // sem credencial ou sem rede, o app so continua mostrando o que sabia.
+    window.OrqToast?.mostrar('Não consegui falar com nenhum servidor.');
+    return lista;
+  }
+  window.OrqToast?.mostrar(`${responderam.length} projeto${responderam.length === 1 ? '' : 's'} `
+    + `buscado${responderam.length === 1 ? '' : 's'} · `
+    + (atrasados ? `${atrasados} atrás do servidor` : 'tudo em dia'));
+  return lista;
+}
+
+// Leitura inicial: o primeiro push so vem no primeiro tique, e ate la a arvore
+// ficaria sem o chip mesmo com o dado ja no processo principal (o app pode ter
+// sido reaberto com a janela ja carregada).
+window.orq.gitEstado?.().then(aplicarEstadoGit).catch(() => {});
 
 // Retomar o trabalho de ontem: painel na pasta do worktree, continuando a
 // ultima conversa dali. `claude -c` sem conversa anterior nao falha -- ele
@@ -564,6 +680,10 @@ window.OrqProjetos = {
   cadastrarProjeto,
   carregarDetalhes,
   recarregarDetalhes,
+  alternarWorktrees,
+  aplicarEstadoGit,
+  atrasoDe,
+  buscarAgora,
   retomar,
   tintaDe,
   tintaDoProjeto,

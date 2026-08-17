@@ -34,6 +34,7 @@ const PADRAO = {
   ordem: 'urgencia',
   lateral: 'aberta',
   uso: 'barras',
+  avisos: 'ligados',
   personalizado: MOLDE_PADRAO,
 };
 
@@ -74,8 +75,27 @@ function normalizar(bruto) {
     // continuar?", e um app que esconde isso por padrao devolve a pergunta para
     // dentro do terminal, que e de onde ela veio.
     uso: b.uso === 'oculto' ? 'oculto' : 'barras',
+    // A notificacao do sistema quando uma sessao para esperando. O padrao e
+    // LIGADO: o app existe justamente para voce nao ficar olhando a tela, e
+    // nascer calado seria deixar de fazer o que ele promete.
+    //
+    // Desligar cobre o toast E o piscar da barra de tarefas. Quem desliga esta
+    // dizendo "nao me interrompa", e meia interrupcao pareceria a preferencia
+    // nao funcionar.
+    avisos: b.avisos === 'desligados' ? 'desligados' : 'ligados',
     personalizado: normalizarMolde(b.personalizado),
   };
+}
+
+// A decisao em UMA funcao, e do lado do processo principal.
+//
+// O portao NAO pode ficar no renderer: `lateral.js` guarda `jaAvisado` para
+// avisar uma vez por episodio, e o lembrete de 5min exige `jaAvisado.has(id)`.
+// Desistir antes de marcar deixaria a sessao sem lembrete para sempre, mesmo
+// depois de religar; desistir depois queimaria o slot sem ter avisado. Aqui a
+// contabilidade la continua correta e so o efeito e suprimido.
+function avisosLigados(ui) {
+  return (ui || carregar()).avisos !== 'desligados';
 }
 
 function carregar() {
@@ -89,4 +109,6 @@ function salvar(parcial) {
   return novo;
 }
 
-module.exports = { carregar, salvar, normalizar, PADRAO, MOLDE_PADRAO, NOME };
+module.exports = {
+  carregar, salvar, normalizar, avisosLigados, PADRAO, MOLDE_PADRAO, NOME,
+};

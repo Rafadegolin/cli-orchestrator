@@ -91,6 +91,35 @@ function escreverHooks() {
 
 const capturas = [];
 
+// O REGISTRO de sessoes que o CLI mantem em ~/.claude/sessions/<pid>.json.
+//
+// Amostrado junto de cada captura para responder UMA pergunta, e ela decide se
+// o app pode usar esse arquivo como fonte de status: durante um prompt de
+// permissao, o CLI diz `busy` ou `idle`?
+//
+// Se disser `busy`, entao `busy` NAO e evidencia de trabalho e usar isso para
+// apagar amarelo esconderia sessao bloqueada -- o erro na direcao cara. Se
+// disser `idle`, `busy` e afirmativo e serve como o `MARCA_TRABALHANDO` serve.
+const PASTA_SESSOES = path.join(os.homedir(), '.claude', 'sessions');
+
+function lerRegistro(cwdAlvo) {
+  const chave = (p) => String(p || '').replace(/[\\/]+/g, '/').replace(/\/+$/, '').toLowerCase();
+  const alvo = chave(cwdAlvo);
+  let nomes = [];
+  try { nomes = fs.readdirSync(PASTA_SESSOES).filter((f) => f.endsWith('.json')); } catch { return null; }
+
+  for (const n of nomes) {
+    try {
+      const s = JSON.parse(fs.readFileSync(path.join(PASTA_SESSOES, n), 'utf8'));
+      const c = chave(s.cwd);
+      if (c === alvo || c.startsWith(alvo + '/')) {
+        return { pid: s.pid, nome: s.name || '', nomeDe: s.nameSource || 'dado', status: s.status || '' };
+      }
+    } catch { /* arquivo sendo escrito agora */ }
+  }
+  return null;
+}
+
 // Le a tela ACHATADA e a classifica com as marcas do app. Guardar o texto cru
 // junto e o que permite reanalisar depois sem rodar o spike de novo.
 async function capturar(cdp, id, momento) {
@@ -110,11 +139,11 @@ async function capturar(cdp, id, momento) {
     });
   })()`);
 
-  const c = { momento, ms: Date.now() - t0, ...JSON.parse(bruto) };
+  const c = { momento, ms: Date.now() - t0, ...JSON.parse(bruto), registro: lerRegistro(PASTA) };
   capturas.push(c);
   console.log(`  [${String(c.ms).padStart(6)}ms] ${momento.padEnd(28)} `
     + `pedido=${(c.forma || '-').padEnd(9)} trabalhando=${c.trabalhando ? 'SIM' : 'nao'} `
-    + `status=${c.status}`);
+    + `status=${c.status.padEnd(9)} registro=${c.registro ? c.registro.status || '(vazio)' : '-'}`);
   return c;
 }
 

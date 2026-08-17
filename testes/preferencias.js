@@ -58,6 +58,23 @@ const gravarBruto = (ui) => fs.writeFileSync(
   checar('valor torto de uso volta para barras',
     preferencias.salvar({ uso: 'as vezes' }).uso === 'barras', '');
 
+  // --- as notificacoes do sistema -----------------------------------------
+  checar('os avisos nascem LIGADOS', padrao.avisos === 'ligados', String(padrao.avisos));
+  checar('desligar sobrevive ao salvar e reler',
+    preferencias.salvar({ avisos: 'desligados' }).avisos === 'desligados', '');
+  // O portao roda no processo principal e le por esta funcao. Ela e a unica
+  // parte da decisao que da para cobrar sem enxergar um toast do sistema -- e e
+  // por isso que ela mora aqui, e nao dentro do `avisos.js`.
+  checar('e o portao concorda com o valor gravado',
+    preferencias.avisosLigados() === false, '');
+  checar('valor torto de avisos volta para ligados',
+    preferencias.salvar({ avisos: 7 }).avisos === 'ligados', '');
+  checar('e o portao volta a deixar passar',
+    preferencias.avisosLigados() === true, '');
+  checar('o portao aceita um objeto pronto, sem tocar o disco',
+    preferencias.avisosLigados({ avisos: 'desligados' }) === false
+    && preferencias.avisosLigados({ avisos: 'ligados' }) === true, '');
+
   // --- o molde entra pela porta da normalizacao ---------------------------
   const salvo = preferencias.salvar({
     personalizado: { cols: 3, alturaLinha: 200, celulas: [{ c: 1, r: 2 }, { c: 2, r: 1 }] },

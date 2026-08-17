@@ -39,14 +39,24 @@ function lerArquivo() {
     soSimbolo: window.OrqProjetos.montarComando('!!!', true)
   })`));
 
-  checar('feature normal vira worktree', casos.normal === 'cls && claude -w minha-feature', casos.normal);
+  checar('feature normal vira worktree',
+    casos.normal === 'cls && claude --name minha-feature -w minha-feature', casos.normal);
+  // O `--name` e o que faz o titulo do terminal, a caixa de prompt e o seletor
+  // do `/resume` dizerem a feature. Sem ele o CLI inventa um nome e marca
+  // `nameSource: "derived"`. Medido: convive com o `-w` (o "(requires
+  // --worktree)" que aparece perto no --help e do `--tmux`).
+  checar('e a sessao nasce com o NOME da feature',
+    casos.normal.includes('--name minha-feature'), casos.normal);
   checar('metacaractere de shell nao sobrevive',
     !casos.injecao.includes('&&  ') && !/&(?!&)/.test(casos.injecao.replace('cls && ', '')) && !casos.injecao.includes(' -s'),
     casos.injecao);
   checar('espaco nao sobrevive (quebraria o nome do branch)',
-    casos.acento === 'cls && claude -w correcao-de-preco', casos.acento);
+    casos.acento === 'cls && claude --name correcao-de-preco -w correcao-de-preco', casos.acento);
   checar('sem nome de feature, roda claude puro', casos.vazio === 'cls && claude', casos.vazio);
   checar('projeto sem git nunca recebe -w', !casos.semGit.includes('-w'), casos.semGit);
+  // ...mas ganha o nome do mesmo jeito: worktree e nome sao coisas separadas.
+  checar('projeto sem git ainda nomeia a sessao',
+    casos.semGit === 'cls && claude --name minha-feature', casos.semGit);
   checar('nome so de simbolos cai para claude puro', casos.soSimbolo === 'cls && claude', casos.soSimbolo);
 
   // --- cadastro ----------------------------------------------------------
@@ -123,6 +133,89 @@ function lerArquivo() {
   checar('cada projeto do lote ganha faixa de portas propria, sem colidir',
     lote.faixas.length === 2 && lote.faixas[0][0] !== lote.faixas[1][0],
     JSON.stringify(lote.faixas));
+
+  // --- a LINHA do projeto na arvore ---------------------------------------
+  //
+  // Este e o momento certo: a lista tem um projeto COM git (a raiz do teste) e
+  // dois SEM (os do lote), que e o par necessario para medir o alinhamento.
+  await cdp.avaliar(`window.OrqProjetos.carregarProjetos()`);
+  await esperar(400);
+
+  const linhas = JSON.parse(await cdp.avaliar(`(() => JSON.stringify(
+    [...document.querySelectorAll('#projetos-lista .projeto-linha')].map((l) => {
+      const b = l.querySelector('.projeto-expandir');
+      const m = l.querySelector('.projeto-marca');
+      const cl = l.getBoundingClientRect();
+      const cb = b.getBoundingClientRect();
+      return {
+        nome: l.querySelector('.projeto-nome').textContent,
+        botaoW: Math.round(cb.width), botaoH: Math.round(cb.height),
+        linhaH: Math.round(cl.height),
+        tintaX: Math.round(l.querySelector('.projeto-tinta').getBoundingClientRect().left - cl.left),
+        travado: b.disabled,
+        marcaTexto: m.textContent,
+        marcaW: Math.round(m.getBoundingClientRect().width),
+      };
+    })))()`));
+
+  const comGit = linhas.find((l) => !l.travado);
+  const semGit = linhas.find((l) => l.travado);
+
+  // O botao media ~14x11 e o relato foi "precisa clicar muito exatamente no
+  // icone". 24x24 e o minimo da WCAG 2.2.
+  checar('o expandir tem alvo de 24x24', comGit && comGit.botaoW >= 24 && comGit.botaoH >= 24,
+    comGit && `${comGit.botaoW}x${comGit.botaoH}`);
+  // As margens negativas existem para isto: crescer o alvo sem crescer a linha.
+  checar('e a altura da linha nao cresceu por causa disso',
+    comGit && comGit.linhaH <= 34, comGit && `${comGit.linhaH}px`);
+
+  // O que o `hidden` quebrava: `display:none` levava junto um dos `gap: 9px`, e
+  // o quadradinho de cor dos projetos sem git saia da coluna dos demais.
+  checar('projeto sem git mantem o quadradinho de cor na mesma coluna',
+    comGit && semGit && Math.abs(comGit.tintaX - semGit.tintaX) <= 1,
+    comGit && semGit && `${comGit.tintaX} vs ${semGit.tintaX}`);
+
+  // A pilula vazia: criada SEMPRE, com borda e padding, virava um retangulo de
+  // ~12x4px na linha de todo projeto saudavel.
+  const pilulasVazias = linhas.filter((l) => l.marcaTexto === '' && l.marcaW > 0);
+  checar('projeto normal nao ganha pilula vazia', pilulasVazias.length === 0,
+    pilulasVazias.map((v) => `${v.nome}:${v.marcaW}px`).join(','));
+  // E o conserto nao pode ter sumido com as etiquetas de verdade.
+  checar('e a etiqueta "sem git" continua aparecendo',
+    linhas.some((l) => l.marcaTexto === 'sem git' && l.marcaW > 0),
+    linhas.map((l) => l.marcaTexto).join('|'));
+
+  // --- o chip de atraso do remoto ------------------------------------------
+  //
+  // A mecanica, sem depender de rede: injeta o estado que o processo principal
+  // empurraria pelo canal `git:estado`.
+  const alvoChip = JSON.parse(await cdp.avaliar(
+    `JSON.stringify(window.OrqProjetos.lista().find((p) => p.git && p.existe) || null)`));
+  if (alvoChip) {
+    await cdp.avaliar(`window.OrqProjetos.aplicarEstadoGit([{
+      caminho: ${JSON.stringify(alvoChip.caminho)}, ok: true,
+      base: 'main', upstream: 'origin/main', atras: 3, frente: 0 }])`);
+    await esperar(250);
+    const chip = JSON.parse(await cdp.avaliar(`(() => {
+      const c = document.querySelector('#projetos-lista .projeto-atras:not(:empty)');
+      return JSON.stringify(c ? { texto: c.textContent.trim(), titulo: c.title,
+        w: Math.round(c.getBoundingClientRect().width) } : null);
+    })()`));
+    // A rede era gasta com todos os projetos e o aviso so aparecia no card
+    // EXPANDIDO -- quem nao expandia nunca ficava sabendo.
+    checar('a base atrasada acende o chip na linha FECHADA',
+      chip && chip.texto === '↓ 3' && chip.w > 0, JSON.stringify(chip));
+    checar('e o title diz o que e e o que fazer',
+      chip && /3 commits atrás de origin\/main/.test(chip.titulo), chip && chip.titulo);
+
+    await cdp.avaliar(`window.OrqProjetos.aplicarEstadoGit([{
+      caminho: ${JSON.stringify(alvoChip.caminho)}, ok: true,
+      base: 'main', upstream: 'origin/main', atras: 0, frente: 0 }])`);
+    await esperar(250);
+    checar('e sem atraso ele some',
+      await cdp.avaliar(`String(document.querySelectorAll('#projetos-lista .projeto-atras:not(:empty)').length)`) === '0',
+      '');
+  }
 
   // Limpa: estes tres nao podem sobrar para as checagens seguintes.
   // A lista do PROCESSO PRINCIPAL, e nao o cache do renderer: o cache so

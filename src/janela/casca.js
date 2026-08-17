@@ -28,11 +28,17 @@
   // O molde do slot personalizado vem junto das outras preferencias, e nao do
   // sessao.json: ele e o FORMATO da tela, que sobrevive a qualquer conjunto de
   // sessoes. Quem normaliza de verdade e o processo principal.
+  // Estes defaults valem so ate o `uiCarregar()` responder -- mas nao sao
+  // decorativos: `uso` faltava aqui, e por causa disso `ui().uso` era `undefined`
+  // nessa janela, o que fazia o item da paleta mostrar o rotulo errado se voce
+  // abrisse a paleta rapido demais. Toda preferencia nova entra nas DUAS listas.
   let ui = {
     tema: 'escuro',
     densidade: 2,
     ordem: 'urgencia',
     lateral: 'aberta',
+    uso: 'barras',
+    avisos: 'ligados',
     personalizado: { cols: 3, alturaLinha: 160, celulas: [] },
   };
   const ouvintes = [];

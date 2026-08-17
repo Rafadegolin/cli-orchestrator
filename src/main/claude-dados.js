@@ -44,6 +44,54 @@ function conversas(caminho) {
   }
 }
 
+// O registro de sessoes VIVAS que o CLI mantem, um arquivo por PID.
+//
+// Descoberto ao investigar o "cross-session messaging" anunciado para macOS e
+// Linux: o recurso em si e bloqueado no Windows por um portao de plataforma
+// dentro do binario (ver docs/fase-9-extras.md), mas o REGISTRO que ele usa e
+// escrito aqui do mesmo jeito. Verificado ao vivo no CLI 2.1.227:
+//
+//   {"pid":6580,"sessionId":"06c67f20-...","cwd":"...\\worktrees\\feature-TECH-758",
+//    "version":"2.1.227","peerProtocol":1,"kind":"interactive",
+//    "name":"fix-specialist-booking-timeout","status":"busy","updatedAt":1786976880964}
+//
+// Como todo o resto deste arquivo, e LAYOUT INTERNO e nao contrato: se a pasta
+// mudar de nome ou o formato mudar, isto devolve lista vazia e o app perde uma
+// ajuda sem perder nada.
+//
+// O `pid` e conferido de verdade porque arquivo de sessao morta fica para tras
+// -- e uma sessao "viva" que na verdade morreu e pior que nenhuma informacao.
+function sessoes({ pidVivo } = {}) {
+  const vivo = typeof pidVivo === 'function' ? pidVivo : () => true;
+
+  let nomes;
+  try {
+    nomes = fs.readdirSync(path.join(RAIZ, 'sessions')).filter((f) => f.endsWith('.json'));
+  } catch {
+    return [];
+  }
+
+  const saida = [];
+  for (const n of nomes) {
+    let s;
+    try {
+      s = JSON.parse(fs.readFileSync(path.join(RAIZ, 'sessions', n), 'utf8'));
+    } catch {
+      continue; // arquivo torto ou sendo escrito agora: nao derruba os outros
+    }
+    if (!s || !s.pid || !vivo(Number(s.pid))) continue;
+    saida.push({
+      pid: Number(s.pid),
+      sessionId: String(s.sessionId || ''),
+      cwd: String(s.cwd || ''),
+      nome: String(s.name || ''),
+      status: String(s.status || ''),
+      em: Number(s.statusUpdatedAt || s.updatedAt || 0),
+    });
+  }
+  return saida;
+}
+
 // A credencial OAuth do proprio CLI.
 //
 // O TOKEN NAO PODE SAIR DO PROCESSO PRINCIPAL: nao vai para o `uso.json`, nao
@@ -69,4 +117,6 @@ function credenciais() {
   };
 }
 
-module.exports = { RAIZ, raiz, pastaProjetos, pastaDoProjeto, conversas, credenciais };
+module.exports = {
+  RAIZ, raiz, pastaProjetos, pastaDoProjeto, conversas, sessoes, credenciais,
+};

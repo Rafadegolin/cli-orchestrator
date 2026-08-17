@@ -215,3 +215,44 @@ depois de o mapa provar uso no dia a dia.
 > Pré-requisito de vários: os hooks precisam estar registrados no `~/.claude/settings.json` (botão na
 > barra lateral). Sem eles não há bolinha amarela para aprovar, nem transições para o histórico, nem
 > evento de `Stop` para o relé.
+
+## Cross-session messaging: bloqueado no Windows, e não é configuração
+
+O Claude Code anunciou *"on macOS and Linux, your Claude Code sessions can now message each other"*.
+**Não dá para usar aqui, e não adianta procurar a chave que liga.** Medido no binário do CLI 2.1.227:
+
+```js
+function PS(){ if(Yt()==="windows") return !1;
+               return rt("tengu_harbor_kite",!1) || Boolean(re.CLAUDE_CODE_HARBOR_KITE) }
+var JHo="Cross-session messaging is not available in this session.";
+```
+
+O `return !1` de plataforma vem **antes** da flag de rollout e da variável de ambiente — não há env
+var, config nem canário que contorne. As consequências, todas no mesmo portão `PS()`:
+
+- a ferramenta `ListAgents` não é registrada (`isEnabled(){return PS()}`), e o slash command
+  `/list-agents` (alias `/peers`) some da lista;
+- `SendMessage` para os esquemas `uds:` e `bridge:` responde com o texto acima;
+- o socket nunca sobe: `[uds-messaging] Skipped: cross-session messaging gate off`;
+- a política de entrada é forçada a `{ policy: "refuse", refuseCause: "kill-switch" }`.
+
+A razão técnica é o transporte: **Unix domain socket**, com verificação de identidade do remetente
+por `SO_PEERCRED`/`LOCAL_PEERPID`. Não é uma limitação arbitrária, e por isso não deve ser esperada
+para breve. **Não tente de novo** — mesmo espírito do `PreToolUse`, que o `CLAUDE.md` já marca assim.
+
+### O que sobrou, e é melhor do que parecia
+
+O **registro de sessões vivas** que esse recurso usa continua sendo escrito no Windows, em
+`~/.claude/sessions/<pid>.json` — e a flag `-n, --name` funciona. Os dois viraram código:
+
+- `montarComando` lança com `--name <slug>`, então o título do terminal, a caixa de prompt e o
+  seletor do `/resume` passam a dizer a feature (sem ele, o CLI inventa um e marca
+  `nameSource: "derived"`). Medido: `--name` convive com `-w`, e o `(requires --worktree)` que
+  aparece perto no `--help` é do `--tmux`;
+- `src/main/registro.js` lê o arquivo e usa `status` como **terceira fonte de status** — ver o
+  cabeçalho dele para os números do spike e para as duas regras (`waiting` acende, `busy` apaga,
+  `idle` não faz nada).
+
+O achado que justifica tudo isso: existe um status **`waiting`**, que é o CLI dizendo afirmativamente
+"estou parado esperando a pessoa" — sem deduzir nada de texto de tela, funcionando com painel fora da
+vista e **sem hooks instalados**.
