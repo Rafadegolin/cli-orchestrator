@@ -8,6 +8,7 @@
 const net = require('net');
 const path = require('path');
 const { conectar, checar, encerrar, esperar, zerarGrade } = require('./cdp');
+const cmd = require('./comandos');
 
 const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
 
@@ -65,7 +66,7 @@ async function abrir(cdp, feature) {
   intruso.close();
 
   // 2. A variavel chega dentro do shell do painel.
-  await cdp.avaliar(`window.orq.escrever(${JSON.stringify(a.id)}, 'echo PORTA=[%PORT%] BLOCO=[%ORQ_PORTAS%]\\r')`);
+  await cdp.avaliar(`window.orq.escrever(${JSON.stringify(a.id)}, 'echo PORTA=[${cmd.variavel('PORT')}] BLOCO=[${cmd.variavel('ORQ_PORTAS')}]\\r')`);
   await esperar(2500);
   const buffer = await cdp.avaliar(`(() => {
     const p = window.OrqPainel.painelPorId.get(${JSON.stringify(a.id)});

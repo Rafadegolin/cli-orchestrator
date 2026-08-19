@@ -202,7 +202,10 @@
       correr: () => window.OrqModalProjeto?.abrir(),
     });
 
-    lista.push({
+    // So no Windows: `.lnk` e AppUserModelID nao existem em outro lugar, e
+    // `atalho.js` ja recusa. Oferecer um comando que so sabe falhar e pior do
+    // que nao oferecer.
+    if (window.OrqShell.EH_WIN) lista.push({
       tag: 'app',
       rotulo: 'Criar atalho no menu Iniciar',
       dica: 'para fixar com o icone certo',
@@ -242,7 +245,7 @@
     lista.push({
       tag: 'ajuda',
       rotulo: 'Abrir Como usar',
-      dica: 'F1',
+      dica: window.OrqShell.EH_MAC ? `${window.OrqShell.MOD}+/` : 'F1',
       correr: () => window.OrqAjuda.abrir(),
     });
 

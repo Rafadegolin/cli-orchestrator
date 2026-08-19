@@ -8,6 +8,7 @@
 const path = require('path');
 const { execSync } = require('child_process');
 const { conectar, checar, encerrar, esperar, zerarGrade } = require('./cdp');
+const cmd = require('./comandos');
 const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
 
 // Conta ping.exe vivos. Nao adianta marcar pela linha de comando: o proprio
@@ -36,12 +37,13 @@ function limparPings() {
     { cwd: ${JSON.stringify(RAIZ)}, feature: 'arvore' }); return p.id; })()`);
   await esperar(2000);
 
-  // DESTACADO de proposito (`start "" /b`), que e o caso dificil: o ConPTY,
-  // ao fechar, ja derruba os processos anexados ao console, mas um servidor
-  // solto -- o `npm run dev` de dentro de uma sessao -- sobrevive e fica
-  // segurando a porta. As aspas vazias sao obrigatorias: sem elas o `start`
-  // consome o primeiro argumento entre aspas como titulo da janela.
-  await cdp.avaliar(`window.orq.escrever(${JSON.stringify(id)}, 'start "" /b ping -t 127.0.0.1\\r')`);
+  // DESTACADO de proposito, que e o caso dificil: o ConPTY, ao fechar, ja
+  // derruba os processos anexados ao console, mas um servidor solto -- o
+  // `npm run dev` de dentro de uma sessao -- sobrevive e fica segurando a
+  // porta. A escrita muda por shell (`start "" /b` no Windows, `&` fora dele) e
+  // sai do `comandos.js`; as aspas vazias do `start` sao obrigatorias, senao
+  // ele consome o primeiro argumento entre aspas como titulo da janela.
+  await cdp.avaliar(`window.orq.escrever(${JSON.stringify(id)}, '${cmd.filhoLongo()}\\r')`);
   await esperar(3500);
 
   const antes = contaPings();

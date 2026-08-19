@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const os = require('os');
 
+const plataforma = require('./plataforma');
 const terminais = require('./terminais');
 const eventos = require('./eventos');
 const estado = require('./estado');
@@ -72,10 +73,16 @@ process.on('uncaughtException', (err) => conterFalha('uncaughtException', err));
 process.on('unhandledRejection', (err) => conterFalha('unhandledRejection', err));
 
 // cmd.exe abre em dezenas de ms; o PowerShell leva algumas centenas e sozinho
-// comeria boa parte da meta de 1,5s ate o primeiro terminal.
-const SHELL_PADRAO = process.platform === 'win32'
-  ? (process.env.ComSpec || 'cmd.exe')
-  : (process.env.SHELL || '/bin/bash');
+// comeria boa parte da meta de 1,5s ate o primeiro terminal. Fora do Windows o
+// shell sobe como LOGIN shell -- ver `plataforma.js` para o porque.
+const SHELL_PADRAO = plataforma.shellPadrao();
+const ARGS_PADRAO = plataforma.argsDoShell();
+
+// Corrige o PATH do PROCESSO PRINCIPAL, que e quem chama `git` direto
+// (worktrees.js) sem passar por shell nenhum. Aberto pelo Finder no macOS ele
+// herda um PATH minimo do launchd, e todo comando de worktree falharia com
+// ENOENT -- funcionando perfeitamente quando aberto pelo terminal.
+plataforma.corrigirPath();
 
 let janela = null;
 
@@ -109,14 +116,24 @@ function criarJanela() {
     // No instalador e no zip portatil o icone vem do proprio executavel, e esta
     // linha nao muda nada. Ela existe pelo pacote "sac", onde o executavel e o
     // electron.exe ORIGINAL e intocado -- sem ela a barra de tarefas mostraria
-    // o icone do Electron.
-    icon: path.join(__dirname, '..', '..', 'recursos', 'icone.ico'),
+    // o icone do Electron. No macOS quem manda e o .icns do bundle, e um .ico
+    // aqui nao seria lido.
+    ...(plataforma.EH_WIN
+      ? { icon: path.join(__dirname, '..', '..', 'recursos', 'icone.ico') }
+      : {}),
     // A faixa de 38px e desenhada por nos; os TRES BOTOES continuam sendo os do
-    // Windows, pintados por cima pelo overlay. E o que preserva o Snap Layouts
+    // sistema, pintados por cima pelo overlay. E o que preserva o Snap Layouts
     // (arrastar para a borda, o menu que aparece ao pairar no maximizar) --
     // `frame: false` daria controle total do visual e custaria isso.
-    titleBarStyle: 'hidden',
-    titleBarOverlay: { ...cores, height: 38 },
+    //
+    // No macOS nao existe `titleBarOverlay` (ele e ignorado) e os semaforos
+    // ficam a ESQUERDA -- em cima do nosso botao de recolher a lateral. Dai o
+    // `hiddenInset`, que desce e afasta os tres botoes, mais a posicao
+    // explicita para centraliza-los na faixa de 38px. A reserva de espaco do
+    // outro lado e do CSS, por `#app[data-plataforma="mac"]`.
+    ...(plataforma.EH_MAC
+      ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 14, y: 11 } }
+      : { titleBarStyle: 'hidden', titleBarOverlay: { ...cores, height: 38 } }),
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'ponte.js'),
       contextIsolation: true,
@@ -290,7 +307,7 @@ ipcMain.handle('terminal:abrir', async (_e, { id, cwd, cols, rows, comando, args
     id,
     cwd: pasta,
     comando: comando || SHELL_PADRAO,
-    args: args || [],
+    args: args || ARGS_PADRAO,
     cols,
     rows,
     env: { ...portas.comoEnv(bloco), ...env },
@@ -595,6 +612,15 @@ ipcMain.handle('app:constantes', () => ({
   arquivoHooks: instalarHooks.ARQ_SETTINGS,
   minutosUso: Math.round(uso.MS_ENTRE / 60000),
   minutosBusca: Math.round(remoto.MS_ENTRE / 60000),
+  // Os rotulos de tecla seguem a mesma regra dos numeros: saem do codigo, e nao
+  // digitados no texto. Sem isto a ajuda diria "Ctrl" para quem so tem ⌘.
+  mod: plataforma.EH_MAC ? '⌘' : 'Ctrl',
+  alt: plataforma.EH_MAC ? '⌥' : 'Alt',
+  // F1 no Mac e tecla de midia por padrao, entao a ajuda abre por ⌘+/ la.
+  ajudaTecla: plataforma.EH_MAC ? '⌘+/' : 'F1',
+  // Como se le uma variavel de ambiente na linha de comando do shell de cada
+  // sistema. O `%PORT%` do cmd nao existe em zsh, e vice-versa.
+  porta: plataforma.EH_WIN ? '%PORT%' : '$PORT',
 }));
 
 ipcMain.handle('ui:carregar', () => preferencias.carregar());

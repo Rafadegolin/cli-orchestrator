@@ -43,6 +43,27 @@
   };
   const ouvintes = [];
 
+  // A plataforma vira atributo, como `data-modo` e `data-densidade`: e o CSS
+  // que precisa saber, porque no macOS os botoes de janela ficam a ESQUERDA e a
+  // reserva de espaco da barra de titulo inverte de lado.
+  elApp.dataset.plataforma = window.OrqShell.EH_MAC ? 'mac' : 'win';
+
+  // Os rotulos de tecla que estao ESCRITOS no HTML. O resto da tela ja monta o
+  // seu a partir do `OrqShell.MOD`; estes tres sao estaticos e mentiriam num
+  // Mac, onde nao existe Ctrl nem F1 util.
+  (() => {
+    const mod = window.OrqShell.MOD;
+    const ajudaTecla = window.OrqShell.EH_MAC ? `${mod}+/` : 'F1';
+    const busca = document.getElementById('btn-busca');
+    if (busca) {
+      busca.title = `Buscar sessão, projeto ou comando (${mod}+K)`;
+      const t = busca.querySelector('.tecla');
+      if (t) t.textContent = `${mod}+K`;
+    }
+    const ajuda = document.querySelector('#btn-ajuda .mono');
+    if (ajuda) ajuda.textContent = ajudaTecla;
+  })();
+
   // ------------------------------------------------------------- aplicar
 
   function aplicarTema() {
@@ -81,9 +102,10 @@
     const fechada = ui.lateral === 'fechada';
     elApp.dataset.lateral = fechada ? 'fechada' : 'aberta';
     if (!btnLateral) return;
+    const mod = window.OrqShell.MOD;
     btnLateral.title = fechada
-      ? 'Mostrar a barra lateral (Ctrl+B)'
-      : 'Ocultar a barra lateral (Ctrl+B)';
+      ? `Mostrar a barra lateral (${mod}+B)`
+      : `Ocultar a barra lateral (${mod}+B)`;
     btnLateral.setAttribute('aria-pressed', String(fechada));
   }
 

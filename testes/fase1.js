@@ -4,6 +4,7 @@
 
 const path = require('path');
 const { conectar, checar, encerrar, esperar, zerarGrade, aoFrente } = require('./cdp');
+const cmd = require('./comandos');
 const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
 
 (async () => {
@@ -67,7 +68,7 @@ const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
   await cdp.avaliar(`document.getElementById('lateral').style.flexBasis = ''`);
   await esperar(600);
 
-  await cdp.avaliar(`window.orq.escrever(window.__p.id, 'for /L %i in (1,1,4000) do @echo LINHA_%i\\r')`);
+  await cdp.avaliar(`window.orq.escrever(window.__p.id, '${cmd.enchente(4000, 'LINHA')}\\r')`);
   await esperar(8000);
   const vivo = JSON.parse(await cdp.avaliar(`(() => { const b = window.__p.term.buffer.active;
     let ultima = ''; for (let i = b.length - 1; i >= 0 && !ultima; i--) ultima = b.getLine(i).translateToString(true).trim();

@@ -334,17 +334,28 @@ function achar(nome) {
   //
   // Ele comparava caminho EXATO, entao um painel aberto numa subpasta do
   // worktree passava e a pasta era apagada debaixo do terminal de alguem.
+  // A raiz muda de forma entre os sistemas, e o caso interessante e o mesmo nos
+  // dois: prefixo com e sem separador.
+  const EH_WIN = process.platform === 'win32';
+  const proj = EH_WIN ? 'C:/proj' : '/proj';
   checar('painel em subpasta conta como dentro',
-    wt.dentroDe('C:/proj/wt-auth', 'C:/proj/wt-auth/src') === true, '');
+    wt.dentroDe(`${proj}/wt-auth`, `${proj}/wt-auth/src`) === true, '');
   checar('a propria pasta conta como dentro',
-    wt.dentroDe('C:/proj/wt-auth', 'C:/proj/wt-auth') === true, '');
+    wt.dentroDe(`${proj}/wt-auth`, `${proj}/wt-auth`) === true, '');
   // Sem o separador no fim do prefixo, este caso passaria e o portao mentiria.
   checar('wt-auth NAO casa com wt-auth-refresh',
-    wt.dentroDe('C:/proj/wt-auth', 'C:/proj/wt-auth-refresh') === false, '');
-  checar('barra trocada e maiuscula nao atrapalham',
-    wt.dentroDe('C:/proj/wt-auth', 'C:\\proj\\WT-AUTH\\src') === true, '');
+    wt.dentroDe(`${proj}/wt-auth`, `${proj}/wt-auth-refresh`) === false, '');
+  // Barra invertida e comparacao sem caixa sao coisas do Windows. No macOS o
+  // volume padrao (APFS) tambem ignora a caixa, mas um volume formatado como
+  // case-sensitive nao -- entao ali so a barra e garantida.
+  checar('barra trocada nao atrapalha',
+    wt.dentroDe(`${proj}/wt-auth`, EH_WIN ? 'C:\\proj\\wt-auth\\src' : '/proj/wt-auth/src') === true, '');
+  if (EH_WIN) {
+    checar('e maiuscula tambem nao, no Windows',
+      wt.dentroDe(`${proj}/wt-auth`, 'C:\\proj\\WT-AUTH\\src') === true, '');
+  }
   checar('painel na raiz do projeto nao impede arquivar a worktree',
-    wt.dentroDe('C:/proj/wt-auth', 'C:/proj') === false, '');
+    wt.dentroDe(`${proj}/wt-auth`, proj) === false, '');
 
   // --- .worktreeinclude ---------------------------------------------------
   let inc = wt.situacaoInclude(RAIZ);

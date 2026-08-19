@@ -151,3 +151,118 @@ jobs:
             dist/*.exe
             dist/latest.yml
           if-no-files-found: warn
+
+  # O pacote do macOS. Depende do job do Windows por UM motivo: e la que a
+  # release e criada, e duas criacoes concorrentes para a mesma tag produzem
+  # duas releases (o comentario do passo `gh release create` explica). Aqui so
+  # se faz upload para uma release que ja existe.
+  macos:
+    needs: windows
+    # `macos-14` e nao `macos-latest`: o alvo declarado no electron-builder.yml
+    # e arm64, e o `latest` ja mudou de arquitetura uma vez. Fixar a versao e o
+    # que garante que o runner e Apple Silicon.
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Mesmo caso do Windows: o Electron 43 nao traz o binario no `npm ci`. O
+      # cache do macOS fica em outro lugar.
+      - name: Cache do binario do Electron
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Baixar o binario do Electron
+        run: |
+          for i in 1 2 3; do
+            if npx --no-install install-electron; then exit 0; fi
+            echo "tentativa $i falhou; nova tentativa em ${i}0s"
+            sleep "${i}0"
+          done
+          echo "as tres tentativas falharam"
+          exit 1
+
+      # O node-pty ja traz prebuild darwin-arm64, entao nada compila aqui --
+      # e `scripts/prebuild.js` sai com 0 sem chamar o node-gyp. O que PRECISA
+      # ser conferido e o bit de execucao do `spawn-helper`: sem ele o pty nao
+      # abre, e o sintoma seria a janela subir com nenhum terminal funcionando.
+      - name: Conferir que o node-pty tem binario nativo
+        run: |
+          ls -la node_modules/node-pty/prebuilds/darwin-arm64/
+          test -x node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper \
+            || { echo "ERRO: spawn-helper sem bit de execucao"; exit 1; }
+          node -e "require('node-pty'); console.log('node-pty OK')"
+
+      # `--publish never` de proposito: o zip final nao e o que o electron-builder
+      # produz, e sim um refeito depois da assinatura ad-hoc do passo seguinte.
+      - name: Empacotar
+        run: npx electron-builder --mac --publish never
+
+      # ISTO NAO E OPCIONAL NO APPLE SILICON. Ao contrario do x64, o macOS arm64
+      # RECUSA executavel sem assinatura nenhuma -- nem o botao direito -> Abrir
+      # salva, porque aquilo contorna a quarentena, e nao a falta de assinatura.
+      # O `identity: null` do electron-builder.yml diz "nao procure certificado",
+      # e o resultado seria um .app que nunca abre.
+      #
+      # A assinatura ad-hoc (`--sign -`) nao precisa de conta Apple e resolve
+      # isso; ela nao substitui a notarizacao, entao o Gatekeeper continua
+      # pedindo o botao direito na primeira abertura, que e o que o LEIA-ME diz.
+      #
+      # A verificacao falha o job de proposito: e melhor a release nao sair do
+      # que sair com um pacote que ninguem consegue abrir.
+      - name: Assinar ad-hoc e conferir
+        run: |
+          APP=$(ls -d dist/mac*/Orquestrador.app | head -1)
+          echo "app: $APP"
+          codesign --force --deep --sign - "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv "$APP" 2>&1 | grep -q 'Signature=adhoc' \
+            || { echo "ERRO: o .app nao ficou com assinatura ad-hoc"; exit 1; }
+          echo "APP=$APP" >> "$GITHUB_ENV"
+
+      # `ditto` e nao `zip`: o formato zip comum perde os symlinks internos do
+      # bundle (Contents/MacOS, os Frameworks) e o .app chega quebrado do outro
+      # lado. O `--keepParent` mantem o proprio .app como raiz do arquivo.
+      - name: Refazer o zip com a assinatura dentro
+        run: |
+          VERSAO=$(node -p "require('./package.json').version")
+          ZIP="dist/Orquestrador-${VERSAO}-mac-arm64.zip"
+          rm -f "$ZIP"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
+          ls -la "$ZIP"
+          echo "ZIP=$ZIP" >> "$GITHUB_ENV"
+
+      # Prova de que o zip sobrevive a ida e volta: extrair e conferir que a
+      # assinatura continua la. Um zip que perde a assinatura no caminho e
+      # exatamente o defeito que o `ditto` existe para evitar.
+      - name: Conferir o zip antes de publicar
+        run: |
+          rm -rf /tmp/confere && mkdir -p /tmp/confere
+          ditto -x -k "$ZIP" /tmp/confere
+          codesign --verify --deep --strict /tmp/confere/Orquestrador.app
+          test -x /tmp/confere/Orquestrador.app/Contents/MacOS/Orquestrador \
+            || { echo "ERRO: executavel sem bit de execucao apos o zip"; exit 1; }
+          echo "zip conferido"
+
+      - name: Publicar o pacote do macOS na release
+        run: gh release upload "${GITHUB_REF_NAME}" "$ZIP" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Guardar o pacote como artefato
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pacote-macos
+          path: dist/*-mac-arm64.zip
+          if-no-files-found: warn

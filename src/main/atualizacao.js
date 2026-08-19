@@ -73,6 +73,12 @@ function iniciar(j) {
   // sabe fazer com o resultado e rodar o instalador, e aqui nao ha instalador
   // -- a checagem e a troca sao do atualizacao-asar.js, que baixa 4 MB em vez
   // de 142 e nao depende de nada assinado.
+  //
+  // FORA DO WINDOWS ESTE E SEMPRE O CAMINHO, e de proposito: nao ha NSIS, e o
+  // `ehPortatil()` (que procura um `Uninstall *.exe`) devolve true por
+  // construcao. O electron-updater tambem nao serviria -- no macOS ele so
+  // aplica atualizacao em bundle ASSINADO, e este nao e. O `atualizacao-asar`
+  // recusa a troca leve la, entao sobra o aviso com o link, que e o combinado.
   if (situacao.portatil) {
     agendar(j);
     return;
@@ -294,7 +300,16 @@ async function aplicar({ confirmar = true } = {}) {
     // O .bat espera este processo morrer para poder mexer no app.asar, que
     // esta mapeado em memoria enquanto o app vive. Por isso dispara ANTES e sai
     // logo em seguida.
-    leve.aplicar();
+    //
+    // O `disparado` e conferido antes do `quit` porque fora do Windows a troca
+    // leve nao existe: sem isto, um dia em que o portao de cima mudasse, o app
+    // fecharia sem nada para reabri-lo. O guarda custa uma linha e o erro que
+    // ele evita e o app sumir da tela.
+    const r = leve.aplicar();
+    if (!r.disparado) {
+      await shell.openExternal(PAGINA_RELEASES);
+      return { aplicado: false, portatil: true, abriu: PAGINA_RELEASES, motivo: r.motivo };
+    }
     app.quit();
     return { aplicado: true, leve: true };
   }

@@ -75,6 +75,45 @@ win:
   # o build do CI nao consegue assinar. Ver o documento.
   verifyUpdateCodeSignature: false
 
+mac:
+  # ZIP e so ZIP. O dmg exige montar uma imagem de disco durante o build, e o
+  # unico ganho dele e a janela de arrastar-para-Applications -- que nao paga a
+  # dependencia extra num pacote de uso interno.
+  target:
+    - target: zip
+      arch:
+        - arm64
+  icon: recursos/icone.icns
+  category: public.app-category.developer-tools
+  artifactName: ${productName}-${version}-mac-${arch}.${ext}
+
+  # SEM ASSINATURA, e a consequencia e diferente da do Windows: aqui EXISTE
+  # saida. O Gatekeeper barra o duplo clique, mas botao direito -> Abrir passa,
+  # uma vez por maquina. E o que o LEIA-ME do pacote explica.
+  #
+  # O `identity: null` desliga a procura por certificado; sem ele o build usaria
+  # um certificado qualquer que estivesse na maquina, sem ninguem pedir.
+  #
+  # MAS ELE SOZINHO PRODUZ UM .app QUE NAO ABRE NO APPLE SILICON: o arm64 recusa
+  # executavel sem assinatura NENHUMA, e ai nem o botao direito -> Abrir salva
+  # (aquilo contorna a quarentena, e nao a falta de assinatura). Quem resolve e
+  # a assinatura ad-hoc (`codesign --sign -`), que nao precisa de conta Apple --
+  # o workflow faz isso depois de empacotar, confere, e refaz o zip com `ditto`.
+  #
+  # EMPACOTANDO A MAO (`npm run empacotar:mac`) e preciso repetir os dois:
+  #   codesign --force --deep --sign - dist/mac-arm64/Orquestrador.app
+  #   ditto -c -k --sequesterRsrc --keepParent dist/mac-arm64/Orquestrador.app <zip>
+  # O `ditto` nao e capricho: zip comum perde os symlinks do bundle.
+  identity: null
+
+  # O app nao le arquivo do usuario por conta propria, mas o TERMINAL dentro
+  # dele le: quem roda `ls ~/Documents` num painel esbarra na protecao do
+  # macOS. Sem estas descricoes o sistema mata o processo em vez de perguntar.
+  extendInfo:
+    NSDesktopFolderUsageDescription: Para as sessoes do Claude Code abrirem projetos na sua Mesa.
+    NSDocumentsFolderUsageDescription: Para as sessoes do Claude Code abrirem projetos em Documentos.
+    NSDownloadsFolderUsageDescription: Para as sessoes do Claude Code abrirem projetos em Downloads.
+
 nsis:
   artifactName: ${productName}-${version}-instalador.${ext}
   # Um clique, por usuario: instala em %LOCALAPPDATA% sem pedir UAC, e por isso

@@ -28,6 +28,19 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { app, net } = require('electron');
+const plataforma = require('./plataforma');
+
+// Este modulo inteiro e Windows, e o portao precisa estar AQUI e nao no
+// chamador -- e ele que conhece o `.bat` e o `cmd.exe`.
+//
+// A armadilha que isto fecha: `empacotamento.ehPortatil()` procura um
+// `Uninstall *.exe` ao lado do executavel e no macOS nunca acha, entao devolve
+// `true` SEMPRE. Sem este portao, o Mac seria roteado para o caminho leve, e
+// `aplicar()` faria `spawn('cmd.exe')` seguido de `app.quit()`: o app fecharia
+// e nao voltaria. Fora isso, escrever dentro de `Contents/Resources` invalida a
+// assinatura do bundle.
+// Texto de TELA (vai para o tooltip do botao), entao acentuado.
+const MOTIVO_PLATAFORMA = 'trocar só o app.asar depende do cmd.exe, que só existe no Windows';
 
 // A env reaponta a origem, como o ORQ_DADOS faz com a pasta de dados: e o que
 // deixa o teste provar a troca inteira sem depender de release publicada nem de
@@ -89,6 +102,17 @@ async function baixar(url) {
 // aprende a ignorar.
 async function verificar() {
   const meta = JSON.parse((await baixar(URL_META)).toString('utf8'));
+  const disponivelFora = maiorQue(meta.versao, app.getVersion());
+  if (!plataforma.EH_WIN) {
+    return {
+      versao: meta.versao,
+      disponivel: disponivelFora,
+      leve: false,
+      motivo: disponivelFora ? MOTIVO_PLATAFORMA : null,
+      url: meta.asar?.url,
+      sha256: meta.asar?.sha256,
+    };
+  }
 
   const disponivel = maiorQue(meta.versao, app.getVersion());
   const mesmoRuntime = meta.runtime?.electron === process.versions.electron
@@ -204,6 +228,8 @@ function scriptDeTroca() {
 // Dispara a troca e devolve -- quem chama e que fecha o app. O processo do cmd
 // e destacado de proposito: ele precisa sobreviver a morte deste aqui.
 function aplicar() {
+  if (!plataforma.EH_WIN) return { disparado: false, motivo: MOTIVO_PLATAFORMA };
+
   const bat = path.join(os.tmpdir(), `orq-troca-${process.pid}.bat`);
   fs.writeFileSync(bat, scriptDeTroca(), 'latin1');
 
@@ -220,4 +246,4 @@ function temPreparado() {
   try { return fs.existsSync(path.join(pastaRecursos(), NOVO)); } catch { return false; }
 }
 
-module.exports = { verificar, preparar, aplicar, temPreparado, pastaRecursos, maiorQue };
+module.exports = { verificar, preparar, aplicar, temPreparado, pastaRecursos, maiorQue, MOTIVO_PLATAFORMA };

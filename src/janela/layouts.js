@@ -71,6 +71,7 @@
         cwd: p.cwd,
         feature: p.feature,
         comandoInicial: p.comandoInicial,
+        tipoPainel: p.tipoPainel,
         ligacoes: p.ligacoes,
         dormindo: true,
       });

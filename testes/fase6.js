@@ -8,6 +8,7 @@
 
 const path = require('path');
 const { conectar, checar, encerrar, esperar, zerarGrade, aoFrente } = require('./cdp');
+const cmd = require('./comandos');
 
 const RAIZ = path.resolve(__dirname, '..').replace(/\\/g, '/');
 
@@ -121,7 +122,7 @@ const buffer = (id) => `(() => {
     return ps.length ? ps[ps.length - 1].id : '';
   })()`);
   if (alvo2) {
-    await cdp.avaliar(`window.orq.escrever(${JSON.stringify(alvo2)}, 'for /L %i in (1,1,60000) do @echo ENCHENTE_%i\\r')`);
+    await cdp.avaliar(`window.orq.escrever(${JSON.stringify(alvo2)}, '${cmd.enchente(60000, 'ENCHENTE')}\\r')`);
 
     // Espera o corte ACONTECER, em vez de supor que ja aconteceu: se a enchente
     // parar antes de encher 200 KB, nada e descartado -- e ai o teste estaria

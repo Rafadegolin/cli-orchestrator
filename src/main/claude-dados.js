@@ -14,6 +14,8 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { execFileSync } = require('child_process');
+const plataforma = require('./plataforma');
 
 // Irma do ORQ_DADOS: os testes apontam para uma pasta descartavel em vez de
 // varrer os 512 MB de transcritos reais. Lida na CARGA do modulo, como la --
@@ -98,10 +100,35 @@ function sessoes({ pidVivo } = {}) {
 // vai para a janela, nao vai para log. Esta funcao devolve o valor cru porque
 // quem chama monta um cabecalho com ele e o descarta -- qualquer outro uso e
 // bug.
+// No macOS o CLI NAO grava `.credentials.json`: a credencial vai para o
+// Keychain, sob o servico `Claude Code-credentials`. Sem ler dali, o medidor de
+// uso mostraria `—` para sempre no Mac -- que e o comportamento correto quando
+// nao ha credencial, mas aqui ha.
+//
+// O `security` e do proprio sistema. Em app nao assinado ele abre uma caixa
+// pedindo autorizacao na primeira leitura (um "Sempre Permitir" resolve), e por
+// isso a falha e SILENCIOSA: quem cancela fica sem medidor, e nao com um erro.
+// O ORQ_CLAUDE apontado (os testes) manda no arquivo, nunca no Keychain -- ler
+// a credencial real durante um teste seria o oposto do que o `ORQ_CLAUDE` faz.
+function doKeychain() {
+  if (!plataforma.EH_MAC || process.env.ORQ_CLAUDE) return null;
+  try {
+    return execFileSync(
+      '/usr/bin/security',
+      ['find-generic-password', '-s', 'Claude Code-credentials', '-w'],
+      { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] },
+    ).trim();
+  } catch {
+    return null;
+  }
+}
+
 function credenciais() {
   let bruto;
   try {
-    bruto = JSON.parse(fs.readFileSync(path.join(RAIZ, '.credentials.json'), 'utf8'));
+    const doChaveiro = doKeychain();
+    bruto = JSON.parse(doChaveiro
+      || fs.readFileSync(path.join(RAIZ, '.credentials.json'), 'utf8'));
   } catch {
     return null;
   }

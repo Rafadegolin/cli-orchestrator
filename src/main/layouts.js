@@ -21,6 +21,9 @@ function limparPainel(p, i) {
     feature: String(p.feature || ''),
     cwd: String(p.cwd || ''),
     comandoInicial: p.comandoInicial ? String(p.comandoInicial) : '',
+    // Sem isto, salvar um layout com um painel de terminal e aplica-lo depois
+    // devolvia uma sessao dormindo esperando `claude` no lugar do terminal.
+    tipoPainel: p.tipoPainel === 'terminal' ? 'terminal' : 'sessao',
     ligacoes: Array.isArray(p.ligacoes) ? [...new Set(p.ligacoes.map(String))] : [],
     ordem: Number.isFinite(p.ordem) ? p.ordem : i,
   };

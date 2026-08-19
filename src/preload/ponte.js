@@ -77,6 +77,11 @@ contextBridge.exposeInMainWorld('orq', {
   hooksInstalar: () => ipcRenderer.invoke('hooks:instalar'),
   hooksDesinstalar: () => ipcRenderer.invoke('hooks:desinstalar'),
 
+  // Valor SINCRONO, e nao um invoke: quem monta comando de shell precisa da
+  // resposta na hora do clique, e um `await` chegaria tarde. Em preload
+  // sandboxed o `process` polifilado do Electron ainda traz o `platform`.
+  plataforma: process.platform,
+
   versao: () => ipcRenderer.invoke('app:versao'),
   constantes: () => ipcRenderer.invoke('app:constantes'),
 

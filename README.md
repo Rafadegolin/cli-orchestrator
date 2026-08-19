@@ -24,6 +24,8 @@ projeto não brigam pelos arquivos nem pela porta 3000.
 
 ## Instalar
 
+### Windows
+
 Na [página de releases](https://github.com/Rafadegolin/cli-orchestrator/releases/latest) há mais de um
 arquivo, e **qual baixar depende do Controle Inteligente de Aplicativos (SAC)** — o recurso do
 Windows 11 que bloqueia programa sem assinatura de uma CA reconhecida. Este app não é assinado.
@@ -47,10 +49,26 @@ Nesse pacote, para ter atalho no menu Iniciar — e o ícone certo ao **fixar na
 abra o app e use **Ctrl+K → Criar atalho no menu Iniciar**, e fixe a partir dele. Fixando o
 executável direto, o Windows tira o ícone do próprio `electron.exe`.
 
-Na primeira vez, **F1** abre o manual completo dentro do próprio app.
+### macOS (Apple Silicon)
 
-Requisitos: Windows 10 ou 11, e o [Claude Code](https://claude.com/claude-code) instalado e
-autenticado. Nenhum dos pacotes precisa de Node — ele só é necessário para rodar do código-fonte.
+Baixe o `Orquestrador-X.Y.Z-mac-arm64.zip`, extraia, e na **primeira** abertura clique no app com o
+**botão direito → Abrir**, confirmando na caixa que aparece. Depois disso ele abre com duplo clique
+como qualquer outro.
+
+> Esse passo existe porque o app não é assinado, e o Gatekeeper recusa o duplo clique nesse caso.
+> Diferente do SAC do Windows, aqui **existe saída** — é uma vez por máquina. Quem preferir a linha
+> de comando: `xattr -dr com.apple.quarantine /caminho/Orquestrador.app`.
+
+Duas coisas funcionam diferente ali, e o app avisa em cada uma: a **atualização** é baixada pelo
+site em vez de aplicada sozinha, e o **medidor de uso** lê a credencial do Chaveiro, pedindo
+autorização na primeira vez. O resto — hooks, worktrees, portas, ligações — é igual.
+
+Na primeira vez, **F1** (ou **⌘+/** no Mac) abre o manual completo dentro do próprio app, e lá há
+uma seção só sobre o que muda no macOS.
+
+Requisitos: Windows 10/11 ou macOS em Apple Silicon, e o [Claude Code](https://claude.com/claude-code)
+instalado e autenticado. Nenhum dos pacotes precisa de Node — ele só é necessário para rodar do
+código-fonte.
 
 ### Ligue os hooks na primeira vez
 
@@ -144,12 +162,16 @@ npm install
 npx install-electron        # o Electron 43 nao baixa o binario sozinho
 npm start                   # roda o app
 npm run dev                 # roda com a porta de depuracao, para os testes
-npm run empacotar           # gera instalador e zip portatil em dist/
+npm run empacotar           # gera instalador e zip portatil em dist/ (Windows)
 npm run empacotar:sac       # o pacote que abre com o Smart App Control ligado
+npm run empacotar:mac       # zip arm64 em dist/ (roda no proprio Mac)
 ```
 
 Os testes dirigem o app de fora via CDP, sem instrumentar o código de produção. Suba com
 `npm run dev` antes de rodar qualquer um — e **uma instância por vez**.
+
+No macOS rodam `fase1`, `fase45`, `fase6`, `portas`, `worktrees`, `ajuda`, `terminal` e `arvore`. Os
+demais medem CPU/RAM por WMI ou testam SAC e assinatura do Windows, e não têm correspondente lá.
 
 ```bash
 npm run teste:fase1         # PTY, lote de IPC, resize, enxurrada
@@ -158,6 +180,7 @@ npm run teste:fase45        # hooks, bolinhas, ordenacao por urgencia
 npm run teste:fase6         # painel fora da tela, fila de partida
 npm run teste:fase7         # sessao salva, painel dormindo, retomar
 npm run teste:projetos      # cadastro e comando inicial
+npm run teste:terminal      # abrir terminal do projeto, sem o Claude
 npm run teste:portas        # dois servidores no ar ao mesmo tempo
 npm run teste:worktrees     # listar, recusar e arquivar
 npm run teste:ajuda         # a ajuda, e se os numeros dela batem com o codigo

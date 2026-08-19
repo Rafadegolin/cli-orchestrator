@@ -627,17 +627,21 @@ class Painel {
       `Portas reservadas só para este painel: ${this.portas.join(', ')}\n\n` +
       `PORT=${this.portas[0]}\nORQ_PORTA=${this.portas[0]}\nORQ_PORTAS=${this.portas.join(',')}\n\n` +
       'O projeto precisa ler a variável: Next e Express leem PORT sozinhos, ' +
-      'o Vite exige --port %PORT%.';
+      `o Vite exige --port ${window.OrqShell.EH_WIN ? '%PORT%' : '$PORT'}.`;
   }
 
   definirStatus(status, rotulo, motivo = '') {
     this.status = status;
     // Painel dormindo tem bolinha vazada, independente do status por baixo: ele
     // nao tem processo nenhum, e isso e o que a bolinha precisa comunicar.
-    this.elBolinha.className = this.dormindo ? 'bolinha bolinha-dormindo' : `bolinha bolinha-${status}`;
+    // Painel de terminal nunca pinta status de sessao: ninguem reporta por ele,
+    // entao o `rodando` do nascimento ficaria verde para sempre dizendo "Claude
+    // trabalhando" sobre um prompt parado.
+    const chave = this.dormindo ? 'dormindo' : (this.tipoPainel === 'terminal' ? 'terminal' : status);
+    this.elBolinha.className = `bolinha bolinha-${chave}`;
     this.elBolinha.title = motivo || rotulo || status;
 
-    this.elStatus.className = `painel-status status-${this.dormindo ? 'dormindo' : status}`;
+    this.elStatus.className = `painel-status status-${chave}`;
     this.elStatus.title = motivo || '';
     this.atualizarRotulo(rotulo || status);
     this.el.classList.toggle('painel-esperando', status === 'esperando' && !this.dormindo);

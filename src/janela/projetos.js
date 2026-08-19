@@ -103,9 +103,12 @@ function slugFeature(texto) {
     .replace(/[-._]+$/g, '');
 }
 
-// `cls && claude`, e nao `cls; claude`: o shell do app e o cmd.exe, onde `;`
-// nao separa comandos (isso e PowerShell). O cmd.exe custa dezenas de ms para
-// abrir, contra centenas do PowerShell -- e o que segura a meta de abertura.
+// O `limpar()` do OrqShell e `cls` no Windows e `clear` no macOS. Nao e
+// detalhe: em bash/zsh o `cls && claude` CURTO-CIRCUITA -- o `cls` falha, o
+// `&&` corta, e o Claude nunca sobe. O `&&` em si vale nos dois shells.
+//
+// O cmd.exe custa dezenas de ms para abrir, contra centenas do PowerShell -- e
+// o que segura a meta de abertura no Windows.
 // O `--name` e NOSSO, e nao do worktree.
 //
 // Medido contra o CLI 2.1.227: `-n, --name <name>` e independente do `-w` (o
@@ -119,12 +122,13 @@ function slugFeature(texto) {
 // continua sendo `worktree-<slug>` e nao tem como ser escolhido.
 function montarComando(feature, ehGit) {
   const slug = slugFeature(feature);
-  if (!slug) return 'cls && claude';
+  const limpa = window.OrqShell.limpar();
+  if (!slug) return `${limpa} && claude`;
   // Sem repositorio git nao existe worktree: `claude -w` falharia e o usuario
   // veria so um erro no terminal sem entender por que. O nome, esse, vale
   // igual.
-  if (!ehGit) return `cls && claude --name ${slug}`;
-  return `cls && claude --name ${slug} -w ${slug}`;
+  if (!ehGit) return `${limpa} && claude --name ${slug}`;
+  return `${limpa} && claude --name ${slug} -w ${slug}`;
 }
 
 // Caminho comparavel: separador unico, sem barra no fim, minusculo.
@@ -294,9 +298,10 @@ function desenharProjetos() {
     linha.className = 'projeto-linha';
     linha.append(btnAbrir, tinta, nome, atras, marca, btnRemover);
     linha.title = p.caminho;
-    // Passa pela escolha: com conversa anterior guardada ela pergunta, e sem
-    // nenhuma cai direto no `abrirProjeto`. A paleta continua indo direto ao
-    // `abrirProjeto` -- la voce ja escolheu o que queria.
+    // Passa pela escolha, que agora pergunta SEMPRE -- mesmo sem conversa
+    // guardada ha o que escolher: sessao do Claude ou so um terminal. A paleta
+    // e o botao "Nova sessao" continuam indo direto ao `abrirProjeto`, porque
+    // neles voce ja escolheu o que queria.
     linha.addEventListener('click', () => (window.OrqEscolhaSessao
       ? window.OrqEscolhaSessao.abrir(p.id)
       : abrirProjeto(p.id)));
@@ -604,7 +609,7 @@ window.orq.gitEstado?.().then(aplicarEstadoGit).catch(() => {});
 // ultima conversa dali. `claude -c` sem conversa anterior nao falha -- ele
 // simplesmente abre uma sessao nova (medido contra o CLI 2.1.220), por isso
 // nao ha fallback aqui.
-const COMANDO_RETOMAR = 'cls && claude -c';
+const COMANDO_RETOMAR = `${window.OrqShell.limpar()} && claude -c`;
 
 function retomar(projeto, w, { comandoInicial } = {}) {
   if (w.sessaoViva) {
@@ -624,7 +629,11 @@ function retomar(projeto, w, { comandoInicial } = {}) {
   });
 }
 
-async function abrirProjeto(id, { comandoInicial } = {}) {
+// `terminal: true` abre um shell na pasta e NAO manda comando nenhum. E
+// sentinela, e nao `comandoInicial: ''`: a conta la embaixo e
+// `comandoInicial || montarComando(...)`, entao string vazia cairia de volta no
+// padrao e o Claude subiria assim mesmo.
+async function abrirProjeto(id, { comandoInicial, terminal = false } = {}) {
   const p = projetosCache.find((x) => x.id === id);
   if (!p) return null;
 
@@ -642,7 +651,8 @@ async function abrirProjeto(id, { comandoInicial } = {}) {
   return window.OrqGrade.criarPainel({
     cwd: p.caminho,
     feature: slugFeature(feature) || p.nome,
-    comandoInicial: comandoInicial || montarComando(feature, p.git),
+    comandoInicial: terminal ? '' : (comandoInicial || montarComando(feature, p.git)),
+    tipoPainel: terminal ? 'terminal' : 'sessao',
   });
 }
 

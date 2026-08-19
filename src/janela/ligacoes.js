@@ -97,14 +97,16 @@ async function esperarNovoNoBuffer(id, trecho, ms, desde) {
 // -w x` tem de virar `cls && claude --add-dir "..." -w x`, e nao terminar com a
 // flag depois do argumento.
 //
-// Caminho SEMPRE entre aspas: "C:\Program Files\..." sem aspas quebraria a
-// linha de comando em dois argumentos.
+// Caminho SEMPRE entre aspas, e a troca de barra e SO do Windows -- o
+// `OrqShell.citar` sabe as duas coisas. Sem aspas, "C:\Program Files\..." ou
+// "/Users/eu/Meus Projetos" quebrariam a linha de comando em dois argumentos; e
+// a troca aplicada no macOS produziria um "\Users\eu\repo" que nao existe.
 function comAddDir(comando, caminhos) {
   const lista = [...new Set((caminhos || []).filter(Boolean))];
   if (!comando || !lista.length) return comando;
   if (!/\bclaude\b/.test(comando)) return comando;
 
-  const flags = lista.map((c) => `--add-dir "${c.replace(/\//g, '\\')}"`).join(' ');
+  const flags = lista.map((c) => `--add-dir ${window.OrqShell.citar(c)}`).join(' ');
   return comando.replace(/\bclaude\b/, `claude ${flags}`);
 }
 

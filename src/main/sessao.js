@@ -28,6 +28,9 @@ function carregar() {
       feature: String(p.feature || ''),
       cwd: String(p.cwd),
       comandoInicial: p.comandoInicial ? String(p.comandoInicial) : '',
+      // Painel de shell puro ('terminal') ou sessao do Claude. Lista branca:
+      // o arquivo e do usuario e pode ser editado a mao.
+      tipoPainel: p.tipoPainel === 'terminal' ? 'terminal' : 'sessao',
       // Ligacoes sao caminhos de pasta: sobrevivem ao fechar e reabrir, ao
       // contrario de id de painel.
       ligacoes: Array.isArray(p.ligacoes) ? p.ligacoes.map(String) : [],
@@ -59,6 +62,9 @@ function salvar(paineis) {
       feature: String(p.feature || path.basename(String(p.cwd))),
       cwd: path.resolve(String(p.cwd)),
       comandoInicial: p.comandoInicial ? String(p.comandoInicial) : '',
+      // Painel de shell puro ('terminal') ou sessao do Claude. Lista branca:
+      // o arquivo e do usuario e pode ser editado a mao.
+      tipoPainel: p.tipoPainel === 'terminal' ? 'terminal' : 'sessao',
       ligacoes: Array.isArray(p.ligacoes) ? [...new Set(p.ligacoes.map(String))] : [],
       ligacoesPendentes: Array.isArray(p.ligacoesPendentes)
         ? [...new Set(p.ligacoesPendentes.map(String))] : [],

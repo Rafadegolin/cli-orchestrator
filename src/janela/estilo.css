@@ -199,6 +199,15 @@ button:focus-visible, input:focus-visible {
   -webkit-app-region: drag;
 }
 
+/* No macOS os tres botoes ficam a ESQUERDA, e o `titleBarOverlay` (com ele o
+   `env(titlebar-area-width)`) nao existe -- o fallback de 140px reservaria o
+   lado errado, e os semaforos cairiam em cima do #btn-lateral. Entao a reserva
+   troca de lado: 78px a esquerda, que e onde o `trafficLightPosition` os poe. */
+#app[data-plataforma="mac"] #titulo {
+  padding-left: 78px;
+  padding-right: 8px;
+}
+
 #titulo button, #titulo input { -webkit-app-region: no-drag; }
 
 #btn-lateral {
@@ -1323,6 +1332,7 @@ button.primario:hover {
 .painel-status.status-esperando { color: var(--warn); }
 .painel-status.status-terminou { color: var(--info); }
 .painel-status.status-parada { color: var(--fg3); }
+.painel-status.status-terminal { color: var(--fg3); }
 
 /* Grupo inegociavel: o botao fechar sempre alcancavel. */
 .painel-acoes {
@@ -1626,6 +1636,9 @@ button.primario:hover {
    exatamente o falso alarme que fez esta cor existir. */
 .bolinha-parada { background: var(--fg3); opacity: .8; }
 .bolinha-iniciando { background: var(--fg3); }
+/* Terminal: shell puro, sem Claude dentro. Neutra e sem pulso -- ele nao esta
+   trabalhando nem esperando, so existe. */
+.bolinha-terminal { background: var(--line2); }
 .bolinha-encerrada { background: var(--line2); }
 
 /* Vazada: sessao salva, sem processo vivo. */
@@ -2437,6 +2450,23 @@ button.primario:hover {
 .modal-acoes { display: flex; gap: 8px; }
 
 .modal-acoes .primario { flex: 1; justify-content: center; padding: 11px; }
+
+/* Com QUATRO botoes o `flex: 1` inverte a hierarquia. Ele tem base zero, entao
+   a largura do primario passa a ser so a SOBRA -- e com um botao a mais a
+   sobra encolheu a ponto de "Sessao nova" (70px) ficar menor que "Retomar uma
+   anterior" (166px), com o botao recomendado virando o menos visivel da linha.
+   Base `auto` faz ele partir do proprio texto e ainda absorver o que sobrar.
+   Escopado a este dialogo: os outros modais tem tres botoes e ja estao certos. */
+#escolha-sessao .modal-acoes .primario { flex: 1 0 auto; }
+
+/* E a caixa cresce: com quatro botoes, nos 520px padrao o primario ficava com
+   97px contra 153px de "Retomar uma anterior" -- a acao recomendada virava a
+   MENOS visivel da linha. Medido a 600px: 152 contra 169, que e a proporcao que
+   se quer. O `max-width: 92vw` continua mandando em tela estreita.
+
+   Ao medir isto, espere a animacao: `.modal-caixa` tem `animation: orqPop .24s`,
+   que ESCALA a caixa, e uma leitura num rAF devolve a largura do meio do pop. */
+#escolha-sessao .modal-caixa { width: 600px; }
 
 .modal-acoes button:not(.primario) {
   background: none;

@@ -34,7 +34,7 @@ function atualizarVazio() {
 }
 
 async function criarPainel({
-  cwd, feature, comandoInicial, dormindo, indisponivel, ligacoes, ligacoesPendentes, x, y, w, h,
+  cwd, feature, comandoInicial, tipoPainel, dormindo, indisponivel, ligacoes, ligacoesPendentes, x, y, w, h,
 }) {
   const id = novoId();
 
@@ -57,6 +57,11 @@ async function criarPainel({
   });
 
   painel.comandoInicial = comandoInicial || '';
+  // Painel de shell puro, sem Claude dentro. Sem esta marca ele ficaria com a
+  // bolinha VERDE para sempre -- `estado.definirStatus(id, 'rodando')` marca
+  // todo painel que nasce, e sem hooks nada nunca corrige. Verde significa
+  // "Claude trabalhando", e um terminal nao esta trabalhando nada.
+  painel.tipoPainel = tipoPainel === 'terminal' ? 'terminal' : 'sessao';
   painel.ligacoes = Array.isArray(ligacoes) ? [...ligacoes] : [];
   // Pendente e a ligacao que o CLI ainda NAO aceitou. Sem restaurar isto, o
   // seletor voltava dizendo "desligar" para uma ligacao que nunca chegou a
@@ -83,7 +88,7 @@ async function criarPainel({
       aoRetomar: () => despertar(id),
       aoRemover: () => painel.destruir(),
     });
-    window.OrqLateral?.registrar({ id, feature: painel.feature, cwd });
+    window.OrqLateral?.registrar({ id, feature: painel.feature, cwd, tipoPainel: painel.tipoPainel });
     window.OrqLateral?.definirStatus(id, indisponivel ? 'encerrada' : 'iniciando',
       indisponivel ? 'pasta nao encontrada' : 'aguardando voce retomar');
     salvarSessao();
@@ -110,7 +115,7 @@ async function criarPainel({
   }
 
   try {
-    window.OrqLateral?.registrar({ id, feature: painel.feature, cwd });
+    window.OrqLateral?.registrar({ id, feature: painel.feature, cwd, tipoPainel: painel.tipoPainel });
     const aberto = await window.orq.abrirTerminal({
       id,
       cwd,
@@ -146,6 +151,8 @@ function retratoSessao() {
       feature: p.feature,
       cwd: p.cwd,
       comandoInicial: p.comandoInicial || '',
+      // Sem isto o terminal voltaria como sessao dormindo esperando `claude`.
+      tipoPainel: p.tipoPainel || 'sessao',
       // Ligacao e entre PASTAS, nao entre ids: id de painel e efemero, pasta
       // sobrevive ao fechar e reabrir.
       ligacoes: p.ligacoes || [],
@@ -219,6 +226,7 @@ async function restaurarSessao() {
       cwd: s.cwd,
       feature: s.feature,
       comandoInicial: s.comandoInicial,
+      tipoPainel: s.tipoPainel,
       ligacoes: s.ligacoes,
       ligacoesPendentes: s.ligacoesPendentes,
       x: s.x,

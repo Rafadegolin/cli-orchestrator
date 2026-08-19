@@ -11,22 +11,12 @@ const RAIZ = path.resolve(__dirname, '..');
 const hooks = require(path.join(RAIZ, 'src', 'main', 'instalar-hooks'));
 const RAIZ_URL = RAIZ.replace(/\\/g, '/');
 
-// O Claude Code executa hooks num shell POSIX. Achar o `sh` explicitamente
-// importa: rodando o teste a partir do PowerShell ele nao esta no PATH, e
-// spawnSync devolve status null -- o teste falharia inteiro culpando o app.
-function acharSh() {
-  const candidatos = [
-    'C:/Program Files/Git/usr/bin/sh.exe',
-    'C:/Program Files/Git/bin/sh.exe',
-    'C:/Program Files (x86)/Git/usr/bin/sh.exe',
-  ];
-  for (const c of candidatos) if (fs.existsSync(c)) return c;
-  const r = spawnSync('where', ['sh'], { encoding: 'utf8' });
-  const achado = (r.stdout || '').split(/\r?\n/).find((l) => l.trim().endsWith('.exe'));
-  if (achado) return achado.trim();
-  throw new Error('nao achei um shell POSIX (sh.exe). Instale o Git for Windows.');
-}
-const SH = acharSh();
+// O Claude Code executa hooks num shell POSIX. No Windows achar o `sh`
+// explicitamente importa: rodando o teste a partir do PowerShell ele nao esta
+// no PATH, e spawnSync devolve status null -- o teste falharia inteiro culpando
+// o app. Fora do Windows o `/bin/sh` e nativo e nao ha o que procurar. A busca
+// mora no `comandos.js`, junto com o resto do que muda de sistema.
+const SH = require('./comandos').acharSh();
 
 // Dispara o hook exatamente como o Claude Code faz: shell POSIX, JSON no stdin
 // por redirecionamento de arquivo (com stdin em pipe o curl espera o EOF e a

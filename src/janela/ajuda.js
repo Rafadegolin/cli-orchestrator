@@ -22,6 +22,13 @@ let constantes = {
   arquivoHooks: '~/.claude/settings.json',
   minutosUso: 5,
   minutosBusca: 10,
+  // O modificador dos atalhos tambem vem do codigo, e nao digitado no texto:
+  // e a mesma regra dos numeros. No Mac isto vira ⌘ e ⌥, e sem o marcador a
+  // ajuda inteira mentiria uma tecla que nao existe la.
+  mod: 'Ctrl',
+  alt: 'Alt',
+  ajudaTecla: 'F1',
+  porta: '%PORT%',
 };
 
 const p = (texto) => ({ tipo: 'p', texto });
@@ -34,7 +41,10 @@ const tabela = (cabecalho, linhas) => ({ tipo: 'tabela', cabecalho, linhas });
 // de significado e viraria lista sem sentido.
 const teclas = (pares) => ({ tipo: 'teclas', pares });
 
-const SECOES = [
+// `soEm` limita a secao a uma plataforma. O filtro roda UMA vez e o que sai
+// daqui e a lista ja filtrada: indice, corpo e teste leem a mesma fonte, entao
+// a contagem deles continua batendo (testes/ajuda.js compara os tres).
+const TODAS_SECOES = [
   {
     id: 'oque',
     titulo: 'O que este app faz',
@@ -89,10 +99,17 @@ const SECOES = [
         + 'sem cadastrar projeto.'),
       p('Projeto que não é repositório git aparece com a etiqueta <b>sem git</b> e nunca recebe '
         + '<code>-w</code> — worktree exige git.'),
-      p('<b>Se o Claude já conversou naquela pasta antes</b>, clicar no projeto pergunta se você '
-        + 'quer uma sessão nova ou retomar uma anterior. Retomar roda <code>claude -r</code>, que '
-        + 'abre o seletor de conversas do próprio Claude dentro do painel — quem escolhe qual é '
-        + 'você. Sem conversa guardada não há pergunta: abre nova direto.'),
+      p('<b>Clicar num projeto pergunta o que você quer</b>: <b>Sessão nova</b>, <b>Retomar uma '
+        + 'anterior</b> ou <b>Abrir terminal</b>. Retomar roda <code>claude -r</code>, que abre o '
+        + 'seletor de conversas do próprio Claude dentro do painel — quem escolhe qual é você —, e '
+        + 'só aparece quando existe conversa guardada.'),
+      p('<b>Abrir terminal</b> abre um painel na pasta do projeto e <b>não inicia o Claude</b>: '
+        + 'serve para rodar o dev server, um <code>git log</code>, o que for, sem gastar token. Ele '
+        + 'ganha a própria faixa de portas, como qualquer painel — então o <code>PORT</code> dele '
+        + 'não é o mesmo do painel do Claude da mesma feature. Na lateral ele aparece como '
+        + '<b>terminal</b> e fica fora da fila de atenção: não há sessão ali para pedir nada.'),
+      p('A <b>paleta</b> e o botão <b>Nova sessão</b> não passam por essa pergunta: neles você já '
+        + 'disse o que queria.'),
       p('<b>Arrastar um arquivo para cima de um terminal</b> escreve o caminho dele na caixa de '
         + 'entrada do Claude, entre aspas. Serve para documento, print, o que for. <b>Nada é '
         + 'enviado</b>: o Enter continua sendo seu, então dá para escrever a pergunta junto e um '
@@ -131,13 +148,13 @@ const SECOES = [
         + 'vazia não ocupa espaço.'),
       lista([
         'A fila é sempre por <b>quem espera há mais tempo</b>, mesmo com a grade ordenada por projeto.',
-        '<b>Ctrl+Enter</b> pula direto para a mais antiga e já põe o cursor lá.',
+        '<b>{mod}+Enter</b> pula direto para a mais antiga e já põe o cursor lá.',
         'Clicar num item da fila (ou num card de SESSÕES) foca o painel correspondente.',
         'Quando o app não está em primeiro plano, uma <b>notificação do sistema</b> avisa, e a '
-          + 'janela pisca na barra de tarefas — o Windows descarta toast em silêncio, e o piscar '
-          + 'é o sinal que sobra.',
+          + 'janela chama pela barra de tarefas ou pelo Dock, conforme o sistema — um toast '
+          + 'pode ser descartado em silêncio, e esse piscar é o sinal que sobra.',
         'Dá para desligar os dois no botão <b>Avisos</b>, no rodapé da lateral (ou por '
-          + '<b>Ctrl+K</b> → avisos). A bolinha amarela, a fila e o <b>Ctrl+Enter</b> continuam '
+          + '<b>{mod}+K</b> → avisos). A bolinha amarela, a fila e o <b>{mod}+Enter</b> continuam '
           + 'iguais: o que sai é a interrupção fora da janela.',
       ]),
       p('A lista de SESSÕES segue a mesma ordem da grade, e o placar no alto mostra quantas sessões '
@@ -177,7 +194,7 @@ const SECOES = [
         '<b>Clicar</b> abre um painel dentro do worktree continuando a última conversa dali.',
         'O <b>×</b> arquiva: remove a pasta do worktree e o branch.',
         '<b>limpar…</b> abre a lista com o tamanho em disco e a idade de cada uma, para arquivar '
-          + 'várias de uma vez. Também está na paleta (Ctrl+K).',
+          + 'várias de uma vez. Também está na paleta ({mod}+K).',
       ]),
       aviso('<b>Fechar o painel não apaga nada.</b> A pasta do worktree e o branch continuam no '
         + 'disco, e cada worktree é um checkout inteiro do projeto — com <code>node_modules</code> '
@@ -222,7 +239,7 @@ const SECOES = [
       aviso('Metade do trabalho fica no seu projeto: ele precisa LER a variável. Veja a tabela abaixo.'),
       tabela(['Stack', 'O que fazer no projeto'], [
         ['Next', 'O <code>next dev</code> já respeita <code>PORT</code>. Um <code>-p 3001</code> fixo no script <b>vence</b> a variável e precisa sair.'],
-        ['Vite', 'Ignora <code>PORT</code>. Use <code>vite --port %PORT%</code>, ou leia <code>process.env.PORT</code> no vite.config.'],
+        ['Vite', 'Ignora <code>PORT</code>. Use <code>vite --port {porta}</code> no script, ou leia <code>process.env.PORT</code> no vite.config — que funciona igual nos dois sistemas.'],
         ['Nest / Express', 'Garanta <code>app.listen(process.env.PORT ?? 3000)</code>.'],
         ['Turborepo', 'Cada app pega uma posição de <code>ORQ_PORTAS</code>.'],
       ]),
@@ -250,7 +267,7 @@ const SECOES = [
         + '<b>&lt;branch&gt; está N commits atrás</b>, com um botão para atualizar. A atualização é '
         + 'sempre <b>fast-forward</b>: se não der, ela recusa em vez de criar merge ou conflito no '
         + 'seu checkout.'),
-      p('Para conferir na hora, procure <b>remoto</b> na paleta (<b>Ctrl+K</b>) — é o único caminho '
+      p('Para conferir na hora, procure <b>remoto</b> na paleta (<b>{mod}+K</b>) — é o único caminho '
         + 'que ignora o intervalo mínimo entre duas buscas do mesmo projeto.'),
     ],
   },
@@ -276,8 +293,8 @@ const SECOES = [
       p('O botão de tema fica na barra de título, ao lado da busca. O <b>terminal continua escuro '
         + 'nos dois temas</b>: código monoespaçado sobre fundo claro atrapalha a leitura.'),
       p('No canto esquerdo da barra de título, o primeiro botão <b>recolhe a barra lateral</b> '
-        + '(<b>Ctrl+B</b>), e a grade ocupa o espaço dela — os terminais refluem sozinhos. A escolha '
-        + 'é lembrada. Com ela recolhida, a fila de atenção continua alcançável por <b>Ctrl+Enter</b> '
+        + '(<b>{mod}+B</b>), e a grade ocupa o espaço dela — os terminais refluem sozinhos. A escolha '
+        + 'é lembrada. Com ela recolhida, a fila de atenção continua alcançável por <b>{mod}+Enter</b> '
         + 'e o resto pela paleta; se sair versão nova, uma bolinha acende no próprio botão, porque '
         + 'o aviso de atualização mora lá dentro.'),
       p('Cada painel tem uma <b>faixa colorida no topo</b> com a cor do projeto — worktrees do mesmo '
@@ -319,7 +336,7 @@ const SECOES = [
     id: 'paleta',
     titulo: 'A paleta de comandos',
     blocos: [
-      p('<b>Ctrl+K</b> (ou o campo de busca na barra de título) abre a paleta: um lugar só para '
+      p('<b>{mod}+K</b> (ou o campo de busca na barra de título) abre a paleta: um lugar só para '
         + 'chegar a qualquer sessão, projeto ou ação, sem procurar na tela.'),
       lista([
         'Digite parte do nome de uma sessão para pular direto para ela.',
@@ -361,15 +378,27 @@ const SECOES = [
       p('O arranjo de painéis é salvo. Ao reabrir, eles voltam <b>adormecidos</b>, com um botão de '
         + 'retomar em cada um e um <b>Retomar todas</b> na lateral — nada sobe sozinho sem você pedir.'),
       p('Fechar o app com sessão rodando pede confirmação, dizendo quantas serão interrompidas.'),
-      p('Quando sai versão nova, o aviso aparece no rodapé da lateral, e o botão <b>aplica e '
-        + 'reinicia</b> — inclusive nos pacotes em pasta, que não têm instalador: ali o app baixa '
-        + 'só o próprio código (alguns MB, não o pacote inteiro), confere a integridade e troca ao '
-        + 'reiniciar.'),
+      // A promessa muda de plataforma: no Windows o botao aplica e reinicia
+      // sozinho; fora dele a troca depende do cmd.exe, entao o botao leva a
+      // pagina da release. Prometer o reinicio nos dois seria mentira em um.
+      ...(window.OrqShell.EH_WIN ? [
+        p('Quando sai versão nova, o aviso aparece no rodapé da lateral, e o botão <b>aplica e '
+          + 'reinicia</b> — inclusive nos pacotes em pasta, que não têm instalador: ali o app baixa '
+          + 'só o próprio código (alguns MB, não o pacote inteiro), confere a integridade e troca ao '
+          + 'reiniciar.'),
+      ] : [
+        p('Quando sai versão nova, o aviso aparece no rodapé da lateral e o botão <b>abre a página '
+          + 'da release</b> para você baixar o pacote novo. Neste sistema o app não se troca '
+          + 'sozinho: substituir o app enquanto ele roda exigiria mexer por dentro do pacote, o '
+          + 'que aqui quebraria a assinatura dele.'),
+      ]),
       p('A checagem acontece de tempos em tempos e <b>também quando você volta para a janela</b> — '
         + 'não é preciso fechar e reabrir o app para o aviso aparecer. Para conferir na hora, '
-        + 'procure <b>versão</b> na paleta (<b>Ctrl+K</b>).'),
-      p('Quando a versão nova muda algo além do nosso código — o Electron, por exemplo —, a troca '
-        + 'leve não serve, e aí o botão volta a levar você para a página da release dizendo por quê.'),
+        + 'procure <b>versão</b> na paleta (<b>{mod}+K</b>).'),
+      ...(window.OrqShell.EH_WIN ? [
+        p('Quando a versão nova muda algo além do nosso código — o Electron, por exemplo —, a troca '
+          + 'leve não serve, e aí o botão volta a levar você para a página da release dizendo por quê.'),
+      ] : []),
       p('Seus dados ficam em <code>{pastaDados}</code>, fora da pasta do app: projetos, arranjo de '
         + 'painéis e a porta do servidor de eventos. Trocar a pasta do app não perde nada.'),
     ],
@@ -379,11 +408,11 @@ const SECOES = [
     titulo: 'Atalhos',
     blocos: [
       teclas([
-        ['Ctrl+Enter', 'Pula para a sessão que espera há mais tempo'],
-        ['Ctrl+K', 'Abre a paleta de comandos'],
-        ['Ctrl+B', 'Recolhe ou mostra a barra lateral'],
-        ['Alt+setas', 'Pula para o terminal ao lado, acima ou abaixo'],
-        ['F1', 'Abre esta ajuda'],
+        ['{mod}+Enter', 'Pula para a sessão que espera há mais tempo'],
+        ['{mod}+K', 'Abre a paleta de comandos'],
+        ['{mod}+B', 'Recolhe ou mostra a barra lateral'],
+        ['{alt}+setas', 'Pula para o terminal ao lado, acima ou abaixo'],
+        ['{ajudaTecla}', 'Abre esta ajuda'],
         ['Esc', 'Fecha o que estiver aberto por cima'],
         ['1 2 3', 'Densidade da grade: 1, 2 ou 3 colunas'],
         ['4', 'O slot personalizado (a quarta pílula da barra)'],
@@ -391,6 +420,29 @@ const SECOES = [
       ]),
       p('As teclas <b>1</b> a <b>4</b> são ignoradas enquanto você digita num campo de '
         + 'texto ou dentro de um terminal — só valem quando o teclado não está em uso.'),
+    ],
+  },
+  {
+    id: 'macos',
+    titulo: 'No macOS',
+    // So o que MUDA. Repetir aqui o que funciona igual nos dois sistemas
+    // transformaria a secao em ruido para quem ja conhece o app.
+    soEm: 'darwin',
+    blocos: [
+      p('O app funciona igual aqui: hooks, worktrees, faixas de portas, ligações entre '
+        + 'repositórios e o botão de aprovar são os mesmos. O que muda é isto.'),
+      tabela(['Assunto', 'Como é aqui'], [
+        ['<b>A primeira abertura</b>', 'O app não é assinado, então o Gatekeeper barra o duplo clique. Clique com o <b>botão direito → Abrir</b> e confirme: vale uma vez, e depois abre normalmente.'],
+        ['<b>Atualizar</b>', 'O aviso aparece no rodapé da lateral e o botão abre a página da release. Não há reinício automático — trocar o app por dentro quebraria a assinatura do pacote.'],
+        ['<b>Avisos</b>', 'Precisam ser autorizados em <b>Ajustes do Sistema → Notificações</b>. Fora da janela, o sinal é o ícone <b>quicando no Dock</b>, no lugar do piscar da barra de tarefas.'],
+        ['<b>As barras de uso</b>', 'A credencial do Claude fica no <b>Chaveiro</b>, e não num arquivo. O sistema pede autorização na primeira leitura; um <b>Sempre Permitir</b> resolve. Recusar deixa só o medidor sem número.'],
+        ['<b>Teclas</b>', '<b>⌘</b> no lugar do Ctrl e <b>⌥</b> nas setas. A ajuda abre por <b>⌘+/</b>, porque a fileira F é de mídia por padrão e o F1 mexe no brilho.'],
+      ]),
+      aviso('<b>Abrir pelo Finder é diferente de abrir pelo Terminal.</b> Aberto pelo ícone, o app '
+        + 'não herda o <code>PATH</code> do seu shell — e é dele que vêm o <code>claude</code> e o '
+        + '<code>git</code>. O app corrige isso sozinho no arranque, lendo o PATH do seu shell de '
+        + 'login. Se mesmo assim um painel disser que não achou um comando, confira se ele roda '
+        + 'num Terminal comum: o que valer lá é o que o app vai enxergar.'),
     ],
   },
   {
@@ -404,13 +456,26 @@ const SECOES = [
         ['Não consigo arquivar um worktree', 'A etiqueta dele diz o motivo: sessão viva, alteração sem commit ou commit fora da base.'],
         ['O painel abriu mas o comando não rodou', 'Pode estar na fila de partida. A etiqueta <b>na fila</b> aparece no cabeçalho; clique nela para começar agora.'],
         ['Cliquei em Aprovar e nada aconteceu', 'O pedido não estava mais na tela do terminal — provavelmente já foi respondido. O app avisa e leva você até lá em vez de responder às cegas.'],
-        ['Fixei na barra de tarefas e virou o ícone do Electron', 'Fixar guarda um atalho para o executável, e no pacote compatível com o SAC o executável é o do próprio Electron. Use <b>Ctrl+K → Criar atalho no menu Iniciar</b> e fixe a partir dele.'],
+        // Sintomas que so existem em UMA plataforma. Espalhar a lista inteira nos
+        // dois lados seria mandar a pessoa procurar o problema dela no meio de
+        // coisas que nao podem acontecer na maquina dela.
+        ...(window.OrqShell.EH_WIN ? [
+          ['Fixei na barra de tarefas e virou o ícone do Electron', 'Fixar guarda um atalho para o executável, e no pacote compatível com o SAC o executável é o do próprio Electron. Use <b>{mod}+K → Criar atalho no menu Iniciar</b> e fixe a partir dele.'],
+        ] : [
+          ['Diz que o app está danificado e não abre', 'É o Gatekeeper: o app não é assinado. Clique nele com o <b>botão direito → Abrir</b> uma vez, e confirme. Depois disso abre normal.'],
+          ['O painel abre mas não acha o <code>claude</code> ou o <code>git</code>', 'Acontece quando o app é aberto pelo Finder, que não carrega o PATH do seu shell. O app tenta corrigir sozinho no arranque; se ainda faltar, confira se o comando funciona num Terminal comum.'],
+          ['As barras de uso mostram —', 'A credencial do Claude fica no <b>Chaveiro</b> aqui, e o app precisa de autorização para lê-la. Se você recusou a caixa que apareceu, o medidor fica sem número; o resto do app não muda.'],
+        ]),
       ]),
       p('O servidor que recebe os avisos do Claude Code escuta em <code>127.0.0.1:{portaEventos}</code>, '
         + 'só nesta máquina. Com o app fechado, os hooks falham em silêncio e não atrapalham suas sessões.'),
     ],
   },
 ];
+
+const SECOES = TODAS_SECOES.filter(
+  (s) => !s.soEm || s.soEm === (window.OrqShell.EH_MAC ? 'darwin' : 'win32'),
+);
 
 // ------------------------------------------------------------ renderizacao
 
@@ -449,7 +514,9 @@ function montarBloco(b) {
       linha.className = 'ajuda-tecla';
       const caixa = document.createElement('span');
       caixa.className = 'ajuda-tecla-caixa mono';
-      caixa.textContent = k;
+      // Passa pelo `preencher` como o resto: a propria TECLA e uma constante do
+      // codigo agora ({mod} vira Ctrl ou ⌘), e nao um texto digitado aqui.
+      caixa.textContent = preencher(k);
       const desc = document.createElement('span');
       desc.innerHTML = preencher(texto);
       linha.append(caixa, desc);
@@ -542,9 +609,20 @@ btnAjudaFechar?.addEventListener('click', fecharAjuda);
 // duas de uma vez.
 window.OrqOverlays?.registrar(elAjuda, fecharAjuda);
 
+// F1 no Windows; ⌘+/ no Mac, onde a fileira F e tecla de MIDIA por padrao e o
+// F1 mexe no brilho da tela em vez de abrir a ajuda.
+//
+// Em CAPTURA com stopPropagation, no molde do Ctrl+B: o xterm escuta no proprio
+// textarea, que e mais fundo que a window, e em fase de bolha a tecla chegaria
+// ao PTY ALEM de abrir a ajuda.
 window.addEventListener('keydown', (ev) => {
-  if (ev.key === 'F1') { ev.preventDefault(); elAjuda.hidden ? abrirAjuda() : fecharAjuda(); }
-});
+  const ehAtalho = ev.key === 'F1'
+    || (window.OrqShell.EH_MAC && ev.metaKey && !ev.ctrlKey && !ev.altKey && ev.key === '/');
+  if (!ehAtalho) return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  if (elAjuda.hidden) abrirAjuda(); else fecharAjuda();
+}, true);
 
 // Quem chega numa grade vazia precisa saber por onde comecar.
 document.getElementById('vazio-ajuda')?.addEventListener('click', (ev) => {
@@ -552,4 +630,10 @@ document.getElementById('vazio-ajuda')?.addEventListener('click', (ev) => {
   abrirAjuda('comecar');
 });
 
-window.OrqAjuda = { abrir: abrirAjuda, fechar: fecharAjuda, SECOES, constantes: () => constantes };
+// `SECOES` e a lista JA FILTRADA por plataforma -- e o que o indice, o corpo e o
+// teste consomem, e por isso a contagem dos tres bate nos dois sistemas.
+// `TODAS_SECOES` sai junto so para o teste poder conferir a secao que nao
+// aparece na plataforma onde ele esta rodando.
+window.OrqAjuda = {
+  abrir: abrirAjuda, fechar: fecharAjuda, SECOES, TODAS_SECOES, constantes: () => constantes,
+};

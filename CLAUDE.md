@@ -13,8 +13,8 @@ ha quanto tempo), e ordenar por urgencia em vez de por repositorio.
 segue sendo a fonte do raciocinio por tras de cada regra. Este arquivo registra o que foi construido
 e o que foi **medido** — onde os dois divergem, vale o que esta aqui.
 
-**Estado:** **todas as fases da spec (0 a 8) implementadas**, mais o cadastro de projetos e o
-**redesenho de `docs/nova-ui/` completo (fatias 1 a 5)**. O que resta sao os extras da Fase 9,
+**Estado:** **todas as fases da spec (0 a 8) implementadas**, mais o cadastro de projetos, o
+**redesenho de `docs/nova-ui/` completo (fatias 1 a 5)** e o **suporte a macOS (Apple Silicon)**. O que resta sao os extras da Fase 9,
 detalhados em `docs/fase-9-extras.md` — incluindo um que nao esta na spec original: **visao de mapa
 com ligacoes entre sessoes**, para uma feature que atravessa repositorios (backend e frontend em
 repos separados).
@@ -31,6 +31,7 @@ npm run teste:fase1       # 1 painel: PTY, lote de IPC, resize, enxurrada
 npm run teste:fase2       # 8 painéis: grade, orcamento WebGL, RAM/CPU (leva ~90s)
 npm run teste:fase45      # hooks -> bolinha -> lateral ordenada
 npm run teste:projetos    # cadastro, dedupe, comando inicial, sanitizacao
+npm run teste:terminal    # o botao "Abrir terminal" do dialogo: shell puro, sem Claude
 npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
 npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
@@ -53,6 +54,7 @@ npm run teste:metas       # latencia de tecla e CPU sob carga (leva ~90s)
 node testes/arvore.js     # fechar painel mata a arvore de processos
 
 npm run empacotar         # instalador e zip portatil em dist/, sem publicar
+npm run empacotar:mac     # zip arm64 do macOS (so roda no proprio Mac)
 npm run empacotar:sac     # o pacote que abre com o Smart App Control ligado
 npm run teste:sac         # o pacote -sac: exe intocado, e o terminal funciona
 npm run teste:atualizacao-leve # baixa, confere o sha, troca o asar e reabre (sem GitHub)
@@ -84,6 +86,72 @@ brigam pela porta 9222 e pelo cache do perfil, e a segunda morre com erro de bin
   internals do xterm 6 e estoura `Cannot read properties of undefined (reading '_isDisposed')` ao
   carregar — o painel cai para canvas em silencio. O peer `^5.0.0` do `addon-canvas` e metadado
   desatualizado (a propria beta dele ainda declara `^5`), nao sinal de incompatibilidade.
+
+## macOS: o que muda, e o que NAO muda
+
+O app roda em macOS (Apple Silicon) desde a versao 0.1.30. O nucleo nunca foi o obstaculo: o
+`node-pty` **ja traz prebuild `darwin-arm64` e `darwin-x64`** em `prebuilds/`, e o `prebuild.js`
+sai com 0 sem chamar node-gyp quando a pasta existe. Nada compila.
+
+**`src/main/plataforma.js` e o unico lugar que responde "em que sistema estamos"** -- sem Electron,
+como o `worktrees.js`, para poder ser testado em Node puro. No renderer o par dele e
+`src/janela/shell.js` (`OrqShell`), que recebe a plataforma do preload como **valor sincrono**:
+comando de shell e montado no clique, e um `invoke` chegaria tarde.
+
+- **`cls` vira `clear`, e isso nao e cosmetico.** Em bash/zsh o `cls && claude` **curto-circuita**:
+  o `cls` falha, o `&&` corta, e o Claude nunca sobe. O `&&` em si vale nos dois shells.
+- **O PTY sobe como LOGIN shell (`-l`), e o main corrige o proprio PATH no arranque.** As duas
+  coisas sao necessarias e resolvem problemas diferentes. Aberto pelo Finder, o Electron herda um
+  PATH minimo do launchd: o `-l` conserta o que roda DENTRO do painel, e o `corrigirPath()`
+  conserta o `git` que o processo principal chama direto (`worktrees.js`, `execFileSync`). Sem o
+  segundo, todo comando de worktree falha com ENOENT -- e funciona perfeitamente quando o app e
+  aberto pelo terminal, que e como todo teste seria feito. **E o defeito mais caro desta area.**
+- **A troca leve de asar e DESARMADA fora do Windows, no proprio modulo.** `atualizacao-asar.js`
+  faz `spawn('cmd.exe')` e `empacotamento.ehPortatil()` (que procura `Uninstall *.exe`) devolve
+  **sempre true** no macOS -- sem o portao, o Mac era roteado para o `.bat`, o app fechava e nao
+  voltava. La o aviso leva a pagina da release, e ha um segundo guarda antes do `app.quit()`.
+- **A barra de titulo inverte de lado.** `titleBarOverlay` nao existe no macOS e os semaforos ficam
+  a ESQUERDA, em cima do `#btn-lateral`; dai `hiddenInset` + `trafficLightPosition`, mais
+  `#app[data-plataforma="mac"] #titulo` trocando a reserva de `padding-right` para `padding-left`.
+  O fallback de 140px do `env(titlebar-area-width)` reservaria o lado errado.
+- **A credencial do Claude vem do Chaveiro**, e nao de `~/.claude/.credentials.json`:
+  `security find-generic-password -s "Claude Code-credentials" -w`, com fallback para o arquivo. Em
+  app nao assinado isso abre uma caixa de autorizacao na primeira leitura. Com `ORQ_CLAUDE`
+  apontado (os testes) o Chaveiro **nao** e consultado.
+- **`atalho.js` inteiro e morto ali** (`.lnk` + AppUserModelID), e o comando dele saiu da paleta:
+  oferecer algo que so sabe falhar e pior que nao oferecer.
+- **O Gatekeeper tem saida, ao contrario do SAC.** Botao direito -> Abrir, uma vez por maquina. Por
+  isso o pacote e um `zip` arm64 com `identity: null`, sem conta Apple.
+- **Mas `identity: null` SOZINHO produz um .app que nao abre no Apple Silicon**, e o sintoma nao e o
+  do Gatekeeper: o arm64 recusa executavel sem assinatura NENHUMA, e o botao direito -> Abrir nao
+  resolve (aquilo contorna a quarentena, nao a falta de assinatura). Quem resolve e a assinatura
+  **ad-hoc** (`codesign --force --deep --sign -`), que nao precisa de conta Apple e nao substitui a
+  notarizacao. O workflow assina, **confere** (`Signature=adhoc`, e o job falha se nao ficou) e
+  refaz o zip com **`ditto`** -- zip comum perde os symlinks do bundle e o .app chega quebrado do
+  outro lado. **Empacotando a mao e preciso repetir os dois passos**; estao escritos no
+  `electron-builder.yml`, ao lado do `identity`.
+- **Ganho colateral:** o *cross-session messaging* do Claude Code e bloqueado por um portao que so
+  recusa no Windows (`docs/fase-9-extras.md`). Em macOS ele funciona.
+
+**O que NAO muda:** os hooks (o comando ja era `curl` com `$ORQ_ID`, sintaxe POSIX, porque o Claude
+Code executa hooks em shell POSIX), o servidor de eventos, worktrees, faixas de portas, ligacoes e
+o farejador de aprovacao.
+
+**Limitacao conhecida:** as chaves de caminho usam `.toLowerCase()` (`worktrees.js`,
+`projetos.js`, `estado.js`). Funciona no APFS padrao, que ignora caixa; quebraria num volume
+formatado como case-sensitive.
+
+**A suite:** `npm run dev` passou a ser `node testes/subir.js`, que **no Windows delega para o
+`subir.ps1` de sempre** -- aquele script produziu todos os numeros medidos deste projeto, e
+reescreve-lo so para unificar seria trocar o que funciona pelo que ainda precisa ser provado. Os
+comandos de carga que os testes digitam no painel saem de `testes/comandos.js`. Rodam no macOS:
+`fase1`, `fase45`, `fase6`, `portas`, `worktrees`, `ajuda`, `terminal`, `arvore`. Nao rodam (e nem
+deveriam): `fase2`, `metas`, `perfil`, `sac`, `empacotado`, `atualizacao*`, `diagnostico`.
+
+**O icone e gerado nos dois formatos** (`recursos/gerar-icone.js`): o desenho passou a ser
+parametrizado por tamanho e sai como `.ico` (256) e `.icns` (256 + 512, que e o que o Dock usa em
+tela Retina). Continua sem dependencia, sem ImageMagick e sem o `iconutil` -- que so existe no Mac
+e impediria gerar tudo daqui. O `.ico` sai **byte a byte identico** ao de antes.
 
 ## Arquitetura: dois canais separados
 
@@ -710,7 +778,9 @@ que cada modulo precisa lembrar de dar.
 
 ## A ajuda dentro do app
 
-`src/janela/ajuda.js`, aberta pelo botao na lateral ou por **F1**.
+`src/janela/ajuda.js`, aberta pelo botao na lateral, por **F1** no Windows ou por **⌘+/** no macOS
+(la a fileira F e tecla de midia por padrao, e o F1 mexe no brilho -- o atalho novo e registrado em
+CAPTURA com `stopPropagation`, no molde do Ctrl+B, senao a tecla chega ao PTY tambem).
 
 O conteudo e uma **estrutura de dados**, nao HTML solto, e isso resolve dois problemas de uma vez:
 
@@ -720,6 +790,15 @@ O conteudo e uma **estrutura de dados**, nao HTML solto, e isso resolve dois pro
   pelo IPC `app:constantes`. Documentacao que repete constante a mao vira mentira na primeira
   mudanca de codigo, e ninguem percebe. `npm run teste:ajuda` compara o texto renderizado com os
   valores que o app usa de verdade, e falha se divergirem ou se algum `{marcador}` escapar.
+- **As TECLAS tambem sao constantes** (`{mod}`, `{alt}`, `{ajudaTecla}`, `{porta}`), pela mesma
+  razao: a ajuda inteira dizia "Ctrl" e `%PORT%`, e num Mac isso e texto errado, nao incompleto.
+  O bloco `teclas` passou a chamar `preencher()` na propria caixa da tecla -- antes so a descricao
+  passava por la.
+- **`soEm` limita uma secao a uma plataforma**, e o filtro roda UMA vez: o que sai do modulo como
+  `SECOES` ja e a lista filtrada, entao indice, corpo e teste continuam lendo a mesma fonte e a
+  contagem dos tres bate nos dois sistemas. `TODAS_SECOES` e exportado so para o teste conferir a
+  secao que NAO renderiza na plataforma onde ele esta rodando -- senao o defeito so apareceria do
+  outro lado, que e onde ninguem esta olhando.
 
 ## Ligar sessoes entre repositorios
 
@@ -1020,6 +1099,37 @@ le-la:
 | Vite | Ignora `PORT`. Use `vite --port %PORT%` no script, ou `server: { port: Number(process.env.PORT) \|\| 5173 }` no `vite.config`. |
 | Nest / Express | Garantir `app.listen(process.env.PORT ?? 3000)`. |
 | Turborepo | Cada app pega uma posicao de `ORQ_PORTAS`. |
+
+## Abrir o terminal do projeto, sem o Claude
+
+Botao **Abrir terminal** no dialogo de abrir projeto (`escolha-sessao.js`). Abre um painel na pasta
+e nao manda comando nenhum -- dev server, `git log`, o que for, sem gastar token.
+
+- **Nao ha caminho novo de criacao de painel.** O "Painel avulso" ja criava painel sem
+  `comandoInicial`, e `grade.js` so envia comando quando existe um; o "Retomar" ja provava que
+  trocar o `comandoInicial` basta. Isto e a mesma costura com comando nenhum.
+- **`{ terminal: true }` e SENTINELA, nao `comandoInicial: ''`.** A conta em `abrirProjeto` e
+  `comandoInicial || montarComando(...)`, entao string vazia cairia de volta no padrao e o Claude
+  subiria assim mesmo.
+- **O dialogo passa a aparecer SEMPRE.** Antes ele tinha um atalho para zero conversas, com a
+  justificativa de que "pergunta sem alternativa e so um clique a mais". Ela caiu quando passou a
+  existir alternativa mesmo sem conversa nenhuma. Com `quantas === 0` o que sai e o **Retomar**.
+- **Quem ja escolheu continua sem dialogo**, de proposito: a paleta e o botao "Nova sessao" chamam
+  `abrirProjeto` direto. Parece inconsistencia e nao e.
+- **O campo se chama `tipoPainel`, e o nome comprido e cicatriz.** `c.tipo` JA EXISTIA no card da
+  lateral guardando o tipo da ESPERA que vem do hook (`permissao`/`ocioso`), e `definirStatus` o
+  reescreve a cada diff do Canal 2 -- o painel de terminal virava sessao comum no primeiro status
+  que chegasse, e a lateral voltava a dizer "trabalhando". Mesma familia do `ligacoesPendentes`.
+  Foi o teste que pegou.
+- **Sem a marca, a bolinha MENTE.** `index.js` marca todo painel novo como `rodando`/"shell aberto"
+  e, sem hooks falando por ele, um shell fica **verde para sempre** dizendo "Claude trabalhando".
+  Isso ja acontecia com o Painel avulso; a diferenca e que agora seria o caso comum. Dai o rotulo
+  fixo **terminal**, a bolinha neutra, e ficar **fora da `filaAtencao()`** -- nao ha hook que o
+  deixe amarelo, entao ele nunca deveria disputar o Ctrl+Enter.
+- **Ele persiste**: `tipoPainel` entra no `retratoSessao()` e nas listas brancas de `sessao.js` e
+  `layouts.js` (as duas normalizam e descartariam campo desconhecido). Sem isso o terminal voltava
+  como sessao dormindo esperando `claude`.
+- A fila de partida (Fase 6) ja o ignora de graca: sem `comandoInicial` nao ha o que reter.
 
 ## Cadastro de projetos
 

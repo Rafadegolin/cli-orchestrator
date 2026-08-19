@@ -379,6 +379,9 @@
       <h2 id="escolha-titulo">Abrir sessão</h2>
       <p class="modal-explica" id="escolha-explica"></p>
       <div class="modal-acoes">
+        <!-- Abre um shell na pasta do projeto e NAO sobe o Claude: para rodar
+             o dev server, git, o que for, sem gastar token. -->
+        <button id="escolha-terminal" title="Abre um terminal na pasta do projeto, sem iniciar o Claude">Abrir terminal</button>
         <button id="escolha-retomar">Retomar uma anterior</button>
         <button id="escolha-nova" class="primario">Sessão nova</button>
         <button id="escolha-cancelar">Cancelar</button>
@@ -405,6 +408,8 @@
 <script src="../../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
 <script src="../../node_modules/@xterm/addon-webgl/lib/addon-webgl.js"></script>
 <script src="../../node_modules/@xterm/addon-canvas/lib/addon-canvas.js"></script>
+<!-- Primeiro de todos: os outros montam comando de shell no arranque. -->
+<script src="shell.js"></script>
 <script src="casca.js"></script>
 <script src="painel.js"></script>
 <script src="fila.js"></script>

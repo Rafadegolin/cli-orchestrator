@@ -116,6 +116,57 @@ const textoDaAjuda = `(() => document.getElementById('ajuda-corpo').textContent)
   const sobrou = (conteudo.match(/\{[a-zA-Z]+\}/g) || []);
   checar('nenhum {marcador} ficou sem substituir', sobrou.length === 0, sobrou.join(','));
 
+  // --- o que muda por plataforma ------------------------------------------
+  //
+  // A ajuda descrevia um app Windows: teclas Ctrl, barra de tarefas, menu
+  // Iniciar. Estes checam o MECANISMO, que e o que da para provar aqui -- a
+  // aparencia no Mac so se ve num Mac.
+  checar('o modificador dos atalhos vem do codigo, e nao digitado no texto',
+    real.mod === (process.platform === 'darwin' ? '⌘' : 'Ctrl'), String(real.mod));
+  checar('e ele chegou renderizado na tabela de atalhos',
+    conteudo.includes(`${real.mod}+K`) && conteudo.includes(`${real.mod}+Enter`), String(real.mod));
+  checar('a tecla da ajuda tambem', conteudo.includes(real.ajudaTecla), String(real.ajudaTecla));
+  checar('a sintaxe de variavel de ambiente e a do shell certo',
+    conteudo.includes(`--port ${real.porta}`), String(real.porta));
+
+  // `soEm` esconde a secao inteira, e o indice tem de sumir junto -- e isso que
+  // mantem o teste de contagem la em cima valendo nas duas plataformas.
+  const porPlataforma = await cdp.avaliar(`(() => {
+    const ids = window.OrqAjuda.SECOES.map(s => s.id);
+    return {
+      ids,
+      temMac: ids.includes('macos'),
+      indice: [...document.querySelectorAll('#ajuda-indice button')].map(b => b.dataset.para),
+    };
+  })()`);
+  const ehMac = process.platform === 'darwin';
+  checar(`a secao macOS ${ehMac ? 'aparece' : 'fica de fora'} nesta plataforma`,
+    porPlataforma.temMac === ehMac, porPlataforma.ids.join(','));
+  checar('e o indice acompanha, sem entrada orfa',
+    JSON.stringify(porPlataforma.indice) === JSON.stringify(porPlataforma.ids),
+    porPlataforma.indice.join(','));
+  checar(`a linha do menu Iniciar ${ehMac ? 'nao aparece' : 'aparece'} aqui`,
+    /menu Iniciar/.test(conteudo) === !ehMac, '');
+
+  // A secao que NAO aparece aqui ainda precisa ser bem-formada, senao o defeito
+  // so apareceria na outra plataforma -- que e onde ninguem esta olhando.
+  const macOk = await cdp.avaliar(`(() => {
+    const s = window.OrqAjuda.TODAS_SECOES.find(x => x.id === 'macos');
+    if (!s) return 'secao macos nao existe';
+    if (s.soEm !== 'darwin') return 'soEm errado: ' + s.soEm;
+    if (!s.titulo || !s.blocos.length) return 'secao vazia';
+    for (const b of s.blocos) {
+      if (!b || !b.tipo) return 'bloco sem tipo';
+      if (b.tipo === 'tabela') {
+        if (b.cabecalho.length !== 2) return 'cabecalho de 2 colunas esperado';
+        const torta = b.linhas.find(l => l.length !== b.cabecalho.length);
+        if (torta) return 'linha com numero de colunas diferente do cabecalho';
+      }
+    }
+    return 'ok';
+  })()`);
+  checar('a secao macOS existe e e bem-formada, mesmo sem renderizar aqui', macOk === 'ok', String(macOk));
+
   await cdp.avaliar(`window.OrqAjuda.fechar()`);
   encerrar('AJUDA');
 })().catch((e) => { console.error('ERRO', e.message); process.exit(3); });

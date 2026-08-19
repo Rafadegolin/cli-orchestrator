@@ -43,6 +43,11 @@ const ROTULO = {
 
 const ROTULO_DORMINDO = 'sessão salva';
 
+// Painel de shell puro nao tem sessao do Claude dentro, entao nenhum hook fala
+// por ele: o `rodando` que todo painel recebe ao nascer ficaria para sempre, e
+// a lateral diria "trabalhando" sobre um prompt parado. O rotulo e fixo.
+const ROTULO_TERMINAL = 'terminal';
+
 const cards = new Map();
 
 // Os dois status que merecem tirar voce de outra janela. `parada` NAO entra: e
@@ -65,8 +70,16 @@ const jaLembrado = new Set();
 // minutos gerava UM toast e nunca mais nada.
 const MS_LEMBRETE = 5 * 60 * 1000;
 
-function registrar({ id, feature, cwd }) {
-  cards.set(id, { id, feature, cwd, status: 'iniciando', motivo: '', desde: Date.now() });
+// `tipoPainel`, e nao `tipo`: o nome comprido e cicatriz. `c.tipo` JA EXISTIA
+// no card guardando o tipo da ESPERA que vem do hook (`permissao` / `ocioso`),
+// e o `definirStatus` o reescreve a cada diff do Canal 2 -- entao o painel de
+// terminal virava sessao comum no primeiro status que chegasse, e a lateral
+// voltava a dizer "trabalhando". Mesma familia do `ligacoesPendentes`.
+function registrar({ id, feature, cwd, tipoPainel }) {
+  cards.set(id, {
+    id, feature, cwd, tipoPainel: tipoPainel === 'terminal' ? 'terminal' : 'sessao',
+    status: 'iniciando', motivo: '', desde: Date.now(),
+  });
   redesenhar();
 }
 
@@ -161,6 +174,9 @@ function pesoDe(c) {
 // esta funcao -- antes cada um montava o seu, e os tres ja tinham divergido.
 function rotuloDe(c) {
   if (estaDormindo(c.id)) return ROTULO_DORMINDO;
+  // Antes do resto: o status de um terminal nao significa nada, porque ninguem
+  // o reporta.
+  if (c.tipoPainel === 'terminal') return ROTULO_TERMINAL;
   if (c.status === 'esperando') return `esperando ${textoEspera(Date.now() - c.desde)}`;
   // `parada` tambem conta o tempo -- e a informacao util dela ("faz quanto que
   // esta ai?") --, so que sem a palavra "esperando" na frente.
@@ -196,9 +212,11 @@ function ordenadas() {
 // A fila de atencao NAO segue a ordenacao escolhida: ela e a fila, e fila e
 // sempre por quem espera ha mais tempo. Ordenar por projeto aqui faria o
 // Ctrl+Enter pular para a sessao errada.
+// Terminal fica FORA: nao ha hook que o deixe amarelo, entao ele nunca deveria
+// disputar o Ctrl+Enter. Guarda barato, defeito caro.
 function filaAtencao() {
   return [...cards.values()]
-    .filter((c) => c.status === 'esperando' && !estaDormindo(c.id))
+    .filter((c) => c.status === 'esperando' && c.tipoPainel !== 'terminal' && !estaDormindo(c.id))
     .sort((a, b) => a.desde - b.desde);
 }
 
@@ -234,7 +252,9 @@ function redesenhar() {
     li.dataset.id = c.id;
 
     const bolinha = document.createElement('span');
-    bolinha.className = painel?.dormindo ? 'bolinha bolinha-dormindo' : `bolinha bolinha-${c.status}`;
+    bolinha.className = painel?.dormindo
+      ? 'bolinha bolinha-dormindo'
+      : `bolinha bolinha-${c.tipoPainel === 'terminal' ? 'terminal' : c.status}`;
 
     const nome = document.createElement('span');
     nome.className = 'card-nome';
@@ -361,8 +381,10 @@ function pularParaMaisAntigo() {
 
 btnFilaDica?.addEventListener('click', pularParaMaisAntigo);
 
+// `metaKey` junto do `ctrlKey` pela mesma razao do Ctrl+B e do Ctrl+K: no Mac
+// o modificador e o ⌘, e este era o unico atalho que nao aceitava os dois.
 window.addEventListener('keydown', (ev) => {
-  if (ev.ctrlKey && ev.key === 'Enter') {
+  if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
     ev.preventDefault();
     pularParaMaisAntigo();
   }
@@ -401,10 +423,10 @@ function atualizarBotaoAvisos() {
   btnAvisos.classList.toggle('ligado', ligados);
   btnAvisos.setAttribute('aria-pressed', String(ligados));
   btnAvisos.title = ligados
-    ? 'Avisa por notificação do Windows quando uma sessão para esperando você, e pisca na '
-      + 'barra de tarefas. Clique para desligar os dois.'
-    : 'As notificações estão desligadas. A bolinha amarela, a fila ESPERANDO VOCÊ e o '
-      + 'Ctrl+Enter continuam funcionando normalmente.';
+    ? 'Avisa por notificação do sistema quando uma sessão para esperando você, e chama pela '
+      + 'barra de tarefas ou pelo Dock. Clique para desligar os dois.'
+    : `As notificações estão desligadas. A bolinha amarela, a fila ESPERANDO VOCÊ e o `
+      + `${window.OrqShell.MOD}+Enter continuam funcionando normalmente.`;
 }
 
 btnAvisos?.addEventListener('click', alternarAvisos);
@@ -506,8 +528,13 @@ function mostrarAtualizacao(s) {
     btnAtualizar.hidden = false;
     btnAtualizar.disabled = false;
     btnAtualizar.textContent = `Baixar a versão ${s.disponivel}`;
-    btnAtualizar.title = `Desta vez não dá para atualizar de dentro do app: ${s.motivoPesado || 'a release não traz o pacote leve'}. `
-      + 'Abre a página da release para você baixar o zip novo.';
+    // "Desta vez" so vale no Windows, onde a recusa e circunstancial (mudou o
+    // Electron, a pasta nao e gravavel). No macOS ela e permanente, e prometer
+    // que da na proxima seria mentira.
+    btnAtualizar.title = (window.OrqShell.EH_WIN
+      ? `Desta vez não dá para atualizar de dentro do app: ${s.motivoPesado || 'a release não traz o pacote leve'}. `
+      : `Neste sistema a atualização é pelo site: ${s.motivoPesado || 'o app não se troca sozinho aqui'}. `)
+      + 'Abre a página da release para você baixar o pacote novo.';
     btnAtualizar.className = 'atualizar-pronta';
     return;
   }
