@@ -250,25 +250,101 @@ jobs:
           ls -la "$ZIP"
           echo "ZIP=$ZIP" >> "$GITHUB_ENV"
 
-      # Prova de que o zip sobrevive a ida e volta: extrair e conferir que a
-      # assinatura continua la. Um zip que perde a assinatura no caminho e
-      # exatamente o defeito que o `ditto` existe para evitar.
+      # Prova de que o zip sobrevive a ida e volta.
+      #
+      # O RELATORIO VAI PARA A RELEASE, e nao so para o log: log de Actions exige
+      # token para ler, e quem estiver depurando isto de fora (ou de outro
+      # sistema) fica sem a informacao justamente quando ela importa. Como asset
+      # da release ele e publico, como o resto.
+      #
+      # O que BLOQUEIA aqui e so o que decide se o app roda: o .app existir, o
+      # executavel principal e o `spawn-helper` estarem la e executaveis. A
+      # assinatura ja foi conferida de forma bloqueante antes de zipar; refaze-la
+      # sobre a copia extraida e util como sinal, mas nao vale segurar uma
+      # release boa por uma diferenca de verificacao pos-ditto.
       - name: Conferir o zip antes de publicar
+        id: conferir
+        continue-on-error: true
         run: |
-          rm -rf /tmp/confere && mkdir -p /tmp/confere
-          ditto -x -k "$ZIP" /tmp/confere
-          codesign --verify --deep --strict /tmp/confere/Orquestrador.app
-          test -x /tmp/confere/Orquestrador.app/Contents/MacOS/Orquestrador \
-            || { echo "ERRO: executavel sem bit de execucao apos o zip"; exit 1; }
+          REL=/tmp/diagnostico-mac.txt
+          {
+            echo "### zip"
+            ls -la "$ZIP"
+            rm -rf /tmp/confere; mkdir -p /tmp/confere
+            ditto -x -k "$ZIP" /tmp/confere
+            echo "ditto -x rc=$?"
+
+            echo; echo "### raiz extraida"
+            ls -la /tmp/confere
+
+            APPX=$(ls -d /tmp/confere/*.app 2>/dev/null | head -1)
+            echo "APPX=[$APPX]"
+
+            echo; echo "### Contents/MacOS"
+            ls -la "$APPX/Contents/MacOS/" 2>&1
+
+            echo; echo "### Contents/Resources (topo)"
+            ls -la "$APPX/Contents/Resources/" 2>&1 | head -20
+
+            echo; echo "### codesign --verify --deep --strict"
+            codesign --verify --deep --strict --verbose=4 "$APPX" 2>&1
+            echo "rc=$?"
+
+            echo; echo "### codesign -dv"
+            codesign -dv "$APPX" 2>&1
+            echo "rc=$?"
+
+            echo; echo "### spawn-helper"
+            find "$APPX" -name spawn-helper -exec ls -la {} \; 2>&1
+
+            echo; echo "### pty.node"
+            find "$APPX" -name 'pty.node' -exec ls -la {} \; 2>&1
+          } > "$REL" 2>&1
+          cat "$REL"
+
+          # --- daqui para baixo, so o que e motivo para NAO publicar ---
+          APPX=$(ls -d /tmp/confere/*.app 2>/dev/null | head -1)
+          FALHOU=0
+
+          if [ -z "$APPX" ]; then
+            echo "ERRO: nenhum .app na raiz do zip"; FALHOU=1
+          fi
+
+          EXEC="$APPX/Contents/MacOS/Orquestrador"
+          if [ ! -e "$EXEC" ]; then
+            echo "ERRO: executavel principal NAO EXISTE em $EXEC"; FALHOU=1
+          elif [ ! -x "$EXEC" ]; then
+            echo "ERRO: executavel principal existe mas esta SEM bit de execucao"; FALHOU=1
+          fi
+
           # O que decide se os TERMINAIS funcionam. Ele vem do asar.unpacked (o
-          # asarUnpack do node-pty vale no macOS tambem), e perder o bit aqui
-          # daria um app que abre e nao roda nada -- o defeito mais caro de
-          # diagnosticar deste projeto, porque a tela parece certa.
-          HELPER=$(find /tmp/confere/Orquestrador.app -name spawn-helper | head -1)
-          echo "spawn-helper: $HELPER"
-          test -n "$HELPER" || { echo "ERRO: spawn-helper nao foi empacotado"; exit 1; }
-          test -x "$HELPER" || { echo "ERRO: spawn-helper sem bit de execucao no pacote"; exit 1; }
-          echo "zip conferido"
+          # asarUnpack do node-pty vale no macOS tambem), que e mais um lugar
+          # onde o bit pode se perder -- e o sintoma seria a janela abrir inteira
+          # com todo painel morto.
+          HELPER=$(find "$APPX" -name spawn-helper 2>/dev/null | head -1)
+          if [ -z "$HELPER" ]; then
+            echo "ERRO: spawn-helper NAO FOI EMPACOTADO"; FALHOU=1
+          elif [ ! -x "$HELPER" ]; then
+            echo "ERRO: spawn-helper empacotado SEM bit de execucao"; FALHOU=1
+          else
+            echo "ok: spawn-helper executavel em $HELPER"
+          fi
+
+          exit "$FALHOU"
+
+      # `always()`: o relatorio so vale se sair TAMBEM quando a conferencia
+      # recusa -- que e exatamente quando alguem precisa dele.
+      - name: Publicar o diagnostico do macOS
+        if: always()
+        run: gh release upload "${GITHUB_REF_NAME}" /tmp/diagnostico-mac.txt --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Falhar se a conferencia recusou
+        if: steps.conferir.outcome == 'failure'
+        run: |
+          echo "a conferencia do pacote recusou -- veja o diagnostico-mac.txt na release"
+          exit 1
 
       - name: Publicar o pacote do macOS na release
         run: gh release upload "${GITHUB_REF_NAME}" "$ZIP" --clobber
