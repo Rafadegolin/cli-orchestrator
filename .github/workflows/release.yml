@@ -294,8 +294,10 @@ jobs:
             codesign -dv "$APPX" 2>&1
             echo "rc=$?"
 
-            echo; echo "### spawn-helper"
-            find "$APPX" -name spawn-helper -exec ls -la {} \; 2>&1
+            echo; echo "### spawn-helper (o de darwin-arm64 e o unico que este pacote usa)"
+            find "$APPX" -path '*darwin-arm64*' -name spawn-helper -exec ls -la {} \; 2>&1
+            echo "-- os demais vem no bundle e sao inertes:"
+            find "$APPX" -name spawn-helper ! -path '*darwin-arm64*' -exec ls -la {} \; 2>&1
 
             echo; echo "### pty.node"
             find "$APPX" -name 'pty.node' -exec ls -la {} \; 2>&1
@@ -321,7 +323,14 @@ jobs:
           # asarUnpack do node-pty vale no macOS tambem), que e mais um lugar
           # onde o bit pode se perder -- e o sintoma seria a janela abrir inteira
           # com todo painel morto.
-          HELPER=$(find "$APPX" -name spawn-helper 2>/dev/null | head -1)
+          #
+          # O `-path darwin-arm64` NAO E DETALHE, e custou a v0.1.32: o
+          # `asarUnpack` leva a pasta `prebuilds` INTEIRA, entao o bundle carrega
+          # tambem os helpers de win32-x64, win32-arm64 e darwin-x64. Eles sao
+          # inertes -- o node-pty resolve `prebuilds/<plataforma>-<arch>` em tempo
+          # de execucao -- e chegam sem bit de execucao, como vieram do npm. Um
+          # `find` sem filtro pegava o do x64 e RECUSAVA UM PACOTE CORRETO.
+          HELPER=$(find "$APPX" -path '*darwin-arm64*' -name spawn-helper 2>/dev/null | head -1)
           if [ -z "$HELPER" ]; then
             echo "ERRO: spawn-helper NAO FOI EMPACOTADO"; FALHOU=1
           elif [ ! -x "$HELPER" ]; then

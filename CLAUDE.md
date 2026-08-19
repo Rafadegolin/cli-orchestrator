@@ -127,6 +127,11 @@ comando de shell e montado no clique, e um `invoke` chegaria tarde.
   `empacotar:mac`, o job `macos` do CI e o `testes/subir.js` (rodar do codigo-fonte). A conferencia
   do zip no CI procura o `spawn-helper` DENTRO do bundle e falha se ele perdeu o bit -- foi o teste
   do CI que pegou isto, na primeira vez que o job rodou.
+  - **E essa busca tem de filtrar pela ARQUITETURA.** O `asarUnpack` leva a pasta `prebuilds`
+    inteira, entao o pacote do Mac carrega tambem os helpers de `win32-x64`, `win32-arm64` e
+    `darwin-x64`. Eles sao inertes (o node-pty resolve `prebuilds/<plataforma>-<arch>` em tempo de
+    execucao) e chegam sem bit de execucao, como vieram do npm. Um `find -name spawn-helper | head -1`
+    pegava o do x64 e **recusava um pacote correto** -- custou a v0.1.32.
 - **`atalho.js` inteiro e morto ali** (`.lnk` + AppUserModelID), e o comando dele saiu da paleta:
   oferecer algo que so sabe falhar e pior que nao oferecer.
 - **O Gatekeeper tem saida, ao contrario do SAC.** Botao direito -> Abrir, uma vez por maquina. Por
