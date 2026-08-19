@@ -196,6 +196,14 @@ jobs:
       # e `scripts/prebuild.js` sai com 0 sem chamar o node-gyp. O que PRECISA
       # ser conferido e o bit de execucao do `spawn-helper`: sem ele o pty nao
       # abre, e o sintoma seria a janela subir com nenhum terminal funcionando.
+      # O `spawn-helper` vem do npm com modo 644 -- conferido no tarball do
+      # node-pty@1.1.0 -- e NADA no pacote conserta: o `prebuild.js` so olha se
+      # a pasta existe, e o `post-install.js` mexe no conpty.dll do Windows.
+      # Sem o `+x`, `pty.spawn` falha com EACCES e nenhum painel abre, com a
+      # janela subindo inteira e normal.
+      - name: Devolver o bit de execucao ao spawn-helper
+        run: node recursos/preparar-mac.js
+
       - name: Conferir que o node-pty tem binario nativo
         run: |
           ls -la node_modules/node-pty/prebuilds/darwin-arm64/
@@ -252,6 +260,14 @@ jobs:
           codesign --verify --deep --strict /tmp/confere/Orquestrador.app
           test -x /tmp/confere/Orquestrador.app/Contents/MacOS/Orquestrador \
             || { echo "ERRO: executavel sem bit de execucao apos o zip"; exit 1; }
+          # O que decide se os TERMINAIS funcionam. Ele vem do asar.unpacked (o
+          # asarUnpack do node-pty vale no macOS tambem), e perder o bit aqui
+          # daria um app que abre e nao roda nada -- o defeito mais caro de
+          # diagnosticar deste projeto, porque a tela parece certa.
+          HELPER=$(find /tmp/confere/Orquestrador.app -name spawn-helper | head -1)
+          echo "spawn-helper: $HELPER"
+          test -n "$HELPER" || { echo "ERRO: spawn-helper nao foi empacotado"; exit 1; }
+          test -x "$HELPER" || { echo "ERRO: spawn-helper sem bit de execucao no pacote"; exit 1; }
           echo "zip conferido"
 
       - name: Publicar o pacote do macOS na release

@@ -118,6 +118,15 @@ comando de shell e montado no clique, e um `invoke` chegaria tarde.
   `security find-generic-password -s "Claude Code-credentials" -w`, com fallback para o arquivo. Em
   app nao assinado isso abre uma caixa de autorizacao na primeira leitura. Com `ORQ_CLAUDE`
   apontado (os testes) o Chaveiro **nao** e consultado.
+- **O `spawn-helper` do node-pty vem do npm SEM bit de execucao, e nada no pacote conserta.**
+  Conferido no tarball de `node-pty@1.1.0`: `-rw-r--r-- prebuilds/darwin-arm64/spawn-helper`. O
+  `scripts/prebuild.js` so olha se a pasta existe e o `post-install.js` mexe no conpty.dll do
+  Windows. Sem o `+x`, `pty.spawn` falha com EACCES e **nenhum painel abre** -- com a janela
+  subindo inteira e normal, que e o mesmo engano da armadilha nº 1 do empacotamento. Dai
+  `recursos/preparar-mac.js`, chamado nos TRES caminhos que levam a um app que abre:
+  `empacotar:mac`, o job `macos` do CI e o `testes/subir.js` (rodar do codigo-fonte). A conferencia
+  do zip no CI procura o `spawn-helper` DENTRO do bundle e falha se ele perdeu o bit -- foi o teste
+  do CI que pegou isto, na primeira vez que o job rodou.
 - **`atalho.js` inteiro e morto ali** (`.lnk` + AppUserModelID), e o comando dele saiu da paleta:
   oferecer algo que so sabe falhar e pior que nao oferecer.
 - **O Gatekeeper tem saida, ao contrario do SAC.** Botao direito -> Abrir, uma vez por maquina. Por

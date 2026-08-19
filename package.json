@@ -13,7 +13,7 @@
     "start": "electron .",
     "icone": "node recursos/gerar-icone.js",
     "empacotar": "electron-builder --win --publish never",
-    "empacotar:mac": "electron-builder --mac --publish never",
+    "empacotar:mac": "node recursos/preparar-mac.js && electron-builder --mac --publish never",
     "empacotar:sac": "node recursos/empacotar-sac.js",
     "teste:sac": "node testes/sac.js",
     "teste:atualizacao-leve": "node testes/atualizacao-leve.js",

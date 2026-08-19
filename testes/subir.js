@@ -85,6 +85,12 @@ function matarAntigas() {
   }
 }
 
+// O `spawn-helper` do node-pty vem do npm sem bit de execucao, e sem ele o
+// `pty.spawn` falha com EACCES -- a janela sobe e nenhum painel funciona. Aqui
+// e o caminho de quem roda do codigo-fonte; os outros dois (empacotar local e
+// CI) chamam o mesmo script.
+require('../recursos/preparar-mac').preparar();
+
 (async () => {
   matarAntigas();
 
