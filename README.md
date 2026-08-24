@@ -6,7 +6,7 @@
 
 <br clear="left">
 
-![A janela do app com quatro sessões abertas](recursos/tela.png)
+![Quatro sessões na grade: uma pedindo permissão, uma trabalhando, uma pronta para revisar e um terminal](recursos/tela.png)
 
 ## O que ele resolve
 
@@ -72,7 +72,7 @@ código-fonte.
 
 ### Ligue os hooks na primeira vez
 
-No rodapé da barra lateral há o botão **Hooks: instalar**. Ele registra no seu
+No rodapé da barra lateral há o interruptor **Hooks**. Ligá-lo registra no seu
 `~/.claude/settings.json` os avisos que fazem as bolinhas mudarem sozinhas.
 
 O app pergunta antes, faz backup do arquivo e preserva o que já estiver lá. Sem os hooks o app
@@ -114,8 +114,8 @@ retomar — e um "Retomar todas" na lateral.
 
 ### Ajuda dentro do app
 
-**F1**, ou o botão **Ajuda** no rodapé da lateral. É o manual completo — cada recurso, os atalhos, as
-portas, os hooks e uma seção de problemas comuns com sintoma e causa.
+**F1** (ou **⌘+/** no Mac), ou o botão **Como usar** no rodapé da lateral. É o manual completo — cada
+recurso, os atalhos, as portas, os hooks e uma seção de problemas comuns com sintoma e causa.
 
 Os números que ela cita (portas, limites, caminho da pasta de dados) são lidos do app em execução, não
 copiados à mão, então não envelhecem quando o código muda.
