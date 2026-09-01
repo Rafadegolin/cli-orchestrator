@@ -37,6 +37,7 @@ npm run teste:projetos    # cadastro, dedupe, comando inicial, sanitizacao
 npm run teste:terminal    # o botao "Abrir terminal" do dialogo: shell puro, sem Claude
 npm run teste:copiar      # copiar/colar no terminal, e o Ctrl+C que ainda interrompe
 npm run teste:dupla       # implementacao dupla: duas worktrees, um painel so
+npm run teste:dupla-reais # com Claude de verdade: ~4min e consome tokens
 npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
 npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
@@ -846,9 +847,16 @@ unica peca de verdade nova; o resto ja existia e saiu de graca.
   danca do `/add-dir` com Enter separado so existe para sessao viva). Como `retratoSessao()` ja grava
   `ligacoes` e `despertar()` ja reaplica, **uma dupla restaurada volta ligada sozinha** — e nada
   precisou entrar nas listas brancas de `sessao.js` e `layouts.js`.
-- **`--add-dir` da acesso de FERRAMENTA, nao so de leitura** (`claude --help`, CLI 2.1.229:
-  "Additional directories to allow tool access to"). E o que faz o Claude editar os dois lados; sem
-  isso a feature seria so um leitor de codigo alheio.
+- **`--add-dir` da acesso de FERRAMENTA, nao so de leitura, e isso foi MEDIDO** contra o CLI 2.1.229
+  (`npm run teste:dupla-reais`). Nao e detalhe de redacao: a documentacao antiga deste projeto dizia
+  "acesso de leitura" (`docs/fase-9-extras.md`, camada 1), e se fosse so leitura a implementacao dupla
+  seria um leitor de codigo alheio em vez de implementar nos dois lados. O teste roda
+  `claude -p "crie o arquivo X no diretorio adicional" --add-dir <outro> --allowedTools Write` e
+  **confere o arquivo no disco do outro repositorio**.
+  - O mesmo teste prova as duas pontas do contraste: **sem** a flag a sessao responde que nao alcanca
+    ("não há diretório adicional acessível nesta sessão"), e **com** ela le o identificador que so
+    existe la. E, pela interface, a sessao unica da dupla le o outro repositorio **sem confirmacao
+    nenhuma** — que e a diferenca entre lancar com `--add-dir` e o `/add-dir` de sessao viva.
 - **Worktree que ja existe e REAPROVEITADA, nunca recriada**, e a previa do dialogo diz `criar` ou
   `reaproveitar` para cada lado antes de confirmar. E o que deixa reabrir a mesma dupla amanha so
   redigitando o nome; recriar apagaria trabalho.
@@ -1740,6 +1748,42 @@ proprio textarea, entao digitar dentro de um terminal ja nao chega aqui". Ele so
 nas teclas que **consome**, e `1`–`4` puras ele nao consome — quem protege a densidade e a guarda de
 `TEXTAREA` da linha anterior. O comportamento estava certo; a explicacao, nao, e e a explicacao que o
 proximo leitor usaria para decidir se pode remover a guarda.
+
+### No macOS o Cmd+C chega por outro caminho, e isso e correto
+
+**Raciocinado, NAO medido** — esta maquina e Windows, e o teste nao alcanca este trecho. Escrito aqui
+porque o desenho parece inconsistente de fora e convida a um "conserto" que quebraria as duas pontas.
+
+No macOS o Electron **sempre** instala um menu de aplicacao (la ele e obrigatorio) quando ninguem
+chama `Menu.setApplicationMenu` — e este app nunca chama. Esse menu traz um Edit com `role: 'copy'` e
+`role: 'paste'`, e acelerador de menu e resolvido no processo principal **antes** de a tecla chegar ao
+renderer. Consequencia: no Mac o `Cmd+C` provavelmente nunca chega ao nosso
+`attachCustomKeyEventHandler`.
+
+E ainda assim funciona, porque cai num caminho que tambem termina no xterm:
+
+```
+Cmd+C -> role:'copy' -> webContents.copy() -> comando Copy do Blink
+      -> evento `copy` no elemento focado -> sobe ate o `.xterm`
+      -> o copyHandler que o proprio xterm registra, guardado por hasSelection()
+```
+
+E o repartir de teclas sai **certo por acidente feliz**, que e o que interessa:
+
+| tecla no Mac | quem trata | resultado |
+|---|---|---|
+| `Cmd+C` | menu do Electron | copia (e nao interrompe) |
+| `Ctrl+C` | nao e acelerador de menu, chega ao xterm | `\x03`, interrompe |
+| `Cmd+V` | `role: 'paste'` -> evento `paste` -> `handlePasteEvent` do xterm | cola |
+
+Ou seja: no Mac o *interromper* e `Ctrl+C` e o *copiar* e `Cmd+C`, que e exatamente a convencao de la —
+e as duas coisas deixam de disputar a mesma tecla, que era todo o problema no Windows.
+
+**O que NAO fazer:** chamar `Menu.setApplicationMenu(null)` para "uniformizar". Isso levaria junto o
+Cmd+C, o Cmd+V, o Cmd+Q e o recortar/colar dos campos de texto dos modais — e no Mac nao ha outro
+lugar de onde eles venham. O `Cmd+Shift+C` e o menu do botao direito existem como caminho garantido
+nos dois sistemas, e sao eles que devem ser usados se um dia isto se mostrar errado num Mac de
+verdade.
 
 ## Ler o buffer do terminal: `isWrapped` decide se funciona
 

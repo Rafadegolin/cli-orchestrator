@@ -50,8 +50,11 @@ do multi-repo**; as outras duas são conveniência em cima dela.
 
 **Camada 1 — acesso cruzado ao repositório.** Verificado contra o CLI 2.1.220:
 
-- `--add-dir <dir>` existe como flag: dá acesso de leitura a outro diretório e **traz o `CLAUDE.md`
-  dele junto** (a documentação do `--bare` lista `--add-dir` entre as fontes de contexto).
+- `--add-dir <dir>` existe como flag: dá acesso de **ferramenta** a outro diretório e **traz o
+  `CLAUDE.md` dele junto** (a documentação do `--bare` lista `--add-dir` entre as fontes de contexto).
+  **Correção:** este documento dizia "acesso de leitura", e é leitura **e escrita** — medido em
+  `npm run teste:dupla-reais`, que confere no disco um arquivo criado do outro lado. A diferença
+  decide se a implementação dupla implementa nos dois repos ou só lê um deles.
 - `/add-dir` existe como **comando de barra**, então uma ligação criada numa sessão **já rodando** é
   aplicada na hora — basta escrever `/add-dir <caminho>` no PTY, capacidade que o app já tem
   (`window.orq.escrever`). Sem reiniciar sessão.
