@@ -102,7 +102,8 @@ tempo: o botão `ligar` no cabeçalho do painel dá a cada sessão acesso ao có
 de reexplicar o contrato da API uma para a outra.
 
 **Ou implemente nos dois de uma vez.** **Implementação dupla** vai um passo além de ligar: escolha
-dois projetos e um nome de feature, e o app cria a mesma worktree nos **dois** repositórios e abre
+dois projetos e dê a **cada um** o nome do branch dele — o backend vai para `worktree-api-pix` e o
+frontend para `worktree-issue-42`, uma issue por repositório — e o app cria as duas worktrees e abre
 **uma** sessão que enxerga as duas. O Claude lê e escreve nos dois lados na mesma conversa — sem
 handoff, sem abrir um terminal fora do app. Worktree que já existe é reaproveitada, e o diálogo
 mostra o nome real do branch antes de você confirmar.

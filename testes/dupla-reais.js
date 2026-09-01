@@ -28,11 +28,15 @@ const { execFileSync, spawnSync } = require('child_process');
 const { conectar, checar, encerrar, esperar, zerarGrade } = require('./cdp');
 
 const BASE = path.join(os.tmpdir(), 'orq-teste-dupla-reais');
-const SLUG = 'contrato-dupla';
+// Um nome por repositorio: cada um tem a sua issue. Nomes DIFERENTES de
+// proposito -- com o mesmo slug dos dois lados, um vazamento de nome passaria
+// despercebido.
+const SLUG_A = 'api-contrato';
+const SLUG_B = 'issue-contrato';
 const SEGREDO = 'CONTRATO_PEDIDOS_V9';
 const MARCA_ESCRITA = 'ESCRITO_PELA_DUPLA';
 
-const wtDe = (repo) => path.join(repo, '.claude', 'worktrees', SLUG);
+const wtDe = (repo, slug) => path.join(repo, '.claude', 'worktrees', slug);
 
 function git(cwd, ...args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true });
@@ -133,9 +137,12 @@ async function ateQue(cdp, expr, ms) {
     document.getElementById('dupla-a').value = ${JSON.stringify(ids.back)};
     document.getElementById('dupla-b').value = ${JSON.stringify(ids.front)};
     document.getElementById('dupla-a').dispatchEvent(new Event('change'));
-    const el = document.getElementById('dupla-nome');
-    el.value = ${JSON.stringify(SLUG)};
-    el.dispatchEvent(new Event('input'));
+    const a = document.getElementById('dupla-nome-a');
+    const b = document.getElementById('dupla-nome-b');
+    a.value = ${JSON.stringify(SLUG_A)};
+    b.value = ${JSON.stringify(SLUG_B)};
+    a.dispatchEvent(new Event('input'));
+    b.dispatchEvent(new Event('input'));
     return 'ok';
   })()`);
   await esperar(1200);
@@ -143,12 +150,12 @@ async function ateQue(cdp, expr, ms) {
 
   const abriu = await ateQue(cdp, `window.OrqPainel.painelPorId.size === 1`, 30000);
   checar('o dialogo criou as duas worktrees e abriu o painel', abriu, '');
-  checar('a worktree do anfitriao existe', fs.existsSync(wtDe(back)), wtDe(back));
-  checar('a worktree do repo ligado existe', fs.existsSync(wtDe(front)), wtDe(front));
+  checar('a worktree do anfitriao existe', fs.existsSync(wtDe(back, SLUG_A)), wtDe(back, SLUG_A));
+  checar('a worktree do repo ligado existe', fs.existsSync(wtDe(front, SLUG_B)), wtDe(front, SLUG_B));
   // O contrato viajou junto no checkout do frontend, e continua fora do backend.
   checar('o contrato esta SO na worktree ligada',
-    fs.existsSync(path.join(wtDe(front), 'contrato.md'))
-    && !fs.existsSync(path.join(wtDe(back), 'contrato.md')), '');
+    fs.existsSync(path.join(wtDe(front, SLUG_B), 'contrato.md'))
+    && !fs.existsSync(path.join(wtDe(back, SLUG_A), 'contrato.md')), '');
 
   const id = await cdp.avaliar(`[...window.OrqPainel.painelPorId.keys()][0]`);
 

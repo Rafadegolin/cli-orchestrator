@@ -63,8 +63,10 @@ contextBridge.exposeInMainWorld('orq', {
   // ver que alguma coisa esta acontecendo.
   aoArquivarProgresso: (fn) => ipcRenderer.on('worktrees:progresso', (_e, p) => fn(p)),
   includeSituacao: (projeto) => ipcRenderer.invoke('worktrees:situacaoInclude', projeto),
-  worktreesPreverDupla: (a, b, slug) => ipcRenderer.invoke('worktrees:preverDupla', { a, b, slug }),
-  worktreesCriarDupla: (a, b, slug) => ipcRenderer.invoke('worktrees:criarDupla', { a, b, slug }),
+  // Um objeto por lado (`{ caminho, slug }`): cada repositorio tem o seu proprio
+  // nome de branch, porque cada um tem a sua issue.
+  worktreesPreverDupla: (a, b) => ipcRenderer.invoke('worktrees:preverDupla', { a, b }),
+  worktreesCriarDupla: (a, b) => ipcRenderer.invoke('worktrees:criarDupla', { a, b }),
 
   gitSituacao: (projeto) => ipcRenderer.invoke('git:situacao', projeto),
   gitBuscar: (projeto) => ipcRenderer.invoke('git:buscar', projeto),

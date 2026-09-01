@@ -616,7 +616,7 @@ class Painel {
     this.elLigacoes.textContent = n ? `${n} ligado${n === 1 ? '' : 's'}` : 'ligar';
     this.elLigacoes.className = n ? 'painel-ligacoes tem-ligacao' : 'painel-ligacoes';
     this.elLigacoes.title = n
-      ? `Esta sessão enxerga o código de:\n${(this.ligacoes || []).join('\n')}\n\nClique para gerenciar.`
+      ? `Esta sessão enxerga o código de:\n${(this.ligacoes || []).map(rotuloDeLigacao).join('\n')}\n\nClique para gerenciar.`
       : 'Dar a esta sessão acesso ao código de outro repositório';
   }
 
@@ -755,6 +755,25 @@ function rebalancearRenderizadores() {
     const querWebgl = x.p.visivel && !x.p.dormindo && i < TETO_WEBGL;
     x.p.usarRenderizador(querWebgl ? 'webgl' : 'canvas');
   });
+}
+
+// Caminho de worktree vira "<projeto> · worktree-<slug>".
+//
+// Existe por causa da implementacao dupla com nomes diferentes: cada repositorio
+// tem a SUA issue, e o cabecalho do painel mostra so o nome do anfitriao. Sem
+// isto, a issue aberta do outro lado nao apareceria em lugar nenhum da tela --
+// so no fim de um caminho longo. Vale para toda ligacao, e nao so para a dupla.
+//
+// O `worktree-` e derivado do caminho porque a convencao e do modulo de
+// worktrees (`<projeto>/.claude/worktrees/<slug>` <-> `worktree-<slug>`), a mesma
+// que o `claude -w` produz. Caminho que nao segue a convencao cai nele mesmo:
+// ligacao para a raiz de um projeto e caso legitimo.
+function rotuloDeLigacao(caminho) {
+  const texto = String(caminho || '');
+  const projeto = window.OrqProjetos?.projetoDe?.(texto);
+  const m = texto.replace(/\\/g, '/').match(/\/\.claude\/worktrees\/([^/]+)\/?$/);
+  if (!m) return projeto?.nome ? `${projeto.nome} — ${texto}` : texto;
+  return `${projeto?.nome || nomeCurto(texto)} · worktree-${m[1]}`;
 }
 
 function nomeCurto(caminho) {

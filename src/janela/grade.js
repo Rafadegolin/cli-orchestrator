@@ -68,6 +68,12 @@ async function criarPainel({
   // valer, e o botao de tentar de novo sumia -- o mesmo silencio que a ordem de
   // gravacao em `registrarEm` existe para evitar.
   painel.ligacoesPendentes = Array.isArray(ligacoesPendentes) ? [...ligacoesPendentes] : [];
+  // Painel que NASCE ligado (toda implementacao dupla, e toda sessao restaurada
+  // com ligacao) precisa desenhar o chip aqui: quem o atualizava era so o
+  // `ligacoes.js`, que roda quando VOCE liga. Sem isto o chip dizia "ligar" numa
+  // sessao que ja enxerga o outro repositorio, e o unico lugar que nomeia o
+  // branch do outro lado ficava vazio. Foi o teste que pegou.
+  painel.mostrarLigacoes();
   painel.x = Number.isFinite(x) ? x : null;
   painel.y = Number.isFinite(y) ? y : null;
   // Tamanho no mapa. Separado de x/y porque um sessao.json gravado antes do

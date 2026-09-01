@@ -277,12 +277,14 @@ const TODAS_SECOES = [
     blocos: [
       p('O botão <b>Implementação dupla</b> na barra de cima resolve o caso em que ligar duas '
         + 'sessões ainda dá trabalho demais: a feature nasce nos dois repositórios ao mesmo tempo, '
-        + 'e você quer <b>uma</b> conversa só. Escolha os dois projetos, dê um nome à feature, e o '
-        + 'app cria a mesma worktree nos dois e abre uma sessão que enxerga as duas.'),
+        + 'e você quer <b>uma</b> conversa só. Escolha os dois projetos, dê a <b>cada um</b> o nome '
+        + 'do branch dele, e o app cria as duas worktrees e abre uma sessão que enxerga as duas.'),
       lista([
-        'O branch é <code>worktree-&lt;nome&gt;</code> nos <b>dois</b> repositórios — o mesmo nome que a <b>Nova sessão</b> já produz. A linha embaixo do campo mostra o nome real antes de você confirmar.',
-        'Worktree que já existe é <b>reaproveitada</b>, nunca recriada: para voltar amanhã à mesma dupla, basta redigitar o nome. A prévia diz <b>criar</b> ou <b>reaproveitar</b> para cada lado.',
+        '<b>Um nome por repositório</b>, porque cada um tem a sua issue: o backend pode ir para <code>worktree-api-pix</code> e o frontend para <code>worktree-issue-42</code>. A linha embaixo de cada campo mostra o nome real do branch antes de você confirmar.',
+        'Os dois campos são independentes — para usar o mesmo nome nos dois, digite o mesmo nos dois.',
+        'Worktree que já existe é <b>reaproveitada</b>, nunca recriada: para voltar amanhã à mesma dupla, basta redigitar os nomes. A prévia diz <b>criar</b> ou <b>reaproveitar</b> para cada lado.',
         'Você escolhe em qual dos dois o terminal abre. O outro entra por <code>--add-dir</code>, que dá acesso de <b>ferramenta</b> — o Claude lê <b>e escreve</b> nos dois.',
+        'A sessão se chama como o branch do repositório onde o terminal abriu. O do outro lado aparece no chip <b>1 ligado</b> do cabeçalho.',
         'Se o segundo repositório falhar, o primeiro é desfeito: não fica meia dupla no disco.',
       ]),
       aviso('As duas worktrees aparecem na lista de cada projeto como qualquer outra, e são arquivadas '

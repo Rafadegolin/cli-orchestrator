@@ -215,8 +215,8 @@ punha o cursor lá.
 (`src/janela/dupla.js`). Ligar duas sessões resolvia o acesso cruzado, mas ainda eram duas conversas
 — e o relato de campo foi exatamente esse: *"hoje abro os dois repositórios, entro nas respectivas
 branches e abro um terminal normal com o Claude para aplicar nos 2 repos de uma vez, sem ter que
-gerar handoff"*. Agora o app cria a mesma worktree nos dois repositórios e abre **uma** sessão com a
-outra em `--add-dir`.
+gerar handoff"*. Agora o app cria uma worktree em cada repositório — **com o nome de branch que você
+der a cada um**, porque cada repo tem a sua issue — e abre **uma** sessão com a outra em `--add-dir`.
 
 Para isso o app precisou aprender a **criar** worktree (`worktrees.criar`), coisa que nunca fez: até
 aqui a criação era 100% do `claude -w` digitado no PTY. As três consequências que decidiram o desenho

@@ -2887,7 +2887,7 @@ button.primario:hover {
 
 /* =================================================== implementação dupla */
 
-#dupla-a, #dupla-b, #dupla-nome {
+#dupla-a, #dupla-b, #dupla-nome-a, #dupla-nome-b {
   flex: 1;
   min-width: 0;
   background: var(--bg2);
@@ -2898,9 +2898,9 @@ button.primario:hover {
   font-size: 12px;
 }
 
-#dupla-nome { font-family: var(--mono); }
+#dupla-nome-a, #dupla-nome-b { font-family: var(--mono); }
 
-#dupla-a:focus, #dupla-b:focus, #dupla-nome:focus {
+#dupla-a:focus, #dupla-b:focus, #dupla-nome-a:focus, #dupla-nome-b:focus {
   outline: none;
   border-color: var(--acc);
 }
@@ -2909,7 +2909,7 @@ button.primario:hover {
    nome e entrega outro -- e o mesmo motivo pelo qual o campo de sessao do topo
    perdeu o prefixo `feat/` que nunca chegou a branch nenhum. */
 .modal-dica {
-  margin: -10px 0 16px 0;
+  margin: -10px 0 0 0;
   font-size: 11px;
   color: var(--fg3);
   font-family: var(--mono);
@@ -2956,3 +2956,10 @@ button.primario:hover {
   #btn-dupla .so-largo { display: none; }
   #btn-dupla .so-estreito { display: inline; }
 }
+
+/* Um bloco por repositorio: select + nome do branch, com a dica logo abaixo.
+   Com nomes diferentes, agrupar assim e o que impede a duvida de qual nome
+   pertence a qual repo -- em duas listas separadas nao daria para saber. */
+.dupla-lado { margin-bottom: 14px; }
+.dupla-lado .modal-linha { margin-bottom: 0; }
+.dupla-lado .modal-dica { margin-top: 6px; }

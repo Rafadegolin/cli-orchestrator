@@ -824,8 +824,32 @@ O conteudo e uma **estrutura de dados**, nao HTML solto, e isso resolve dois pro
 
 `src/janela/dupla.js` + `worktrees.criar/prever/desfazer`. Botao **Implementacao dupla** na barra.
 Uma feature que atravessa dois repos (backend num, frontend noutro) deixa de exigir sair do app:
-escolhe-se os dois projetos e um nome, o app cria a MESMA worktree nos dois e abre **um** painel que
-enxerga os dois.
+escolhe-se os dois projetos e **o nome do branch de cada um**, o app cria as duas worktrees e abre
+**um** painel que enxerga os dois.
+
+**Um nome POR repositorio, e nao um so para os dois.** A primeira versao forcava o mesmo slug nos
+dois lados, e o relato foi direto: cada repositorio tem a SUA issue, logo o seu proprio branch. O
+nucleo ja aguentava isso sem mudanca -- `criar(projeto, slug)` e `prever(projeto, slug)` sempre
+foram por repositorio; quem impunha o nome unico eram os chamadores, que passavam o mesmo valor duas
+vezes.
+
+- **O IPC recebe um objeto por lado** (`{ caminho, slug }`), e nao quatro strings soltas: com
+  `(a, b, slugA, slugB)`, trocar duas de lugar nao daria erro nenhum -- as worktrees nasceriam com os
+  nomes invertidos, caladas.
+- **A sessao se chama como o branch do ANFITRIAO.** Esse nome vai para o cabecalho, a lateral, o
+  historico e o `--name` do CLI, que e por onde o `registro.js` casa a sessao com este painel. Um
+  nome combinado ("a + b") nao seria branch de ninguem e essa correlacao pararia de decidir status.
+- **Os dois campos sao independentes, sem espelhar.** Espelhar economizaria uma digitacao no caso
+  facil e esconderia justamente o caso que motivou a mudanca.
+- **Uma dica por campo**, com o branch real ao lado do campo que o produz: uma linha so nao diria de
+  qual repositorio e o branch.
+- **O chip `1 ligado` do cabecalho passou a nomear o branch do outro lado** (`rotuloDeLigacao` em
+  `painel.js`), derivando `worktree-<slug>` do caminho. Sem isso, com nomes diferentes, a issue
+  aberta do outro lado nao aparecia em lugar nenhum da tela -- so no fim de um caminho longo.
+  - E ai apareceu um defeito que ja existia calado: **`criarPainel` gravava `p.ligacoes` mas nunca
+    chamava `mostrarLigacoes()`** -- so o `ligacoes.js` chamava, e ele so roda quando VOCE liga.
+    Todo painel que NASCE ligado (toda dupla, e toda sessao restaurada com ligacao) mostrava "ligar"
+    no chip. Foi o teste do rotulo novo que pegou.
 
 **Ate aqui o app NUNCA criou worktree** — quem criava era o `claude -w` digitado no PTY. Esta e a
 unica peca de verdade nova; o resto ja existia e saiu de graca.

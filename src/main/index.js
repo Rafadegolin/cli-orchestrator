@@ -404,12 +404,16 @@ ipcMain.handle('worktrees:situacaoInclude', (_e, projeto) => worktrees.situacaoI
 // vira UMA sessao que enxerga os dois: as duas worktrees sao criadas aqui, e o
 // painel abre na do repositorio escolhido com a outra em `--add-dir`.
 //
+// Cada lado chega como `{ caminho, slug }`, e nao como quatro strings soltas:
+// com `(a, b, slugA, slugB)`, trocar duas de lugar nao daria erro nenhum -- as
+// worktrees nasceriam com os nomes invertidos, caladas.
+//
 // So leitura, para o dialogo mostrar o que vai acontecer com cada lado ANTES de
 // qualquer escrita. Devolve `{ erro }` em vez de estourar: o nome e digitado, e
 // erro de uso tem de virar mensagem na tela.
-ipcMain.handle('worktrees:preverDupla', (_e, { a, b, slug }) => ({
-  a: worktrees.prever(a, slug),
-  b: worktrees.prever(b, slug),
+ipcMain.handle('worktrees:preverDupla', (_e, { a, b }) => ({
+  a: worktrees.prever(a.caminho, a.slug),
+  b: worktrees.prever(b.caminho, b.slug),
 }));
 
 // Cria as duas, em SEQUENCIA. Se a segunda falhar, desfaz a primeira -- e so
@@ -419,15 +423,15 @@ ipcMain.handle('worktrees:preverDupla', (_e, { a, b, slug }) => ({
 // Nenhum caminho de recusa pode deixar residuo, que e a mesma regra do
 // `arquivar`. Quando nem o desfazer funciona, o retorno NOMEIA o que ficou para
 // tras, em vez de sumir com a informacao.
-ipcMain.handle('worktrees:criarDupla', async (_e, { a, b, slug }) => {
-  const ra = await worktrees.criar(a, slug);
+ipcMain.handle('worktrees:criarDupla', async (_e, { a, b }) => {
+  const ra = await worktrees.criar(a.caminho, a.slug);
   if (!ra.ok) return { ok: false, onde: 'a', texto: ra.texto };
 
-  const rb = await worktrees.criar(b, slug);
+  const rb = await worktrees.criar(b.caminho, b.slug);
   if (!rb.ok) {
     let sobrou = '';
     if (ra.criada) {
-      const d = await worktrees.desfazer(a, ra.caminho, ra.branch);
+      const d = await worktrees.desfazer(a.caminho, ra.caminho, ra.branch);
       if (!d.ok) sobrou = ` A worktree ${ra.caminho} ficou para tras (${d.texto}).`;
     }
     return { ok: false, onde: 'b', texto: rb.texto + sobrou };

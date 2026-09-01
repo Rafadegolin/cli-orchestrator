@@ -1,14 +1,17 @@
 'use strict';
 // Implementacao dupla: duas worktrees, UM painel.
 //
-// Prova as quatro coisas que decidem se a feature esta certa:
+// Prova as cinco coisas que decidem se a feature esta certa:
 //
-//   1. as duas worktrees nascem no disco, com o nome que a tela prometeu;
+//   1. cada repositorio ganha a worktree com o NOME DELE -- uma issue por repo,
+//      e o nome de um nunca vaza para o outro;
 //   2. abre UM painel so, na worktree do repositorio escolhido -- e nao na raiz,
 //      senao `p.cwd` mentiria sobre onde a sessao esta;
-//   3. o comando leva `--add-dir` do outro lado e NAO leva `-w`, que criaria uma
+//   3. a sessao se chama como o branch do ANFITRIAO, que e por onde o
+//      `registro.js` casa o `--name` do CLI com este painel;
+//   4. o comando leva `--add-dir` do outro lado e NAO leva `-w`, que criaria uma
 //      segunda worktree dentro da primeira;
-//   4. rodar de novo com o mesmo nome REAPROVEITA, em vez de recriar.
+//   5. rodar de novo com os mesmos nomes REAPROVEITA, em vez de recriar.
 //
 // Repositorios descartaveis, e nada da lista real do usuario e tocado: o
 // `ORQ_DADOS` do `npm run dev` ja reaponta o projetos.json.
@@ -96,23 +99,37 @@ async function ate(fn, cond, ms = 15000) {
   // Dois selects com o mesmo padrao fariam o primeiro clique ser sempre um erro.
   checar('os dois selects nao nascem no mesmo repo', aberto.aVaiParaB === true, JSON.stringify(aberto));
 
-  // A tela nao pode prometer um nome e o git receber outro.
-  const dica = await cdp.avaliar(`(() => {
-    const el = document.getElementById('dupla-nome');
-    el.value = 'PIX Checkout!';
-    el.dispatchEvent(new Event('input'));
-    return document.getElementById('dupla-dica').textContent;
-  })()`);
-  checar('a dica mostra o nome REAL do branch',
-    /worktree-PIX-Checkout\b/.test(String(dica)), String(dica));
+  // A tela nao pode prometer um nome e o git receber outro -- e com um nome POR
+  // repositorio, cada dica tem de falar do seu proprio campo.
+  const dicas = JSON.parse(await cdp.avaliar(`(() => {
+    const a = document.getElementById('dupla-nome-a');
+    const b = document.getElementById('dupla-nome-b');
+    a.value = 'PIX Checkout!';
+    b.value = 'issue 42';
+    a.dispatchEvent(new Event('input'));
+    b.dispatchEvent(new Event('input'));
+    return JSON.stringify({
+      a: document.getElementById('dupla-dica-a').textContent,
+      b: document.getElementById('dupla-dica-b').textContent,
+    });
+  })()`));
+  checar('a dica de cada campo mostra o nome REAL do branch dele',
+    /worktree-PIX-Checkout\b/.test(dicas.a) && /worktree-issue-42\b/.test(dicas.b),
+    JSON.stringify(dicas));
+  // Uma dica so nao diria de qual repositorio e o branch.
+  checar('e as duas NAO se misturam',
+    !dicas.a.includes('issue-42') && !dicas.b.includes('PIX-Checkout'), JSON.stringify(dicas));
 
   // --- a previa diz o que vai acontecer com cada lado ----------------------
   await cdp.avaliar(`(() => {
     document.getElementById('dupla-a').value = ${JSON.stringify(ids.back)};
     document.getElementById('dupla-b').value = ${JSON.stringify(ids.front)};
-    const el = document.getElementById('dupla-nome');
-    el.value = 'pix';
-    el.dispatchEvent(new Event('input'));
+    const a = document.getElementById('dupla-nome-a');
+    const b = document.getElementById('dupla-nome-b');
+    a.value = 'api-pix';
+    b.value = 'issue-42';
+    a.dispatchEvent(new Event('input'));
+    b.dispatchEvent(new Event('input'));
     document.getElementById('dupla-a').dispatchEvent(new Event('change'));
     return 'ok';
   })()`);
@@ -122,18 +139,28 @@ async function ate(fn, cond, ms = 15000) {
   );
   checar('a previa diz "criar" nos dois lados',
     (String(previa).match(/criar/g) || []).length === 2, String(previa));
+  // Com nomes diferentes, a previa TEM de nomear o branch de cada lado.
+  checar('e nomeia o branch de cada repositorio',
+    String(previa).includes('worktree-api-pix') && String(previa).includes('worktree-issue-42'),
+    String(previa));
 
   // --- confirmar -----------------------------------------------------------
   await cdp.avaliar(`window.OrqDupla.confirmar()`);
   await ate(() => cdp.avaliar(`window.OrqPainel.painelPorId.size`), (n) => n === 1, 20000);
 
-  const wtBack = path.join(back, '.claude', 'worktrees', 'pix');
-  const wtFront = path.join(front, '.claude', 'worktrees', 'pix');
-  checar('a worktree do backend existe', fs.existsSync(wtBack), wtBack);
-  checar('a worktree do frontend existe', fs.existsSync(wtFront), wtFront);
-  checar('o branch e worktree-pix nos dois',
-    git(back, 'branch', '--list', 'worktree-pix').trim().length > 0
-    && git(front, 'branch', '--list', 'worktree-pix').trim().length > 0);
+  // O ponto desta versao: um nome POR repositorio, porque cada um tem a sua
+  // issue. Antes os dois eram forcados ao mesmo slug.
+  const wtBack = path.join(back, '.claude', 'worktrees', 'api-pix');
+  const wtFront = path.join(front, '.claude', 'worktrees', 'issue-42');
+  checar('a worktree do backend nasceu com o nome DELE', fs.existsSync(wtBack), wtBack);
+  checar('a do frontend com o nome DELE', fs.existsSync(wtFront), wtFront);
+  checar('e cada branch tem o seu proprio nome',
+    git(back, 'branch', '--list', 'worktree-api-pix').trim().length > 0
+    && git(front, 'branch', '--list', 'worktree-issue-42').trim().length > 0);
+  // A prova de que o comportamento antigo nao sobrou em nenhum dos dois lados.
+  checar('e o nome de um NAO vazou para o outro',
+    git(back, 'branch', '--list', 'worktree-issue-42').trim() === ''
+    && git(front, 'branch', '--list', 'worktree-api-pix').trim() === '');
 
   const painel = JSON.parse(await cdp.avaliar(`(() => {
     const [p] = [...window.OrqPainel.painelPorId.values()];
@@ -151,10 +178,22 @@ async function ate(fn, cond, ms = 15000) {
   // quebraria `painelEm()` e o portao que protege o arquivar.
   checar('o painel abriu DENTRO da worktree do anfitriao',
     String(painel.cwd).toLowerCase() === wtBack.toLowerCase(), painel.cwd);
-  checar('a feature e o slug', painel.feature === 'pix', painel.feature);
+  // A sessao se chama como o branch do ANFITRIAO, e nao como o outro nem como
+  // uma mistura dos dois: e por este nome que o `registro.js` casa a sessao do
+  // CLI (`--name`) com este painel.
+  checar('a feature e o slug do ANFITRIAO', painel.feature === 'api-pix', painel.feature);
   // A worktree ja existe: `-w` criaria uma segunda dentro dela.
   checar('o comando NAO leva -w', !/\s-w\s/.test(String(painel.comandoInicial)), painel.comandoInicial);
-  checar('mas leva o --name', /--name pix/.test(String(painel.comandoInicial)), painel.comandoInicial);
+  checar('mas leva o --name do anfitriao',
+    /--name api-pix/.test(String(painel.comandoInicial)), painel.comandoInicial);
+  // O cabecalho mostra so o nome do anfitriao; sem isto a issue do outro lado
+  // nao apareceria em lugar nenhum da tela.
+  const chip = await cdp.avaliar(`(() => {
+    const [p] = [...window.OrqPainel.painelPorId.values()];
+    return p.elLigacoes.title;
+  })()`);
+  checar('o chip de ligacao nomeia o branch do outro lado',
+    String(chip).includes('worktree-issue-42'), String(chip).replace(/\n/g, ' | '));
   checar('a ligacao aponta para a worktree do outro repo',
     painel.ligacoes.length === 1
     && String(painel.ligacoes[0]).toLowerCase() === wtFront.toLowerCase(), JSON.stringify(painel.ligacoes));
@@ -173,7 +212,8 @@ async function ate(fn, cond, ms = 15000) {
   await zerarGrade(cdp);
   const previa2 = await cdp.avaliar(`(async () => {
     const r = await window.orq.worktreesPreverDupla(
-      ${JSON.stringify(back)}, ${JSON.stringify(front)}, 'pix');
+      { caminho: ${JSON.stringify(back)}, slug: 'api-pix' },
+      { caminho: ${JSON.stringify(front)}, slug: 'issue-42' });
     return JSON.stringify({ a: r.a.acao, b: r.b.acao, existeA: r.a.existe, existeB: r.b.existe });
   })()`);
   const p2 = JSON.parse(previa2);
@@ -182,7 +222,8 @@ async function ate(fn, cond, ms = 15000) {
 
   const denovo = JSON.parse(await cdp.avaliar(`(async () => {
     const r = await window.orq.worktreesCriarDupla(
-      ${JSON.stringify(back)}, ${JSON.stringify(front)}, 'pix');
+      { caminho: ${JSON.stringify(back)}, slug: 'api-pix' },
+      { caminho: ${JSON.stringify(front)}, slug: 'issue-42' });
     return JSON.stringify({ ok: r.ok, criadaA: r.a.criada, criadaB: r.b.criada });
   })()`));
   checar('e nao recria nada', denovo.ok === true && denovo.criadaA === false && denovo.criadaB === false,
@@ -191,7 +232,8 @@ async function ate(fn, cond, ms = 15000) {
   // --- recusa: repositorio invalido ----------------------------------------
   const recusa = JSON.parse(await cdp.avaliar(`(async () => {
     const r = await window.orq.worktreesCriarDupla(
-      ${JSON.stringify(back)}, ${JSON.stringify(avulso)}, 'outra');
+      { caminho: ${JSON.stringify(back)}, slug: 'outra' },
+      { caminho: ${JSON.stringify(avulso)}, slug: 'outra-front' });
     return JSON.stringify(r);
   })()`));
   checar('recusa quando o segundo nao e repositorio', recusa.ok === false, JSON.stringify(recusa));

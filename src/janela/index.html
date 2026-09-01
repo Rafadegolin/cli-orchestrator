@@ -383,22 +383,30 @@
   <div id="dupla" class="overlay" hidden>
     <div class="modal-caixa">
       <h2>Implementação dupla</h2>
-      <p class="modal-explica">Cria a mesma worktree nos dois repositórios e abre <b>uma</b> sessão
-        que enxerga os dois — o Claude implementa nos dois lados de uma vez, sem handoff.</p>
+      <p class="modal-explica">Uma worktree em cada repositório, com o nome de branch que você der a cada um,
+        e <b>uma</b> sessão que enxerga as duas — o Claude implementa nos dois lados de uma vez, sem handoff.</p>
 
-      <div class="modal-rotulo">Repositórios</div>
-      <div class="modal-linha">
-        <select id="dupla-a"></select>
-        <select id="dupla-b"></select>
+      <div class="modal-rotulo">Repositórios e branches</div>
+      <!-- Uma linha por repositorio, com o nome do branch AO LADO do seu select:
+           cada repo tem a sua issue, entao cada um tem o seu proprio nome. Em
+           duas listas separadas nao daria para saber qual nome e de qual repo. -->
+      <div class="dupla-lado">
+        <div class="modal-linha">
+          <select id="dupla-a"></select>
+          <input id="dupla-nome-a" type="text" spellcheck="false" placeholder="api-pix" />
+        </div>
+        <!-- O nome real do branch, antes de confirmar. A tela deste app nao
+             promete um nome e entrega outro. -->
+        <p class="modal-dica" id="dupla-dica-a"></p>
       </div>
 
-      <div class="modal-rotulo">Nome da feature</div>
-      <div class="modal-linha">
-        <input id="dupla-nome" type="text" spellcheck="false" placeholder="pix-checkout" />
+      <div class="dupla-lado">
+        <div class="modal-linha">
+          <select id="dupla-b"></select>
+          <input id="dupla-nome-b" type="text" spellcheck="false" placeholder="issue-42" />
+        </div>
+        <p class="modal-dica" id="dupla-dica-b"></p>
       </div>
-      <!-- O nome real do branch, antes de confirmar. A tela deste app nao
-           promete um nome e entrega outro. -->
-      <p class="modal-dica" id="dupla-dica"></p>
 
       <div class="modal-rotulo">Abrir o terminal em</div>
       <div class="pilulas" id="dupla-onde"></div>

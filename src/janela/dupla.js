@@ -5,9 +5,9 @@
 // preciso SAIR do orquestrador -- abrir os dois repos a mao, entrar nas branches
 // e rodar um `claude` de terminal comum que enxergasse os dois.
 //
-// O desenho cabe numa linha: o app cria as DUAS worktrees, abre UM painel na do
-// repositorio escolhido, e passa a outra em `ligacoes` -- de onde o `--add-dir`
-// sai sozinho, porque `criarPainel` ja chama `OrqLigacoes.comAddDir`. Sessao
+// O desenho cabe numa linha: o app cria UMA worktree em cada repositorio, abre UM
+// painel na do repositorio escolhido, e passa a outra em `ligacoes` -- de onde o
+// `--add-dir` sai sozinho, porque `criarPainel` ja chama `OrqLigacoes.comAddDir`. Sessao
 // nova lancada com `--add-dir` nao pede confirmacao nenhuma; a danca do
 // `/add-dir` com Enter separado so existe para sessao JA viva.
 //
@@ -21,6 +21,15 @@
 //  2. Por isso o comando vai SEM `-w` (`montarComando(..., { worktree: false })`):
 //     a worktree ja existe, e o `-w` criaria uma segunda dentro dela.
 //
+//  3. Cada repositorio tem o SEU nome de branch, porque cada um tem a sua issue.
+//     Os dois campos sao independentes de proposito -- espelhar o primeiro no
+//     segundo economizaria uma digitacao no caso facil e escondria o caso que
+//     motivou a feature.
+//
+// A sessao se chama como o branch do ANFITRIAO: e onde ela vive, e e o que mantem
+// a correlacao do `registro.js`, que casa o `--name` do CLI com o `feature` do
+// painel. Um nome combinado ("a + b") nao seria branch de ninguem.
+//
 // Nao ha campo novo no painel: a ligacao entra em `p.ligacoes`, que o
 // `retratoSessao()` ja grava e o `despertar()` ja reaplica. Uma dupla restaurada
 // volta ligada sozinha.
@@ -29,8 +38,10 @@
   const elOverlay = document.getElementById('dupla');
   const elA = document.getElementById('dupla-a');
   const elB = document.getElementById('dupla-b');
-  const elNome = document.getElementById('dupla-nome');
-  const elDica = document.getElementById('dupla-dica');
+  const elNomeA = document.getElementById('dupla-nome-a');
+  const elNomeB = document.getElementById('dupla-nome-b');
+  const elDicaA = document.getElementById('dupla-dica-a');
+  const elDicaB = document.getElementById('dupla-dica-b');
   const elOnde = document.getElementById('dupla-onde');
   const elPrevia = document.getElementById('dupla-previa');
   const elErro = document.getElementById('dupla-erro');
@@ -56,8 +67,16 @@
     return candidatos().find((p) => p.id === sel.value) || null;
   }
 
-  function slug() {
-    return window.OrqProjetos.slugFeature(elNome.value || '');
+  function slugDe(el) {
+    return window.OrqProjetos.slugFeature(el.value || '');
+  }
+
+  // Um lado inteiro: o repositorio escolhido mais o nome de branch dele.
+  // E esta a forma que o main recebe -- `{ caminho, slug }` --, e nao quatro
+  // strings soltas onde trocar duas de lugar nao daria erro nenhum.
+  function lado(sel, elNome) {
+    const p = escolhido(sel);
+    return p ? { projeto: p, caminho: p.caminho, slug: slugDe(elNome) } : null;
   }
 
   function mostrarErro(texto) {
@@ -96,36 +115,40 @@
     }));
   }
 
-  // O nome REAL do branch, antes de confirmar. Mesma regra do campo de sessao do
-  // topo, e ela veio de um defeito: a tela prometia `feat/auth-refresh` e o git
-  // recebia `worktree-auth-refresh`.
+  // O nome REAL do branch, antes de confirmar, e ao lado do campo que o produz.
+  // Mesma regra do campo de sessao do topo, e ela veio de um defeito: a tela
+  // prometia `feat/auth-refresh` e o git recebia `worktree-auth-refresh`.
+  //
+  // Uma dica por campo, e nao uma frase so: com nomes diferentes, uma linha
+  // unica nao diria qual branch e de qual repositorio.
   function atualizarDica() {
-    const s = slug();
-    elDica.textContent = s
-      ? `worktree ${s} · branch worktree-${s}, nos dois repositórios`
-      : 'digite o nome da feature';
+    for (const [elNome, elDica] of [[elNomeA, elDicaA], [elNomeB, elDicaB]]) {
+      const s = slugDe(elNome);
+      elDica.textContent = s ? `branch worktree-${s}` : 'sem nome, sem worktree';
+    }
   }
 
   // Diz o que vai acontecer com CADA repositorio antes de escrever qualquer
   // coisa: criar, ou reaproveitar o que ja esta la.
   async function atualizarPrevia() {
-    const a = escolhido(elA);
-    const b = escolhido(elB);
-    const s = slug();
+    const a = lado(elA, elNomeA);
+    const b = lado(elB, elNomeB);
     const meu = ++previaEmCurso;
     elPrevia.replaceChildren();
-    if (!a || !b || !s) return;
+    if (!a || !b || !a.slug || !b.slug) return;
 
-    const r = await window.orq.worktreesPreverDupla(a.caminho, b.caminho, s);
+    const r = await window.orq.worktreesPreverDupla(
+      { caminho: a.caminho, slug: a.slug }, { caminho: b.caminho, slug: b.slug });
     // Outra chamada comecou enquanto esta esperava: quem escreve e ela.
     if (meu !== previaEmCurso) return;
 
     elPrevia.replaceChildren();
-    for (const [proj, p] of [[a, r.a], [b, r.b]]) {
+    for (const [alvo, p] of [[a, r.a], [b, r.b]]) {
       const linha = document.createElement('div');
       linha.className = 'dupla-previa-linha';
       const nome = document.createElement('span');
-      nome.textContent = proj.nome;
+      // Com nomes diferentes, dizer so o projeto deixaria a previa ambigua.
+      nome.textContent = `${alvo.projeto.nome} · worktree-${alvo.slug}`;
       const acao = document.createElement('span');
       acao.className = 'mono';
       acao.textContent = p.ok
@@ -155,7 +178,7 @@
     onde = 'a';
     atualizar();
     elOverlay.hidden = false;
-    elNome.focus();
+    elNomeA.focus();
   }
 
   function fechar() {
@@ -169,34 +192,40 @@
   // ------------------------------------------------------------ confirmar
 
   async function confirmar() {
-    const a = escolhido(elA);
-    const b = escolhido(elB);
-    const s = slug();
+    const a = lado(elA, elNomeA);
+    const b = lado(elB, elNomeB);
 
     if (!a || !b) return mostrarErro('escolha os dois repositórios');
-    if (a.id === b.id) return mostrarErro('escolha dois repositórios diferentes');
-    if (!s) return mostrarErro('dê um nome à feature');
+    if (a.projeto.id === b.projeto.id) return mostrarErro('escolha dois repositórios diferentes');
+    // Diz QUAL falta: com dois campos, "dê um nome" nao aponta para lugar nenhum.
+    if (!a.slug) return mostrarErro(`dê um nome ao branch de ${a.projeto.nome}`);
+    if (!b.slug) return mostrarErro(`dê um nome ao branch de ${b.projeto.nome}`);
 
     btnConfirmar.disabled = true;
     const antes = btnConfirmar.textContent;
     btnConfirmar.textContent = 'criando…';
     try {
-      const r = await window.orq.worktreesCriarDupla(a.caminho, b.caminho, s);
+      const r = await window.orq.worktreesCriarDupla(
+        { caminho: a.caminho, slug: a.slug }, { caminho: b.caminho, slug: b.slug });
       if (!r.ok) {
-        const qual = r.onde === 'a' ? a.nome : b.nome;
+        const qual = r.onde === 'a' ? a.projeto.nome : b.projeto.nome;
         return mostrarErro(`${qual}: ${r.texto}`);
       }
 
       const anfitriao = onde === 'a' ? r.a : r.b;
       const outro = onde === 'a' ? r.b : r.a;
+      const ladoAnfitriao = onde === 'a' ? a : b;
 
       fechar();
       await window.OrqGrade.criarPainel({
         // A worktree, e nao a raiz: e o que mantem `p.cwd` verdadeiro.
         cwd: anfitriao.caminho,
-        feature: s,
+        // O nome do ANFITRIAO. Ele vai para o cabecalho, a lateral, o historico
+        // e o `--name` do CLI, que e por onde o `registro.js` casa a sessao com
+        // este painel -- um nome que nao fosse branch de ninguem quebraria isso.
+        feature: ladoAnfitriao.slug,
         // Sem `-w`: a worktree ja existe, e ele criaria outra dentro dela.
-        comandoInicial: window.OrqProjetos.montarComando(s, true, { worktree: false }),
+        comandoInicial: window.OrqProjetos.montarComando(ladoAnfitriao.slug, true, { worktree: false }),
         // Vira `--add-dir "<caminho>"` dentro do proprio `criarPainel`.
         ligacoes: [outro.caminho],
       });
@@ -222,10 +251,12 @@
   btnConfirmar?.addEventListener('click', confirmar);
   elA?.addEventListener('change', atualizar);
   elB?.addEventListener('change', atualizar);
-  elNome?.addEventListener('input', atualizar);
-  elNome?.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter') confirmar();
-  });
+  for (const el of [elNomeA, elNomeB]) {
+    el?.addEventListener('input', atualizar);
+    el?.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') confirmar();
+    });
+  }
 
   // Esc pelo topo da pilha, clique no fundo e z-index por ordem de abertura.
   window.OrqOverlays?.registrar(elOverlay, fechar);
