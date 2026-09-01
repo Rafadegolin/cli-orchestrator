@@ -35,7 +35,7 @@ npm run teste:fase2       # 8 painéis: grade, orcamento WebGL, RAM/CPU (leva ~9
 npm run teste:fase45      # hooks -> bolinha -> lateral ordenada
 npm run teste:projetos    # cadastro, dedupe, comando inicial, sanitizacao
 npm run teste:terminal    # o botao "Abrir terminal" do dialogo: shell puro, sem Claude
-npm run teste:copiar      # copiar/colar no terminal, e o Ctrl+C que ainda interrompe
+npm run teste:copiar      # copiar/colar, o Ctrl+C que ainda interrompe, e colar UMA vez
 npm run teste:dupla       # implementacao dupla: duas worktrees, um painel so
 npm run teste:dupla-reais # com Claude de verdade: ~4min e consome tokens
 npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
@@ -1737,7 +1737,9 @@ uma linha com `clipboard` em todo o `src/`.
 
 - **O gancho e a PRIMEIRA linha do `_keyDown`** (`attachCustomKeyEventHandler`), o unico ponto de
   entrada que existe antes do `preventDefault`. Ligado no `_montarTerminal`, que ja e o ponto unico de
-  configuracao do xterm.
+  configuracao do xterm. **Chegar antes do cancelamento e o que nos deixa tratar a tecla, e e tambem
+  o que nos OBRIGA a cancelar por conta propria** — `return false` num ouvinte de DOM nao cancela
+  coisa nenhuma. Ver a subsecao da colagem dupla, que foi o preco de ler isso pela metade.
 - **Ctrl+C copia so quando ha selecao**; sem selecao devolve `true` e segue virando `\x03`. Essa
   segunda metade e a que nao podia ser perdida no conserto — um handler que copiasse sempre mataria o
   interromper do Claude, e o sintoma so apareceria no meio de uma sessao presa. **Copiar limpa a
@@ -1757,7 +1759,8 @@ uma linha com `clipboard` em todo o `src/`.
 - **Colar usa `term.paste()`, nunca `window.orq.escrever` direto.** Ele normaliza `\r\n` -> `\r` e
   embrulha em bracketed paste (`ESC[200~ … ESC[201~`) quando o programa pediu esse modo, que e o que
   faz a TUI do Claude receber texto multilinha como TEXTO em vez de uma rajada de Enters. Desemboca no
-  `onData` que ja existe, entao nao ha caminho novo ate o PTY.
+  `onData` que ja existe — mas isso responde para **onde** vai o byte, e nao **quantas vezes** ele sai.
+  Foi essa a frase que produziu a colagem dupla; ver a subsecao abaixo.
 - **O menu do botao direito nao e opcional.** Sem menu do Electron, o `rightClickHandler` do xterm so
   reposicionava o textarea esperando um menu nativo que nunca vinha — clicar com o direito nao fazia
   nada. Ele e tambem a rede do Ctrl+C: se um dia um acelerador de menu interceptar a tecla antes do
@@ -1772,6 +1775,61 @@ proprio textarea, entao digitar dentro de um terminal ja nao chega aqui". Ele so
 nas teclas que **consome**, e `1`–`4` puras ele nao consome — quem protege a densidade e a guarda de
 `TEXTAREA` da linha anterior. O comportamento estava certo; a explicacao, nao, e e a explicacao que o
 proximo leitor usaria para decidir se pode remover a guarda.
+
+### Colar duas vezes: o gancho chega antes do cancelamento, e cancelar virou nosso
+
+Relatado em 01/09/2026, um dia depois do commit que trouxe esta secao: com o Claude rodando,
+**Ctrl+Shift+V colava o conteudo duas vezes**. Medido no mesmo bundle, e o defeito estava na frase
+acima — "desemboca no `onData` que ja existe, entao nao ha caminho novo ate o PTY".
+
+- **Devolver `false` do `attachCustomKeyEventHandler` NAO cancela nada.** Ele e a primeira linha do
+  `_keyDown`, que sai dali antes de chegar ao `cancel()` — e o `preventDefault` mora exclusivamente
+  dentro do `cancel()`. A tecla segue viva, e o Chromium executa a **acao padrao** dela.
+
+  ```js
+  _keyDown(e){ if(this._customKeyEventHandler && !1===this._customKeyEventHandler(e)) return !1;
+    ... this.cancel(e,!0) }
+  cancel(e,t){ if(this.options.cancelEvents||t) return e.preventDefault(),e.stopPropagation(),!1 }
+  ```
+
+- **E do outro lado o xterm tem ouvinte NATIVO de `paste`**, em dois elementos, ligado a MESMA
+  funcao que o `term.paste()` chama (`t.paste=r` no bundle):
+
+  ```js
+  this.register(addDisposableDomListener(this.textarea,"paste",e)),
+  this.register(addDisposableDomListener(this.element,"paste",e))
+  ```
+
+  Dois `triggerDataEvent`, dois `onData`, dois writes no PTY — **pelo mesmo caminho**, e e isso que
+  fazia o defeito parecer impossivel a quem so olhava para onde o byte ia.
+- **Os tres gestos que o app passou a tratar sao exatamente os tres que o xterm nunca cancelou.**
+  `evaluateKeyboardEvent` nao produz `key` para Ctrl+Insert, Shift+Insert nem Ctrl+Shift+V
+  (`case 45: e.shiftKey||e.ctrlKey||(o.key=ESC[2~)`, e o ramo de Ctrl+letra so trata Ctrl **sem**
+  shift), entao o `_keyDown` sai por `!i.key` sem chamar `cancel`. Sao comandos de edicao do
+  proprio Chromium (`Copy`, `Paste`, `PasteAndMatchStyle`): **ja funcionavam sozinhos**, e foi por
+  isso que duplicaram. **Ctrl+V puro foi o unico que nao duplicou** — ali o xterm traduz para ``
+  e ai sim cancela.
+- **A invariante, e ela e a regra do arquivo: TRATOU, CANCELOU.** `cancelar(ev)` e o unico jeito de
+  devolver `false` no `copiar.js`; nunca devolva `false` cru. O contrario e cobrado com a mesma
+  forca: **quem nao trata nao cancela**, senao o `` do interromper e o teclado inteiro do
+  terminal morrem junto — e o sintoma so apareceria no meio de uma sessao presa.
+- **`preventDefault`, e nao `stopPropagation`.** Quem dispara a colagem e a acao padrao, e so o
+  primeiro a cancela. Os ouvintes de janela deste app (Ctrl+B, F1, o Esc do menu) rodam em captura
+  e ja passaram; cortar a bolha aqui nao resolveria nada.
+- **Os ramos de COPIAR entraram junto, e o risco ali nao e teorico.** O `rightClickHandler` do xterm
+  faz `t.value=s.selectionText, t.select()` e esta registrado no `this.element`, que e descendente
+  do elemento onde o app registra o dele — logo roda **primeiro**. Depois de qualquer botao direito
+  sobre uma selecao o textarea fica com texto E com range, o `CanCopy()` do Blink passa a ser
+  verdadeiro, e o `Copy` nativo vira um segundo escritor correndo contra o nosso
+  `ipcRenderer.send('clipboard:escrever')`, que e fire-and-forget. Pior: como `copiar()` ja limpou a
+  selecao do xterm, os dois podem carregar **textos diferentes**.
+- **O teste tem CANARIO, e sem ele nao provaria nada.** `teste:copiar` despacha um Ctrl+Shift+V de
+  verdade por `Input.dispatchKeyEvent` (evento confiavel, que e a condicao para o Chromium executar
+  o comando de edicao) e conta no **`onData`**, onde os dois caminhos desembocam — nao no buffer do
+  shell, que dependeria de eco, de flush e de quebra de linha. O canario mede o caminho nativo
+  **sozinho**, com o nosso handler fora: sem ele, o dia em que o evento sintetico parar de disparar
+  o comando de edicao o teste mede 1, fica verde e nao prova coisa nenhuma. Medido nos dois
+  sentidos: com o `preventDefault` desarmado a conta volta a **2**.
 
 ### No macOS o Cmd+C chega por outro caminho, e isso e correto
 
@@ -1802,6 +1860,18 @@ E o repartir de teclas sai **certo por acidente feliz**, que e o que interessa:
 
 Ou seja: no Mac o *interromper* e `Ctrl+C` e o *copiar* e `Cmd+C`, que e exatamente a convencao de la —
 e as duas coisas deixam de disputar a mesma tecla, que era todo o problema no Windows.
+
+**E o ramo `Cmd+V` do `tratarTecla` convive com isso sem duplicar**, porque os dois caminhos sao
+mutuamente exclusivos por construcao: no macOS o acelerador de um `NSMenuItem` e resolvido por
+`performKeyEquivalent:` **antes** de o evento ser entregue a web contents. Se o menu pega, o
+renderer nao recebe keydown nenhum e o ramo nunca roda; se ha keydown aqui, e porque o menu nao
+pegou e nos somos o unico caminho. Ou seja: ele e **ou codigo morto inofensivo, ou o unico
+handler** — e o `preventDefault` dele nunca chega tarde, porque o cenario em que chegaria tarde e
+o cenario em que ele nao executa. Apagar o ramo trocaria isso por um Mac que perde o Cmd+V em
+silencio no dia em que alguem chamar `setApplicationMenu`. Continua **raciocinado, nao medido**; o
+que resolveria e um comando num Mac com DevTools aberto:
+`addEventListener('keydown', e => console.log(e.key, e.metaKey), true)` e um Cmd+V — se nao
+imprimir nada, o ramo e morto como raciocinado.
 
 **O que NAO fazer:** chamar `Menu.setApplicationMenu(null)` para "uniformizar". Isso levaria junto o
 Cmd+C, o Cmd+V, o Cmd+Q e o recortar/colar dos campos de texto dos modais — e no Mac nao ha outro

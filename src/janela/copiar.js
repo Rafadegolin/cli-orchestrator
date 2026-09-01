@@ -53,17 +53,45 @@
     // `term.paste`, NUNCA `window.orq.escrever` direto: ele normaliza \r\n -> \r
     // e embrulha em bracketed paste (ESC[200~ ... ESC[201~) quando o programa
     // pediu esse modo. E o que faz a TUI do Claude receber um texto multilinha
-    // como TEXTO, e nao como uma rajada de Enters. Desemboca no `onData` que ja
-    // existe, entao nao ha caminho novo ate o PTY.
+    // como TEXTO, e nao como uma rajada de Enters.
+    //
+    // Isto aqui ja dizia "desemboca no `onData` que ja existe, entao nao ha
+    // caminho novo ate o PTY". A premissa estava errada, e produziu a colagem
+    // dupla: o caminho novo nao era o nosso, era o NATIVO do navegador, que
+    // passou a existir porque nada cancelava a tecla. Ver `cancelar()`.
     term.paste(texto);
     return true;
   }
 
   // ------------------------------------------------------------ o teclado
 
-  // Vai para `term.attachCustomKeyEventHandler`. Devolver `false` faz o xterm
-  // ignorar a tecla antes de qualquer `preventDefault`; devolver `true` deixa
-  // tudo exatamente como era.
+  // A REGRA DESTE ARQUIVO: se nos tratamos a tecla, nos cancelamos o evento.
+  //
+  // Devolver `false` do `attachCustomKeyEventHandler` NAO cancela nada -- ele e a
+  // primeira linha do `_keyDown`, que sai dali antes de chegar ao `cancel()`, e o
+  // `preventDefault` mora exclusivamente dentro do `cancel()`:
+  //
+  //   _keyDown(e){ if(this._customKeyEventHandler && !1===this._customKeyEventHandler(e)) return !1;
+  //     ... this.cancel(e,!0) }
+  //   cancel(e,t){ if(this.options.cancelEvents||t) return e.preventDefault(),e.stopPropagation(),!1 }
+  //
+  // Sem este cancelamento a tecla segue viva e o Chromium executa a ACAO PADRAO
+  // dela -- que para colar e uma colagem inteira, entregue ao ouvinte nativo de
+  // `paste` que o xterm registra no textarea E no element. Esse ouvinte chama a
+  // MESMA funcao que `term.paste()` chama (`t.paste=r` no bundle), entao o texto
+  // ia para o PTY DUAS VEZES. Foi o que aconteceu, e o sintoma era o pior tipo:
+  // obvio na TUI do Claude (dois chips de texto colado) e quase invisivel num
+  // shell cru, onde as duas copias so se concatenam.
+  //
+  // `preventDefault` e nao `stopPropagation`: quem dispara a colagem e a acao
+  // padrao, e so o primeiro a cancela.
+  function cancelar(ev) {
+    ev.preventDefault();
+    return false;
+  }
+
+  // Vai para `term.attachCustomKeyEventHandler`. Devolver `true` deixa tudo
+  // exatamente como era; quem age devolve `cancelar(ev)`.
   function tratarTecla(term, ev) {
     // O xterm chama este mesmo handler no keypress e no keyup. Sem esta saida,
     // um Ctrl+C copiaria uma vez por evento.
@@ -77,14 +105,14 @@
     // Copiar sempre: Ctrl+Shift+C (ou Cmd+Shift+C) e o classico Ctrl+Insert.
     if ((mod && ev.shiftKey && ehC) || (ev.ctrlKey && !ev.shiftKey && ehInsert)) {
       copiar(term);
-      return false;
+      return cancelar(ev);
     }
 
     // Copiar SO quando ha selecao. Sem selecao devolve `true` e o Ctrl+C segue
     // virando \x03 como sempre -- e essa a metade que nao pode ser perdida.
     if (mod && !ev.shiftKey && !ev.altKey && ehC && term.hasSelection()) {
       copiar(term);
-      return false;
+      return cancelar(ev);
     }
 
     // Colar: Ctrl+Shift+V, Shift+Insert, e o Cmd+V do macOS (la o Ctrl+V
@@ -92,7 +120,7 @@
     if ((mod && ev.shiftKey && ehV) || (ev.shiftKey && !ev.ctrlKey && ehInsert)
         || (EH_MAC && mod && !ev.shiftKey && ehV)) {
       colar(term);
-      return false;
+      return cancelar(ev);
     }
 
     return true;
