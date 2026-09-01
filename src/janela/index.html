@@ -150,6 +150,10 @@
         </div>
         <button id="btn-nova-sessao" class="primario"><span class="mais">+</span>Nova sessão</button>
         <button id="btn-novo">Painel avulso</button>
+        <!-- O rotulo encolhe porque a barra tem orcamento de LARGURA, e estourar
+             custa altura de terminal: ela e `flex-wrap: wrap`, e uma segunda
+             linha tira ~56px de todo painel. Ver a regra no estilo.css. -->
+        <button id="btn-dupla" title="Uma feature em dois repositórios: cria as duas worktrees e abre uma sessão que enxerga as duas"><span class="so-largo">Implementação dupla</span><span class="so-estreito">Dupla</span></button>
         <span id="barra-dica"></span>
 
         <div class="barra-direita">
@@ -374,6 +378,42 @@
     </div>
   </div>
 
+  <!-- Uma feature que atravessa dois repositorios: as duas worktrees sao
+       criadas de uma vez e UMA sessao enxerga as duas, via --add-dir. -->
+  <div id="dupla" class="overlay" hidden>
+    <div class="modal-caixa">
+      <h2>Implementação dupla</h2>
+      <p class="modal-explica">Cria a mesma worktree nos dois repositórios e abre <b>uma</b> sessão
+        que enxerga os dois — o Claude implementa nos dois lados de uma vez, sem handoff.</p>
+
+      <div class="modal-rotulo">Repositórios</div>
+      <div class="modal-linha">
+        <select id="dupla-a"></select>
+        <select id="dupla-b"></select>
+      </div>
+
+      <div class="modal-rotulo">Nome da feature</div>
+      <div class="modal-linha">
+        <input id="dupla-nome" type="text" spellcheck="false" placeholder="pix-checkout" />
+      </div>
+      <!-- O nome real do branch, antes de confirmar. A tela deste app nao
+           promete um nome e entrega outro. -->
+      <p class="modal-dica" id="dupla-dica"></p>
+
+      <div class="modal-rotulo">Abrir o terminal em</div>
+      <div class="pilulas" id="dupla-onde"></div>
+
+      <div id="dupla-previa"></div>
+
+      <p class="modal-erro" id="dupla-erro" hidden></p>
+
+      <div class="modal-acoes">
+        <button id="dupla-confirmar" class="primario">Criar e abrir</button>
+        <button id="dupla-cancelar">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <div id="escolha-sessao" class="overlay" hidden>
     <div class="modal-caixa">
       <h2 id="escolha-titulo">Abrir sessão</h2>
@@ -411,6 +451,7 @@
 <!-- Primeiro de todos: os outros montam comando de shell no arranque. -->
 <script src="shell.js"></script>
 <script src="casca.js"></script>
+<script src="copiar.js"></script>
 <script src="painel.js"></script>
 <script src="fila.js"></script>
 <script src="ligacoes.js"></script>
@@ -431,6 +472,7 @@
 <script src="personalizado.js"></script>
 <script src="anexos.js"></script>
 <script src="escolha-sessao.js"></script>
+<script src="dupla.js"></script>
 <script src="navegar.js"></script>
 <script src="cor-projeto.js"></script>
 <script src="paleta.js"></script>

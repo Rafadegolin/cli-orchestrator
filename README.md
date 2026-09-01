@@ -101,6 +101,16 @@ e branch.
 tempo: o botão `ligar` no cabeçalho do painel dá a cada sessão acesso ao código da outra. Elas param
 de reexplicar o contrato da API uma para a outra.
 
+**Ou implemente nos dois de uma vez.** **Implementação dupla** vai um passo além de ligar: escolha
+dois projetos e um nome de feature, e o app cria a mesma worktree nos **dois** repositórios e abre
+**uma** sessão que enxerga as duas. O Claude lê e escreve nos dois lados na mesma conversa — sem
+handoff, sem abrir um terminal fora do app. Worktree que já existe é reaproveitada, e o diálogo
+mostra o nome real do branch antes de você confirmar.
+
+**Copie do terminal.** `Ctrl+C` copia quando há texto selecionado e continua interrompendo quando não
+há; `Ctrl+Shift+C` copia sempre, `Ctrl+Shift+V` cola, e o botão direito abre Copiar / Colar /
+Selecionar tudo.
+
 **Atenda a fila.** `Ctrl+Enter` pula direto para a sessão que está esperando há mais tempo e põe o
 cursor lá. Quando o app não está em primeiro plano, você recebe notificação do sistema.
 

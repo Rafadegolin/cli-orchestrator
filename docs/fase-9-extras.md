@@ -208,7 +208,19 @@ punha o cursor lá.
    `ui.json`, então um layout é esse conjunto mais a lista de painéis.
    ~~aprovação por card~~ — **feita**.
 
-**Todos feitos.** O que sobrou do item 1 são as camadas 2 e 3 (contexto compartilhado por feature e
+**Todos feitos, e a camada 1 ganhou um passo a mais:** a **implementação dupla**
+(`src/janela/dupla.js`). Ligar duas sessões resolvia o acesso cruzado, mas ainda eram duas conversas
+— e o relato de campo foi exatamente esse: *"hoje abro os dois repositórios, entro nas respectivas
+branches e abro um terminal normal com o Claude para aplicar nos 2 repos de uma vez, sem ter que
+gerar handoff"*. Agora o app cria a mesma worktree nos dois repositórios e abre **uma** sessão com a
+outra em `--add-dir`.
+
+Para isso o app precisou aprender a **criar** worktree (`worktrees.criar`), coisa que nunca fez: até
+aqui a criação era 100% do `claude -w` digitado no PTY. As três consequências que decidiram o desenho
+— a convenção do branch, o `cwd` do painel ser a worktree e a cópia do `.worktreeinclude` que o CLI
+fazia por nós — estão no `CLAUDE.md`.
+
+O que sobrou do item 1 são as camadas 2 e 3 (contexto compartilhado por feature e
 relé por evento), que o próprio documento marca como cooperativas e arriscadas — e que só valem
 depois de o mapa provar uso no dia a dia.
 

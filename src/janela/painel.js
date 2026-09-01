@@ -220,6 +220,11 @@ class Painel {
     this.term.open(this.elTerm);
 
     this.term.onData((d) => window.orq.escrever(this.id, d));
+
+    // Copiar/colar. Sem isto o Ctrl+C do xterm vira ETX e chama
+    // preventDefault() SEM olhar se ha selecao, entao o navegador nunca dispara
+    // o evento `copy` e nao ha como copiar nada -- ver o cabecalho do copiar.js.
+    window.OrqCopia?.ligar(this.term, this.elTerm);
     this.term.textarea?.addEventListener('focus', () => this._marcarUso());
 
     this.observer = new ResizeObserver(() => this.agendarAjuste());

@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, clipboard } = require('electron');
 const path = require('path');
 const os = require('os');
 
@@ -324,6 +324,17 @@ ipcMain.on('terminal:fechar', (_e, { id }) => {
   portas.liberar(id);
 });
 
+// Area de transferencia pelo MAIN, e nao pelo `navigator.clipboard` da janela.
+//
+// A janela sobe com `sandbox: true` e e carregada por `loadFile`, entao a origem
+// e `file://`: a API do navegador depende de contexto seguro e de ativacao
+// transitoria, e o modo de falha dela e o pior -- funciona no teste e devolve
+// promessa rejeitada num clique qualquer, sem erro na tela. O modulo
+// `clipboard` do Electron nao tem nenhuma dessas condicoes.
+ipcMain.on('clipboard:escrever', (_e, texto) => clipboard.writeText(String(texto || '')));
+ipcMain.handle('clipboard:ler', () => clipboard.readText());
+
+
 ipcMain.handle('estado:todas', () => estado.todas());
 
 // O farejador do Canal 1 (`aprovacao.js`) avisando o que leu na tela.
@@ -386,6 +397,44 @@ ipcMain.handle('projetos:adicionar', (_e, caminho, faixa) => {
 ipcMain.handle('worktrees:listar', (_e, projeto) => worktrees.listar(projeto));
 
 ipcMain.handle('worktrees:situacaoInclude', (_e, projeto) => worktrees.situacaoInclude(projeto));
+
+// ----------------------------------------------------- implementacao dupla
+
+// Uma feature que atravessa dois repositorios (backend num, frontend noutro)
+// vira UMA sessao que enxerga os dois: as duas worktrees sao criadas aqui, e o
+// painel abre na do repositorio escolhido com a outra em `--add-dir`.
+//
+// So leitura, para o dialogo mostrar o que vai acontecer com cada lado ANTES de
+// qualquer escrita. Devolve `{ erro }` em vez de estourar: o nome e digitado, e
+// erro de uso tem de virar mensagem na tela.
+ipcMain.handle('worktrees:preverDupla', (_e, { a, b, slug }) => ({
+  a: worktrees.prever(a, slug),
+  b: worktrees.prever(b, slug),
+}));
+
+// Cria as duas, em SEQUENCIA. Se a segunda falhar, desfaz a primeira -- e so
+// quando fomos nos que a criamos (`criada === true`): reaproveitar uma worktree
+// que ja existia e depois apaga-la levaria trabalho de alguem junto.
+//
+// Nenhum caminho de recusa pode deixar residuo, que e a mesma regra do
+// `arquivar`. Quando nem o desfazer funciona, o retorno NOMEIA o que ficou para
+// tras, em vez de sumir com a informacao.
+ipcMain.handle('worktrees:criarDupla', async (_e, { a, b, slug }) => {
+  const ra = await worktrees.criar(a, slug);
+  if (!ra.ok) return { ok: false, onde: 'a', texto: ra.texto };
+
+  const rb = await worktrees.criar(b, slug);
+  if (!rb.ok) {
+    let sobrou = '';
+    if (ra.criada) {
+      const d = await worktrees.desfazer(a, ra.caminho, ra.branch);
+      if (!d.ok) sobrou = ` A worktree ${ra.caminho} ficou para tras (${d.texto}).`;
+    }
+    return { ok: false, onde: 'b', texto: rb.texto + sobrou };
+  }
+
+  return { ok: true, a: ra, b: rb, avisos: [...(ra.avisos || []), ...(rb.avisos || [])] };
+});
 
 // Leitura pura, sem rede: quanto a base local esta atras do que ja foi buscado.
 ipcMain.handle('git:situacao', (_e, projeto) => worktrees.situacaoRemoto(projeto));

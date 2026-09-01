@@ -120,14 +120,20 @@ function slugFeature(texto) {
 // Ganho concreto: o titulo do terminal, a caixa de prompt e o seletor do
 // `/resume` passam a dizer a feature. Nao confundir com o nome do BRANCH, que
 // continua sendo `worktree-<slug>` e nao tem como ser escolhido.
-function montarComando(feature, ehGit) {
+//
+// `worktree: false` e para quem JA esta dentro de uma worktree pronta -- a
+// implementacao dupla, onde o app criou as duas antes de abrir o painel. Ali o
+// `-w` criaria uma SEGUNDA worktree dentro da primeira. Fica como opcao daqui,
+// e nao como string montada la, para um lugar so continuar sabendo a forma do
+// comando.
+function montarComando(feature, ehGit, { worktree = true } = {}) {
   const slug = slugFeature(feature);
   const limpa = window.OrqShell.limpar();
   if (!slug) return `${limpa} && claude`;
   // Sem repositorio git nao existe worktree: `claude -w` falharia e o usuario
   // veria so um erro no terminal sem entender por que. O nome, esse, vale
   // igual.
-  if (!ehGit) return `${limpa} && claude --name ${slug}`;
+  if (!ehGit || !worktree) return `${limpa} && claude --name ${slug}`;
   return `${limpa} && claude --name ${slug} -w ${slug}`;
 }
 

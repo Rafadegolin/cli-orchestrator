@@ -21,6 +21,12 @@ contextBridge.exposeInMainWorld('orq', {
   redimensionar: (id, cols, rows) => ipcRenderer.send('terminal:redimensionar', { id, cols, rows }),
   fecharTerminal: (id) => ipcRenderer.send('terminal:fechar', { id }),
 
+  // A selecao do xterm e desenhada pelo renderer WebGL: NAO e selecao de DOM, e
+  // por isso `document.getSelection()` -- e o `webContents.copy()` que depende
+  // dela -- copiaria vazio. Quem tem o texto e o `term.getSelection()`.
+  copiar: (texto) => ipcRenderer.send('clipboard:escrever', texto),
+  colar: () => ipcRenderer.invoke('clipboard:ler'),
+
   // O lote chega como [{ id, bytes: Uint8Array }] -- um envio por quadro com
   // todos os painéis juntos.
   aoReceberDados: (fn) => ipcRenderer.on('terminal:dados', (_e, lote) => fn(lote)),
@@ -57,6 +63,8 @@ contextBridge.exposeInMainWorld('orq', {
   // ver que alguma coisa esta acontecendo.
   aoArquivarProgresso: (fn) => ipcRenderer.on('worktrees:progresso', (_e, p) => fn(p)),
   includeSituacao: (projeto) => ipcRenderer.invoke('worktrees:situacaoInclude', projeto),
+  worktreesPreverDupla: (a, b, slug) => ipcRenderer.invoke('worktrees:preverDupla', { a, b, slug }),
+  worktreesCriarDupla: (a, b, slug) => ipcRenderer.invoke('worktrees:criarDupla', { a, b, slug }),
 
   gitSituacao: (projeto) => ipcRenderer.invoke('git:situacao', projeto),
   gitBuscar: (projeto) => ipcRenderer.invoke('git:buscar', projeto),

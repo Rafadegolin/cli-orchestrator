@@ -624,6 +624,159 @@ async function arquivarVarias(projeto, caminhos, { aoProgresso = null } = {}) {
   return { ok: arquivadas.length > 0, arquivadas, recusadas, avisos };
 }
 
+// ------------------------------------------------------------ criar
+
+// Ate aqui, o app NUNCA criou worktree: quem criava era o CLI, com o `-w <slug>`
+// digitado no PTY. Isto existe para a implementacao DUPLA, onde a segunda
+// worktree e num repositorio que nao tem painel nenhum -- nao ha CLI ali para
+// pedir.
+//
+// A convencao de caminho e de branch e a MESMA do `claude -w` (o cabecalho deste
+// arquivo), e isso nao e gosto: `listar()`, `podeArquivar()`, a faxina, o diff e
+// a etiqueta da lateral leem esse formato. Fugir dele criaria uma worktree que o
+// resto do app so enxerga pela metade.
+const SLUG_VALIDO = /^[A-Za-z0-9._-]+$/;
+
+function caminhoDeWorktree(projeto, slug) {
+  return path.join(projeto, '.claude', 'worktrees', slug);
+}
+
+function branchDeWorktree(slug) {
+  return `worktree-${slug}`;
+}
+
+function temBranch(projeto, branch) {
+  return gitSilencioso(projeto, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]).ok;
+}
+
+// So LEITURA. Alimenta o "criar / reaproveitar" do dialogo antes de qualquer
+// escrita, para o usuario ver o que vai acontecer com cada repositorio.
+function prever(projeto, slug) {
+  const caminho = caminhoDeWorktree(projeto, slug);
+  const branch = branchDeWorktree(slug);
+
+  if (!projeto || !fs.existsSync(projeto)) {
+    return { ok: false, motivo: 'pasta', texto: 'a pasta do projeto nao existe' };
+  }
+  if (!ehRepositorio(projeto)) {
+    return { ok: false, motivo: 'sem-git', texto: 'nao e um repositorio git' };
+  }
+  if (!SLUG_VALIDO.test(String(slug || ''))) {
+    return { ok: false, motivo: 'nome', texto: 'nome invalido para pasta e branch' };
+  }
+
+  const wt = lerUma(projeto, caminho);
+  // Registrada E com a pasta no disco: da para reaproveitar de verdade.
+  const existe = Boolean(wt && wt.existe);
+
+  return {
+    ok: true,
+    caminho,
+    branch,
+    existe,
+    branchExiste: temBranch(projeto, branch),
+    acao: existe ? 'reaproveitar' : 'criar',
+  };
+}
+
+// Cria (ou reaproveita) a worktree `<projeto>/.claude/worktrees/<slug>`.
+//
+// ASSINCRONA pela mesma razao de `arquivar`: escrita neste modulo nunca e
+// sincrona. `worktree add` faz um checkout inteiro, e sincrono ele bloquearia o
+// processo principal -- sem IPC, sem hooks, e a janela que o Windows oferece
+// fechar.
+async function criar(projeto, slug) {
+  const p = prever(projeto, slug);
+  if (!p.ok) return p;
+
+  // Reaproveitar, nunca recriar: e o que deixa reabrir a mesma dupla amanha so
+  // redigitando o nome. Recriar apagaria trabalho.
+  if (p.existe) {
+    return { ok: true, caminho: p.caminho, branch: p.branch, criada: false, avisos: [] };
+  }
+
+  // Pasta apagada a mao deixa o registro orfao, e o `add` recusa por causa dele.
+  // Podar antes e o que transforma esse caso num sucesso em vez de um erro que
+  // so o `git worktree prune` na mao resolveria.
+  await gitLento(projeto, ['worktree', 'prune']);
+
+  // Branch ja existe? Aproveita, em vez de `-b`, que falharia. E o caso de quem
+  // arquivou a pasta e manteve o branch -- que e exatamente o que `arquivar` faz
+  // quando o `-d` recusa por commit nao mesclado.
+  const args = temBranch(projeto, p.branch)
+    ? ['worktree', 'add', p.caminho, p.branch]
+    : ['worktree', 'add', '-b', p.branch, p.caminho];
+
+  const r = await gitLento(projeto, args, { ms: MS_GIT_REMOVER });
+  if (!r.ok) return { ok: false, motivo: 'add', texto: `Nao consegui criar o worktree: ${r.erro}` };
+
+  return {
+    ok: true,
+    caminho: p.caminho,
+    branch: p.branch,
+    criada: true,
+    avisos: copiarInclude(projeto, p.caminho),
+  };
+}
+
+// Quem copia o `.env` para dentro do worktree hoje e o CLI, ao rodar o `-w`.
+// Criando com `git worktree add`, NINGUEM copia -- e o sintoma e o pior tipo: a
+// feature nova parecendo "quebrada" sem motivo, longe da causa. E o mesmo
+// defeito que `situacaoInclude()` existe para prevenir, e seria reintroduzido
+// pela porta dos fundos.
+//
+// Falha vira AVISO, nunca excecao: o `.worktreeinclude` e editado a mao, e um
+// nome torto ali nao pode derrubar a criacao inteira.
+function copiarInclude(projeto, destino) {
+  const avisos = [];
+  let linhas = [];
+  try {
+    const inc = situacaoInclude(projeto);
+    if (!inc.existe) return avisos;
+    linhas = String(inc.conteudo || '')
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'));
+  } catch {
+    return avisos;
+  }
+
+  for (const linha of linhas) {
+    const origem = path.resolve(projeto, linha);
+    // O arquivo e do usuario: uma linha `../../segredos` nao pode virar copia de
+    // qualquer lugar do disco para dentro do worktree.
+    if (!dentroDe(projeto, origem)) {
+      avisos.push(`"${linha}" esta fora do projeto e nao foi copiado`);
+      continue;
+    }
+    if (!fs.existsSync(origem)) continue;
+    try {
+      fs.cpSync(origem, path.resolve(destino, linha), { recursive: true });
+    } catch (err) {
+      avisos.push(`nao consegui copiar "${linha}": ${err.message}`);
+    }
+  }
+  return avisos;
+}
+
+// Desfaz uma worktree recem-criada, e SO uma recem-criada.
+//
+// Existe para a dupla: se o segundo repositorio falhar, o primeiro nao pode
+// ficar para tras -- e a regra da casa, nenhum caminho de recusa deixa residuo.
+// Seguro porque a pasta tem segundos de vida e nao ha trabalho dentro.
+//
+// `--force` e `-D` de proposito, e e a diferenca para o `arquivar`: la o `-d`
+// minusculo e a ultima rede antes de perder codigo, e aqui nao existe codigo a
+// perder -- o branch tem a idade do comando anterior, e o `copiarInclude`
+// acabou de deixar a arvore suja com o `.env`, que faria as duas versoes
+// educadas recusarem sempre.
+async function desfazer(projeto, caminho, branch) {
+  const rm = await gitLento(projeto, ['worktree', 'remove', '--force', caminho], { ms: MS_GIT_REMOVER });
+  if (!rm.ok) return { ok: false, texto: rm.erro };
+  if (branch) await gitLento(projeto, ['branch', '-D', branch]);
+  return { ok: true };
+}
+
 // ------------------------------------------------------- .worktreeinclude
 
 // Sem esse arquivo o worktree e um checkout limpo: o .env nao vai junto e a
@@ -762,6 +915,11 @@ module.exports = {
   tamanhoDe,
   podeArquivar,
   arquivar,
+  prever,
+  criar,
+  desfazer,
+  caminhoDeWorktree,
+  branchDeWorktree,
   triarLote,
   arquivarVarias,
   diff,

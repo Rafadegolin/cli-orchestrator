@@ -272,6 +272,26 @@ const TODAS_SECOES = [
     ],
   },
   {
+    id: 'dupla',
+    titulo: 'Implementação dupla: uma sessão, dois repositórios',
+    blocos: [
+      p('O botão <b>Implementação dupla</b> na barra de cima resolve o caso em que ligar duas '
+        + 'sessões ainda dá trabalho demais: a feature nasce nos dois repositórios ao mesmo tempo, '
+        + 'e você quer <b>uma</b> conversa só. Escolha os dois projetos, dê um nome à feature, e o '
+        + 'app cria a mesma worktree nos dois e abre uma sessão que enxerga as duas.'),
+      lista([
+        'O branch é <code>worktree-&lt;nome&gt;</code> nos <b>dois</b> repositórios — o mesmo nome que a <b>Nova sessão</b> já produz. A linha embaixo do campo mostra o nome real antes de você confirmar.',
+        'Worktree que já existe é <b>reaproveitada</b>, nunca recriada: para voltar amanhã à mesma dupla, basta redigitar o nome. A prévia diz <b>criar</b> ou <b>reaproveitar</b> para cada lado.',
+        'Você escolhe em qual dos dois o terminal abre. O outro entra por <code>--add-dir</code>, que dá acesso de <b>ferramenta</b> — o Claude lê <b>e escreve</b> nos dois.',
+        'Se o segundo repositório falhar, o primeiro é desfeito: não fica meia dupla no disco.',
+      ]),
+      aviso('As duas worktrees aparecem na lista de cada projeto como qualquer outra, e são arquivadas '
+        + 'pelo mesmo caminho. Como não foi o <code>claude -w</code> que as criou, elas não ficam '
+        + 'trancadas com o PID da sessão — quem impede de arquivar a que está em uso é o painel aberto '
+        + 'na pasta.'),
+    ],
+  },
+  {
     id: 'grade',
     titulo: 'A grade: densidade, ordem e tema',
     blocos: [
@@ -412,6 +432,9 @@ const TODAS_SECOES = [
         ['{mod}+K', 'Abre a paleta de comandos'],
         ['{mod}+B', 'Recolhe ou mostra a barra lateral'],
         ['{alt}+setas', 'Pula para o terminal ao lado, acima ou abaixo'],
+        ['{mod}+C', 'Copia a seleção do terminal; <b>sem</b> seleção, interrompe como sempre'],
+        ['{mod}+Shift+C', 'Copia a seleção, sempre'],
+        ['{mod}+Shift+V', 'Cola no terminal'],
         ['{ajudaTecla}', 'Abre esta ajuda'],
         ['Esc', 'Fecha o que estiver aberto por cima'],
         ['1 2 3', 'Densidade da grade: 1, 2 ou 3 colunas'],
@@ -420,6 +443,10 @@ const TODAS_SECOES = [
       ]),
       p('As teclas <b>1</b> a <b>4</b> são ignoradas enquanto você digita num campo de '
         + 'texto ou dentro de um terminal — só valem quando o teclado não está em uso.'),
+      p('No terminal, o <b>botão direito</b> abre Copiar / Colar / Selecionar tudo. '
+        + 'O {mod}+C só copia quando há texto selecionado: sem seleção ele continua sendo '
+        + 'o interromper de sempre, e copiar limpa a seleção justamente para o próximo '
+        + '{mod}+C voltar a interromper.'),
     ],
   },
   {

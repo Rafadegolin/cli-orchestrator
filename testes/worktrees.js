@@ -377,6 +377,87 @@ function achar(nome) {
   checar('o arquivo lista o .env', inc.conteudo.includes('.env'),
     inc.conteudo.split('\n').filter((l) => l && !l.startsWith('#')).join('|'));
 
+  // --- criar (a implementacao dupla) --------------------------------------
+  //
+  // Ate a dupla existir, o app NUNCA criou worktree: quem criava era o `claude
+  // -w` digitado no PTY. O que estes casos protegem e a compatibilidade -- a
+  // worktree criada aqui tem de ser indistinguivel para `listar()`,
+  // `podeArquivar()` e a faxina.
+  const previaAntes = wt.prever(RAIZ, 'dupla-x');
+  checar('prever diz "criar" antes de existir',
+    previaAntes.ok === true && previaAntes.acao === 'criar' && previaAntes.existe === false,
+    JSON.stringify(previaAntes));
+  checar('e ja anuncia o caminho e o branch na convencao do `claude -w`',
+    previaAntes.caminho === path.join(RAIZ, '.claude', 'worktrees', 'dupla-x')
+    && previaAntes.branch === 'worktree-dupla-x', JSON.stringify(previaAntes));
+
+  const criada = await contar(() => wt.criar(RAIZ, 'dupla-x'));
+  const custoCriar = spawns.total;
+  checar('criar devolve ok e diz que criou',
+    criada.ok === true && criada.criada === true, JSON.stringify(criada));
+  checar('a pasta nasceu onde o resto do app procura',
+    fs.existsSync(criada.caminho), criada.caminho);
+  // Se o formato divergir, `listar()` enxerga a worktree pela metade e a faxina
+  // deixa de saber arquiva-la.
+  const naLista = wt.listar(RAIZ).find((w) => w.nome === 'dupla-x');
+  checar('e `listar()` a enxerga como qualquer outra',
+    Boolean(naLista) && naLista.branch === 'worktree-dupla-x', JSON.stringify(naLista || null));
+  // Sem `-w` do CLI nao ha lock com PID -- e isso e correto, nao defeito: quem
+  // protege enquanto o painel vive e o portao de painel aberto na pasta.
+  checar('nasce destrancada, porque nao foi o CLI que criou',
+    naLista.travado === false && naLista.sessaoViva === false, JSON.stringify(naLista));
+
+  // Quem copia o .env hoje e o CLI, no `-w`. Criando por `git worktree add`
+  // ninguem copia, e o sintoma seria a feature nova parecendo "quebrada".
+  checar('o .worktreeinclude foi honrado: o .env foi junto',
+    fs.existsSync(path.join(criada.caminho, '.env')),
+    fs.readdirSync(criada.caminho).join(','));
+
+  const denovo = await wt.criar(RAIZ, 'dupla-x');
+  checar('rodar de novo REAPROVEITA, nunca recria',
+    denovo.ok === true && denovo.criada === false, JSON.stringify(denovo));
+  checar('e prever passa a dizer "reaproveitar"',
+    wt.prever(RAIZ, 'dupla-x').acao === 'reaproveitar', '');
+
+  // O slug vai para uma linha de comando de shell E para um ref do git.
+  for (const mau of ['nome com espaco', 'feat/barra', 'a&b', '']) {
+    const r = await wt.criar(RAIZ, mau);
+    checar(`recusa o nome ${JSON.stringify(mau)}`,
+      r.ok === false && r.motivo === 'nome', JSON.stringify(r));
+  }
+  const foraDeRepo = await wt.criar(path.join(os.tmpdir(), 'orq-nao-existe-mesmo'), 'x');
+  checar('recusa pasta que nao existe', foraDeRepo.ok === false, JSON.stringify(foraDeRepo));
+
+  // O `.worktreeinclude` e editado a mao: uma linha `../..` nao pode virar copia
+  // de qualquer lugar do disco para dentro da worktree.
+  fs.writeFileSync(path.join(RAIZ, '.worktreeinclude'), '# nota\n.env\n../de-fora.txt\n');
+  fs.writeFileSync(path.join(path.dirname(RAIZ), 'de-fora.txt'), 'nao deveria viajar\n');
+  const comFuga = await wt.criar(RAIZ, 'dupla-y');
+  checar('caminho fora do projeto nao e copiado',
+    !fs.existsSync(path.join(comFuga.caminho, '..', 'de-fora.txt'))
+    && !fs.existsSync(path.join(comFuga.caminho, 'de-fora.txt')), '');
+  checar('e a recusa vira AVISO, sem derrubar a criacao',
+    comFuga.ok === true && comFuga.avisos.some((a) => a.includes('de-fora')),
+    JSON.stringify(comFuga.avisos));
+
+  // Desfazer existe para a dupla: se o segundo repo falhar, o primeiro nao pode
+  // ficar para tras. Tem de levar a pasta E o branch.
+  const desfeito = await wt.desfazer(RAIZ, comFuga.caminho, comFuga.branch);
+  checar('desfazer leva a pasta junto',
+    desfeito.ok === true && !fs.existsSync(comFuga.caminho), JSON.stringify(desfeito));
+  checar('e o branch tambem, sem deixar residuo',
+    git(RAIZ, 'branch', '--list', 'worktree-dupla-y').trim() === '', '');
+
+  // Custo: `criar` e chamada duas vezes por dupla, e este modulo ja teve um lote
+  // quadratico que travou o app por um minuto. O numero e a rede.
+  // Medido: 8. O teto de 10 e folga para nao falhar por um comando a mais,
+  // e ainda pega uma ordem de grandeza -- que e o que este contador existe para
+  // impedir, depois do lote que ficou quadratico e travou o app por um minuto.
+  checar('criar cabe em poucos comandos git', custoCriar <= 10, `${custoCriar} comandos`);
+
+  await wt.desfazer(RAIZ, criada.caminho, criada.branch);
+  fs.rmSync(path.join(path.dirname(RAIZ), 'de-fora.txt'), { force: true });
+
   // --- diff ---------------------------------------------------------------
   //
   // Fecha o ciclo de revisao: a etiqueta na lateral deixa de so dizer o que

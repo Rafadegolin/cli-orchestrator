@@ -14,10 +14,13 @@ segue sendo a fonte do raciocinio por tras de cada regra. Este arquivo registra 
 e o que foi **medido** — onde os dois divergem, vale o que esta aqui.
 
 **Estado:** **todas as fases da spec (0 a 8) implementadas**, mais o cadastro de projetos, o
-**redesenho de `docs/nova-ui/` completo (fatias 1 a 5)** e o **suporte a macOS (Apple Silicon)**. O que resta sao os extras da Fase 9,
-detalhados em `docs/fase-9-extras.md` — incluindo um que nao esta na spec original: **visao de mapa
-com ligacoes entre sessoes**, para uma feature que atravessa repositorios (backend e frontend em
-repos separados).
+**redesenho de `docs/nova-ui/` completo (fatias 1 a 5)**, o **suporte a macOS (Apple Silicon)** e os
+extras da Fase 9 (`docs/fase-9-extras.md`), incluindo o que nao estava na spec original: a **visao de
+mapa com ligacoes entre sessoes**, para uma feature que atravessa repositorios.
+
+O ultimo passo dessa historia e a **implementacao dupla**: em vez de ligar duas sessoes, uma so nasce
+enxergando os dois repos, com as duas worktrees criadas pelo app. E a primeira vez que o app cria
+worktree — ate entao isso era sempre do `claude -w`.
 
 Ali ja esta levantado o que o CLI oferece para isso: `--add-dir` como flag **e** `/add-dir` como
 comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma delas.
@@ -32,6 +35,8 @@ npm run teste:fase2       # 8 painéis: grade, orcamento WebGL, RAM/CPU (leva ~9
 npm run teste:fase45      # hooks -> bolinha -> lateral ordenada
 npm run teste:projetos    # cadastro, dedupe, comando inicial, sanitizacao
 npm run teste:terminal    # o botao "Abrir terminal" do dialogo: shell puro, sem Claude
+npm run teste:copiar      # copiar/colar no terminal, e o Ctrl+C que ainda interrompe
+npm run teste:dupla       # implementacao dupla: duas worktrees, um painel so
 npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
 npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
@@ -813,6 +818,74 @@ O conteudo e uma **estrutura de dados**, nao HTML solto, e isso resolve dois pro
   contagem dos tres bate nos dois sistemas. `TODAS_SECOES` e exportado so para o teste conferir a
   secao que NAO renderiza na plataforma onde ele esta rodando -- senao o defeito so apareceria do
   outro lado, que e onde ninguem esta olhando.
+
+## Implementacao dupla: uma sessao, dois repositorios
+
+`src/janela/dupla.js` + `worktrees.criar/prever/desfazer`. Botao **Implementacao dupla** na barra.
+Uma feature que atravessa dois repos (backend num, frontend noutro) deixa de exigir sair do app:
+escolhe-se os dois projetos e um nome, o app cria a MESMA worktree nos dois e abre **um** painel que
+enxerga os dois.
+
+**Ate aqui o app NUNCA criou worktree** — quem criava era o `claude -w` digitado no PTY. Esta e a
+unica peca de verdade nova; o resto ja existia e saiu de graca.
+
+- **A convencao de caminho e de branch e a MESMA do `claude -w`** (`.claude/worktrees/<slug>` e
+  `worktree-<slug>`), e isso nao e gosto: `listar()`, `podeArquivar()`, a faxina, o diff e a etiqueta
+  da lateral leem esse formato. Fugir dele criaria uma worktree que o resto do app so enxerga pela
+  metade.
+- **O `cwd` do painel e a WORKTREE, nao a raiz do projeto.** Deixar o `claude -w` criar faria o painel
+  nascer em `C:\projeto` enquanto a sessao migra para dentro da worktree, e `p.cwd` seguiria mentindo
+  sobre onde a sessao esta (`estado.js`) — quebrando `OrqLigacoes.painelEm()` e o portao de "painel
+  aberto nesta pasta" que protege o arquivar. Ganho colateral: `projetoDe()` devolve `dentro: true` e
+  o cabecalho ja sai com a pill do projeto no tom claro de worktree.
+- **Por isso o comando vai SEM `-w`** (`montarComando(feature, git, { worktree: false })`): a worktree
+  ja existe, e o `-w` criaria uma segunda dentro dela. A opcao fica no `montarComando` e nao numa
+  string montada no `dupla.js` — um lugar so continua sabendo a forma do comando.
+- **Nenhum campo novo no painel.** A ligacao entra em `p.ligacoes`, e `criarPainel` ja chama
+  `OrqLigacoes.comAddDir`: sessao nova lancada com `--add-dir` **nao pede confirmacao nenhuma** (a
+  danca do `/add-dir` com Enter separado so existe para sessao viva). Como `retratoSessao()` ja grava
+  `ligacoes` e `despertar()` ja reaplica, **uma dupla restaurada volta ligada sozinha** — e nada
+  precisou entrar nas listas brancas de `sessao.js` e `layouts.js`.
+- **`--add-dir` da acesso de FERRAMENTA, nao so de leitura** (`claude --help`, CLI 2.1.229:
+  "Additional directories to allow tool access to"). E o que faz o Claude editar os dois lados; sem
+  isso a feature seria so um leitor de codigo alheio.
+- **Worktree que ja existe e REAPROVEITADA, nunca recriada**, e a previa do dialogo diz `criar` ou
+  `reaproveitar` para cada lado antes de confirmar. E o que deixa reabrir a mesma dupla amanha so
+  redigitando o nome; recriar apagaria trabalho.
+- **O `.worktreeinclude` e a pegadinha desta area.** Quem copia o `.env` para dentro do worktree e o
+  **CLI**, ao rodar o `-w`. Criando com `git worktree add`, ninguem copia — e o sintoma e o pior tipo:
+  a feature nova parecendo "quebrada" sem motivo, longe da causa. Era o mesmo defeito que
+  `situacaoInclude()` existe para prevenir, reintroduzido pela porta dos fundos. `copiarInclude()`
+  replica o efeito, e **guarda cada origem com `dentroDe`**: uma linha `../../segredos` no arquivo do
+  usuario nao pode virar copia de qualquer lugar do disco.
+- **Se o segundo repositorio falhar, o primeiro e desfeito** — e so quando fomos nos que o criamos
+  (`criada === true`); reaproveitar uma worktree que ja existia e depois apaga-la levaria trabalho de
+  alguem junto. Nenhum caminho de recusa deixa residuo, que e a regra do `arquivar`. Quando nem o
+  desfazer funciona, o retorno **nomeia** o que ficou para tras.
+  - `desfazer` usa `--force` e `branch -D`, ao contrario do `arquivar`. Nao e descuido: la o `-d`
+    minusculo e a ultima rede antes de perder codigo, e aqui **nao existe codigo a perder** — o branch
+    tem a idade do comando anterior, e o `copiarInclude` acabou de sujar a arvore com o `.env`, o que
+    faria as duas versoes educadas recusarem sempre.
+- **A worktree criada aqui nao fica trancada com PID**, porque nao foi o CLI que a criou. E correto, e
+  nao defeito: ela nao aparece como "aberto agora", e quem a protege enquanto o painel vive e o portao
+  de painel aberto na pasta (`terminais.cwdDe`), que ja existia.
+- **`prever()` e so leitura e devolve `{ ok: false, texto }` em vez de estourar**: o nome e digitado, e
+  erro de uso tem de virar mensagem na tela — mesma regra do `projetos:adicionar`.
+- **A previa tem guarda de ultima-chamada-vence.** Ela limpa, ESPERA o main e so entao escreve: com
+  duas chamadas no ar (`input` ao digitar e `change` ao trocar de repo) as duas limpavam primeiro e
+  escreviam depois, e a lista saia **em dobro**. Foi o teste que pegou.
+
+### O rotulo do botao encolhe, e isso e sobre ALTURA
+
+`#barra` e `flex-wrap: wrap`, e o orcamento dela e a largura do `#principal` — a janela **menos a
+lateral**. Com a lateral aberta a 1402px sobram ~1130px, e "Implementacao dupla" por extenso passava
+41px do limite: a `.barra-direita` caia para uma segunda linha e tirava **~56px de altura de TODO
+painel**, para sempre. Dai o par `.so-largo`/`.so-estreito` com corte em 1500px, na mesma familia dos
+degraus de compressao do medidor de uso.
+
+**Foi o `teste:fase6` que pegou**, na asserção de que 4 painéis nao fazem a grade rolar — um teste
+sobre rolagem denunciando um botao novo na barra. Vale como aviso: **todo widget novo na `#barra`
+cobra do orcamento de altura dos painéis**, e o sintoma aparece longe de onde a mudanca foi feita.
 
 ## Ligar sessoes entre repositorios
 
@@ -1609,6 +1682,64 @@ novo aqui — meca antes de escolher a cadencia, e nao copie a do vizinho.
 Cinco segundos e o ponto certo porque **so um dos tres ganhos depende da cadencia**: painel fora da
 vista e ausencia de hooks valem igual em qualquer ritmo, e "chegar antes do hook" so precisa vencer
 os ~6s do temporizador do CLI. Para painel visivel, o farejador ja acende em ~1,5s.
+
+## Copiar e colar no terminal: o Ctrl+C do xterm nunca chegou a copiar
+
+`src/janela/copiar.js`. O relato foi "no modo terminal nao da para copiar textos, provavelmente por
+conta dos atalhos ja existentes". **Nao eram os atalhos** — nenhum dos ouvintes de teclado do renderer
+toca em Ctrl+C, Ctrl+V ou Insert, e nada em `tipoPainel` muda o teclado. Medido no bundle do
+`@xterm/xterm@5.5.0`:
+
+```js
+_keyDown(e){ if(this._customKeyEventHandler && !1===this._customKeyEventHandler(e)) return !1;
+  ... const i=evaluateKeyboardEvent(e,...);          // Ctrl+C -> i.key = ETX (\x03)
+  ... this.coreService.triggerDataEvent(i.key,!0), this.cancel(e,!0) }
+```
+
+`cancel(e, true)` e `preventDefault()` + `stopPropagation()`, e **nao ha checagem de `hasSelection()`
+em lugar nenhum desse caminho**: Ctrl+C sempre vira SIGINT e sempre cancela o evento, entao o
+navegador **nunca dispara o `copy`**. O xterm ate registra `element.addEventListener("copy", ...)`,
+mas nada o aciona — este app nao tem menu do Electron (`Menu` nunca foi importado no main), e o botao
+direito nao abria nada. Ou seja: **o app simplesmente nunca implementou copiar/colar**, e nao havia
+uma linha com `clipboard` em todo o `src/`.
+
+- **O gancho e a PRIMEIRA linha do `_keyDown`** (`attachCustomKeyEventHandler`), o unico ponto de
+  entrada que existe antes do `preventDefault`. Ligado no `_montarTerminal`, que ja e o ponto unico de
+  configuracao do xterm.
+- **Ctrl+C copia so quando ha selecao**; sem selecao devolve `true` e segue virando `\x03`. Essa
+  segunda metade e a que nao podia ser perdida no conserto — um handler que copiasse sempre mataria o
+  interromper do Claude, e o sintoma so apareceria no meio de uma sessao presa. **Copiar limpa a
+  selecao**, o que e ao mesmo tempo o retorno visual e o que devolve o Ctrl+C ao PTY na tecla seguinte.
+- Sempre copiam: **Ctrl+Shift+C** e **Ctrl+Insert**. Sempre colam: **Ctrl+Shift+V** e **Shift+Insert**
+  (mais ⌘+V no macOS, onde o modificador de atalho e o Command e o Ctrl+V continua sendo do programa).
+- **O handler sai cedo se `ev.type !== 'keydown'`**: o xterm chama o MESMO handler no `keypress` e no
+  `keyup`, e sem essa saida um Ctrl+C copiaria uma vez por evento.
+- **O clipboard vai pelo MAIN, nao pelo `navigator.clipboard`.** A janela sobe com `sandbox: true` e e
+  carregada por `loadFile`, entao a origem e `file://`: a API do navegador depende de contexto seguro e
+  de ativacao transitoria, e o modo de falha dela e o pior — funciona no teste e devolve promessa
+  rejeitada num clique qualquer, sem erro na tela. O modulo `clipboard` do Electron nao tem nenhuma
+  dessas condicoes.
+- **A selecao do xterm NAO e selecao de DOM** (`.xterm` tem `user-select: none` e o desenho sai no
+  WebGL). Por isso `document.getSelection()` — e o `webContents.copy()` que depende dela — copiariam
+  **vazio**. Quem tem o texto e o `term.getSelection()`.
+- **Colar usa `term.paste()`, nunca `window.orq.escrever` direto.** Ele normaliza `\r\n` -> `\r` e
+  embrulha em bracketed paste (`ESC[200~ … ESC[201~`) quando o programa pediu esse modo, que e o que
+  faz a TUI do Claude receber texto multilinha como TEXTO em vez de uma rajada de Enters. Desemboca no
+  `onData` que ja existe, entao nao ha caminho novo ate o PTY.
+- **O menu do botao direito nao e opcional.** Sem menu do Electron, o `rightClickHandler` do xterm so
+  reposicionava o textarea esperando um menu nativo que nunca vinha — clicar com o direito nao fazia
+  nada. Ele e tambem a rede do Ctrl+C: se um dia um acelerador de menu interceptar a tecla antes do
+  renderer, este caminho continua de pe. O Esc dele vai em **captura com `stopPropagation`**, no molde
+  do Ctrl+B — em bolha, o Esc fecharia o menu **e** chegaria ao PTY. Nao entra no `OrqOverlays`: aquilo
+  e a pilha dos overlays de tela cheia, e um menu de contexto tem ciclo proprio.
+- **Sem toast ao copiar.** O toast do app e um de cada vez e copiar e gesto repetido; a selecao sumindo
+  ja diz que funcionou. O toast fica so para o "nada selecionado" do menu.
+
+**Um comentario que estava errado foi junto:** `casca.js` afirmava que "o xterm captura o teclado no
+proprio textarea, entao digitar dentro de um terminal ja nao chega aqui". Ele so faz `stopPropagation`
+nas teclas que **consome**, e `1`–`4` puras ele nao consome — quem protege a densidade e a guarda de
+`TEXTAREA` da linha anterior. O comportamento estava certo; a explicacao, nao, e e a explicacao que o
+proximo leitor usaria para decidir se pode remover a guarda.
 
 ## Ler o buffer do terminal: `isWrapped` decide se funciona
 

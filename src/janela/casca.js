@@ -299,8 +299,11 @@
     // Digitar "3" no nome da feature nao pode reorganizar a grade.
     const alvo = document.activeElement;
     if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' || alvo.isContentEditable)) return;
-    // O xterm captura o teclado no proprio textarea, entao digitar dentro de um
-    // terminal ja nao chega aqui.
+    // A guarda acima e que protege o terminal, e NAO o xterm: ele so faz
+    // stopPropagation nas teclas que consome, e "1".."4" puras ele nao consome.
+    // O que salva e o helper dele ser um <textarea>, apanhado pela linha
+    // anterior. Removeu a guarda achando que o xterm cobre? Digitar "3" no
+    // terminal passa a reorganizar a grade.
     ev.preventDefault();
     // O 4 segue a POSICAO do botao na barra, e nao um numero de colunas: o slot
     // personalizado e a quarta pilula.

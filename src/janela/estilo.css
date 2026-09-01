@@ -2844,3 +2844,115 @@ button.primario:hover {
   .painel:hover, button.primario:hover { transform: none; }
   #fila-lista li:hover { transform: none; }
 }
+
+/* ================================================== menu do botao direito */
+
+/* Copiar/Colar do terminal. Existe porque o botao direito nao abria NADA: sem
+   menu do Electron, o `rightClickHandler` do xterm so reposiciona o textarea
+   dele esperando um menu nativo que este app nao tem.
+
+   z-index 30: acima de tudo que vive dentro de um painel (a alca e 6, o
+   dormindo e 5) e abaixo dos overlays (40+), que cobrem o terminal inteiro --
+   com um overlay aberto nao ha terminal a que este menu se aplique. */
+.menu-ctx {
+  position: fixed;
+  z-index: 30;
+  min-width: 168px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px;
+  background: var(--bg2);
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .38);
+}
+
+.menu-ctx button {
+  justify-content: flex-start;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  padding: 8px 11px;
+  font-size: 12px;
+  color: var(--fg);
+  text-align: left;
+}
+
+.menu-ctx button:hover:not(:disabled) { background: var(--bg3); color: var(--fg); }
+
+/* Sem selecao nao ha o que copiar. Dizer isso antes do clique e melhor que um
+   toast depois. */
+.menu-ctx button:disabled { color: var(--fg3); cursor: default; }
+
+/* =================================================== implementação dupla */
+
+#dupla-a, #dupla-b, #dupla-nome {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--fg);
+  font-size: 12px;
+}
+
+#dupla-nome { font-family: var(--mono); }
+
+#dupla-a:focus, #dupla-b:focus, #dupla-nome:focus {
+  outline: none;
+  border-color: var(--acc);
+}
+
+/* O nome REAL do branch, antes de confirmar. A tela deste app nao promete um
+   nome e entrega outro -- e o mesmo motivo pelo qual o campo de sessao do topo
+   perdeu o prefixo `feat/` que nunca chegou a branch nenhum. */
+.modal-dica {
+  margin: -10px 0 16px 0;
+  font-size: 11px;
+  color: var(--fg3);
+  font-family: var(--mono);
+}
+
+#dupla-onde { margin-bottom: 16px; }
+
+#dupla-previa {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+#dupla-previa:empty { display: none; }
+
+.dupla-previa-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--fg2);
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 11px;
+}
+
+.dupla-previa-linha .mono { font-size: 11px; color: var(--fg3); }
+.dupla-previa-linha .dupla-previa-erro { color: var(--danger); }
+
+/* O rotulo do "Implementação dupla" encolhe com a janela.
+   Nao e enfeite: a `#barra` e `flex-wrap: wrap`, e o orcamento dela e a largura
+   do `#principal` -- ou seja, a janela MENOS a lateral. Com a lateral aberta a
+   1402px sobram ~1130px, e o rotulo inteiro passava 41px do limite: a
+   `.barra-direita` caia para uma segunda linha e tirava ~56px de altura de TODO
+   painel, de forma permanente. Foi o `teste:fase6` que pegou, na asserção de
+   que 4 painéis nao fazem a grade rolar.
+   Mesma familia dos degraus de compressao do medidor de uso (1240/1040/940). */
+#btn-dupla .so-estreito { display: none; }
+
+@media (max-width: 1500px) {
+  #btn-dupla .so-largo { display: none; }
+  #btn-dupla .so-estreito { display: inline; }
+}

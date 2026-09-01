@@ -78,6 +78,28 @@
       });
     }
 
+    // Copiar e colar no painel focado. So chamam OrqCopia, que e a regra deste
+    // arquivo: comando de paleta nao tem logica propria. Ficam de fora quando
+    // nao ha painel focado -- oferecer o que so sabe falhar e pior que nao
+    // oferecer.
+    const termFocado = window.OrqCopia?.termFocado?.();
+    if (termFocado) {
+      if (termFocado.hasSelection()) {
+        lista.push({
+          tag: 'terminal',
+          rotulo: 'Copiar a seleção do painel focado',
+          dica: 'ctrl+shift+c',
+          correr: () => window.OrqCopia.copiar(termFocado),
+        });
+      }
+      lista.push({
+        tag: 'terminal',
+        rotulo: 'Colar no painel focado',
+        dica: 'ctrl+shift+v',
+        correr: () => window.OrqCopia.colar(termFocado),
+      });
+    }
+
     const vivas = window.OrqEnviarVarias?.candidatas().length || 0;
     if (vivas > 1) {
       lista.push({
@@ -87,6 +109,13 @@
         correr: () => window.OrqEnviarVarias.abrir(),
       });
     }
+
+    lista.push({
+      tag: 'nova',
+      rotulo: 'Implementação dupla (dois repositórios)',
+      dica: 'uma sessão enxergando as duas worktrees',
+      correr: () => window.OrqDupla?.abrir(),
+    });
 
     // Uma entrada por projeto com git: a faxina e sempre DE um repositorio, e
     // nao ha uma lista global de worktrees para limpar de uma vez.
