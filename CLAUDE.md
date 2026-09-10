@@ -39,6 +39,8 @@ npm run teste:copiar      # copiar/colar, o Ctrl+C que ainda interrompe, e colar
 npm run teste:dupla       # implementacao dupla: duas worktrees, um painel so
 npm run teste:dupla-reais # com Claude de verdade: ~4min e consome tokens
 npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
+npm run teste:abrir       # Node puro: o pedido do Pronix Flow, branch literal e allowlist
+npm run teste:abrir-ui    # o pedido chegando no app de verdade, sem invocar o Claude
 npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
 npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
@@ -918,6 +920,399 @@ degraus de compressao do medidor de uso.
 **Foi o `teste:fase6` que pegou**, na asserção de que 4 painéis nao fazem a grade rolar — um teste
 sobre rolagem denunciando um botao novo na barra. Vale como aviso: **todo widget novo na `#barra`
 cobra do orcamento de altura dos painéis**, e o sintoma aparece longe de onde a mudanca foi feita.
+
+## Abrir sessao a pedido do Pronix Flow
+
+Um clique em "Abrir no Claude" numa issue do Flow abre aqui uma sessao ja na worktree certa, no
+branch da issue, com o contexto digitado na caixa. **O lado do Flow ja estava pronto e commitado**
+(`feature/TECH-1120`); o que faltava era este lado do contrato, e ate entao todo clique caia no pior
+caso deles -- copiar o nome da branch para a area de transferencia.
+
+### O contrato, e ele e DELES
+
+Mora inteiro em `apps/web/src/lib/orquestrador.ts` do outro repositorio. Mudar qualquer campo aqui
+exige mudar aquele arquivo.
+
+```
+GET  http://127.0.0.1:47615/ping     timeout de 1s, o Flow le SO `res.ok`, cacheado por carregamento
+POST http://127.0.0.1:47615/abrir    content-type application/json, o Flow le SO `res.ok`
+     { repo, branch, issue, title, url }
+orquestrador://abrir?repo=&branch=&issue=&title=&url=      (URLSearchParams, percent-encoded)
+```
+
+`repo` e `owner/repo` (`VDVTech/pronix-flow`) e **nunca** um caminho; `branch` e a convencao
+`feature/{TEAM_KEY}-{number}`; **`issue` e STRING** (`TECH-1120`), nao numero; `title` e texto livre
+com acento e emoji; `url` aponta para a issue **no Flow**, nao no GitHub.
+
+**Qualquer 2xx e sucesso e vira toast verde; qualquer outra coisa faz o Flow copiar a branch.** Isso
+e usado de proposito: repo nao cadastrado (404) e colisao de pasta (409) saem nao-2xx para a pessoa
+ao menos ficar com a branch na mao, e o app mostra o motivo num toast proprio.
+
+**A porta e fixa e o Flow a tem hardcoded.** O `~/.orquestrador/porta` continua informativo.
+
+### O pedido chega DUAS VEZES, e isso e o caminho normal
+
+Com o app fechado -- o caso comum -- a cascata do Flow e:
+
+```
+/ping morto -> dispara orquestrador://abrir -> re-sonda /ping a cada 400ms por ~3s
+                                                └─ subiu -> POST /abrir
+```
+
+Ou seja: o deeplink **abre o app** e, tres segundos depois, **o mesmo pedido chega de novo por
+HTTP**. Idempotencia nao e borda a tratar depois. E ela **nao pode ser "ja existe painel nessa
+pasta"**, porque nesses 3 segundos o `git worktree add` ainda esta rodando e nao ha painel nenhum --
+dai o conjunto de pedidos em voo chaveado por `repo|branch` no `externo.js`, liberado quando o painel
+nasce ou quando o pedido falha.
+
+Isso tambem poe um prazo no arranque: o `/ping` tem de responder **dentro de ~3s** de o deeplink ter
+subido o app, senao o Flow desiste e so copia a branch.
+
+### Os modulos, e a divisao de sempre
+
+- **`src/main/pedido.js`** -- Node puro, sem Electron. Tudo que DECIDE: parse do deeplink,
+  normalizacao de `owner/repo`, resolucao para um projeto, composicao do prompt. E o que o
+  `teste:abrir` exercita sem abrir o app.
+- **`src/main/externo.js`** -- a ponta que precisa do Electron: registro do protocolo, a janela, a
+  fila, a deduplicacao, o limite de ritmo.
+- **`src/janela/abrir-externo.js`** -- IIFE. Calcula o slug, cria a worktree, abre o painel, e manda
+  o VEREDITO de volta.
+
+**O slug e calculado no RENDERER, e nao no main.** `slugFeature` produz um valor de que tres
+subsistemas dependem ao mesmo tempo -- o nome da pasta, `painel.feature` e o `--name` do CLI, que e
+por onde `registro.donoDe()` casa a sessao com o painel. Dois produtores dariam duas respostas em
+alguma entrada, e o sintoma seria o `donoDe` parar de casar **em silencio**. Somando: o `teste:ui` so
+enxerga `src/janela/*.js`, entao uma copia em `src/main/` derivaria sem nada pegar. Ao main cabe
+recusar (`SLUG_VALIDO`, `branchValido`), nao produzir.
+
+### Instancia unica, e onde a trava entra
+
+`app.requestSingleInstanceLock()` fica **entre a rede global de excecoes e o `SHELL_PADRAO`** do
+`index.js`, e as tres restricoes que prendem a posicao valem cada uma:
+
+- **Depois do bloco `--remover-hooks`**, e o motivo e pior do que parece: o desinstalador roda
+  `<exe> --remover-hooks` com o app quase sempre **aberto**. Com a trava acima, esse processo
+  perderia o lock, sairia pelo `app.quit()` e **nao removeria os hooks** -- o mesmo defeito permanente
+  que aquele bloco existe para evitar.
+- **Antes do `corrigirPath()`**, para o perdedor nao pagar uma sondagem de login shell so para morrer.
+- `return` no topo de modulo CommonJS e legal (o modulo e embrulhado numa funcao), e e o certo: tudo
+  abaixo e **registro** de handler, e um perdedor que registra quarenta IPCs para so entao sair e
+  estritamente pior.
+
+**A trava e chaveada pelo `userData`**, e o `subir.ps1` lanca o dev com `--user-data-dir` proprio: dev
+e app instalado nao se enxergam, e a suite continua rodando com o app instalado aberto.
+
+**O argv nunca e indexado.** `pedido.deArgv` VARRE procurando `orquestrador://`: no layout de dev o
+caminho do app ocupa o `[1]`, e o Electron pode por switches do Chromium no argv do
+`second-instance`. Mesma decisao que o `--remover-hooks` ja tinha tomado e documentado.
+
+De quebra, isso mata uma divida antiga: sem a trava, abrir o app duas vezes subia duas janelas, a
+segunda perdia a 47615 e caia no aviso de porta ocupada, com as duas disputando o `sessao.json`.
+
+### O protocolo
+
+**Registro em tempo de execucao, a cada arranque**, e nao uma vez: a chave do registro guarda caminho
+ABSOLUTO, entao mover a pasta do zip portatil ou do `-sac` quebraria o link, e reregistrar sempre e o
+conserto -- o mesmo problema que o `.lnk` do `atalho.js` ja tem.
+
+- **`setAsDefaultProtocolClient('orquestrador')` sem argumentos e seguro no `-sac`**, e isso foi
+  conferido no codigo: a URL chega em `argv[1]`, e o perigo seria o Electron trata-lo como caminho de
+  app -- o que so acontece quando ele cai no `default_app`, terceiro da busca
+  `['app', 'app.asar', 'default_app.asar']` em `resources/`. O `empacotar-sac.js` instala
+  `resources/app.asar` (para na 2a) e **apaga o `default_app.asar`** (a 3a nem existe). Nada aqui toca
+  no executavel, entao o guarda de SHA-256 do pacote `-sac` segue valendo.
+- **`ehEmpacotado()` decide**, e nao `app.isPackaged` -- pela razao inteira do `empacotamento.js`.
+- **`open-url` (macOS) e registrado no TOPO, fora do `whenReady`.** Dentro dele, o primeiro deeplink
+  do dia -- justamente o que ABRIU o app -- chegaria antes de o ouvinte existir e sumiria sem erro.
+- `electron-builder.yml` ganhou `protocols:`. **No macOS isso e obrigatorio**: sem `CFBundleURLTypes`
+  no Info.plist o `open-url` nunca dispara. No Windows quem faz o trabalho e a chamada em tempo de
+  execucao, que cobre o zip e o `-sac` -- que o electron-builder nem enxerga.
+- `instalador.nsh` apaga `HKCU\Software\Classes\orquestrador` **dentro do `${ifNot} ${isUpdated}`**,
+  pelo mesmo motivo do resto daquele arquivo. Zip e `-sac` nao tem desinstalador e deixam a chave para
+  tras; e uma linha no LEIA-ME, nao uma maquina.
+
+> **A armadilha de desenvolvimento que vai custar mais tempo:** um deeplink clicado no navegador sobe
+> o app com o `user-data-dir` **padrao**, entao ele nao entra no lock da instancia `.dev-udata` -- vira
+> um segundo processo que perde a 47615 e abre o dialogo de porta ocupada. Parece "o link abre uma
+> janela em branco que reclama de porta". Por isso o dev **nao registra o esquema por padrao**:
+> escrever em `HKCU\Software\Classes` a partir da arvore de codigo SEQUESTRA o esquema do app
+> instalado da propria maquina. Com `ORQ_PROTOCOLO=1` da para testar de proposito, e ai o
+> `--user-data-dir` vai junto no registro.
+
+### As rotas, e por que CORS nao e o portao
+
+O corpo do hook virou `tratarEvento()` e o `tratar()` e um roteador de tres saidas, **com o hook em
+cima e sem nenhuma condicao nova no caminho dele**. Caminho desconhecido continua com o 200 mudo de
+sempre -- nao vira 404, porque quem bate ali e varredor de porta e um 404 com corpo so entrega
+informacao.
+
+⚠️ **O contrato e oposto ao dos hooks.** `/evento` responde 200 **antes** de processar; `/abrir`
+responde **depois**, com o resultado. Por isso o `responder()` do hook ficou **intocado** e entrou um
+`responderJson()` ao lado -- e o `content-length` dele sai de **`Buffer.byteLength`**, nunca de
+`.length` da string: o `'2'` cravado do hook so pode existir porque `'ok'` e ASCII, e aqui o corpo
+carrega o `title` da issue, que tem acento e emoji por contrato. Dois bytes a menos entregam JSON
+truncado, sem erro em nenhum dos dois lados.
+
+**Cabecalho de CORS decide se a PAGINA LE a resposta; ele nao impede o pedido de chegar.** Um POST
+`text/plain` e "simples", roda o handler inteiro, e so a resposta e escondida. Quem impede o EFEITO e
+a conjuncao, avaliada antes de qualquer coisa acontecer:
+
+1. **`Host` de loopback** -- contra DNS rebinding (uma pagina em `evil.com` que resolve para
+   `127.0.0.1` e same-origin consigo mesma, e mandaria `Host: evil.com`).
+2. **`/abrir` e POST-only** -- tira `<img>`, `<iframe>`, `prefetch` e **navegacao de topo, que nao
+   manda `Origin` nenhum** e deixaria o portao 4 sem o que ler.
+3. **`content-type: application/json`** -- `<form>` nao produz, e forca preflight. E o que promove o
+   portao 4 de "quase sempre" para "sempre".
+4. **`Origin` na allowlist** -- o unico portao que separa o Flow de qualquer site.
+5. **`externo: 'ligado'`** -- conferido ANTES do 4, para quem depura com curl receber o motivo
+   verdadeiro. Ele fecha a superficie inteira, **deeplink incluido**.
+
+**Origin ausente e aceito** (curl, os testes, outro programa local), e a razao e desconfortavel:
+contra codigo local nao ha defesa possivel aqui -- quem roda como voce ja pode editar o
+`settings.json` e spawnar `claude`, entao um segredo neste servidor so mudaria o arquivo de onde o
+atacante local o leria. O unico atacante que este servidor **pode** recusar e uma pagina web, e ela
+sempre manda `Origin` num POST. **Foi por isso que o token compartilhado que o Flow ofereceu foi
+recusado.**
+
+Nunca `Access-Control-Allow-Credentials`, e **nunca ecoar `Origin` sem validar antes** -- e o bug
+classico que transforma uma politica de CORS em nenhuma. Com `Vary: Origin`, e `max-age` curto porque
+a lista vive no `ui.json`. E: **cookie ignora porta**, entao qualquer outro programa em `127.0.0.1`
+pode plantar um -- nada aqui le `Cookie`, e e para continuar assim.
+
+**Private Network Access:** a pagina do Flow e https publica e o alvo e `127.0.0.1`. Enquanto o
+preflight de PNA existir, o Chrome manda `Access-Control-Request-Private-Network` e exige
+`Access-Control-Allow-Private-Network: true` na resposta. Quando ele trocar isso pela **permissao**
+de Local Network Access, simplesmente para de mandar o cabecalho e aquele `if` para de valer -- nao ha
+nada a remover. **E por isso que o deeplink e o canal principal e o HTTP e o reforco:** o deeplink nao
+tem CORS, nao tem PNA, nao tem mixed-content (o Safari historicamente barra `http://127.0.0.1` a
+partir de https) e **funciona com o app fechado**, o que o `/abrir` nunca vai conseguir.
+
+**`projetos` no `/ping` e CONTAGEM e tem de continuar sendo:** a lista seriam os nomes e os caminhos
+de tudo em que a pessoa trabalha, o maior vazamento gratuito desta superficie. **Nenhuma resposta
+carrega caminho de disco** -- e o que mantem "nunca um caminho" verdadeiro nos DOIS sentidos.
+
+**`eventos.js` nao requer `electron`, e nada que ele importa requer.** E o que permite o `teste:abrir`
+subir o roteador DE VERDADE numa porta efemera, em Node puro -- testar contra a 47615 seria brigar com
+o app instalado da propria maquina. Por isso o `/ping` **nao** chama `app.getVersion()`: a versao e
+injetada no `iniciar()`. A falha, se alguem esquecer, e traicoeira: em Node puro `require('electron')`
+devolve uma **string**, entao `{ app }` sai `undefined` e quebra na chamada, nao no require.
+
+`iniciar(callback)` virou `iniciar({ aoEvento, aoAbrir, versao })`. Objeto, e nao setter depois do
+`await`: o servidor comeca a escutar DENTRO do `iniciar()`, e um `definirAbrir()` posterior deixaria o
+socket aceitando com o `/abrir` sem handler -- no exato momento do arranque, que e justamente quando o
+Flow re-sonda.
+
+### `remotes` no cadastro
+
+`worktrees.remotesDe()` le `git config --get-regexp '^remote\..*\.url$'` -- **todos os remotes, nao so
+`origin`**, porque quem clonou um fork tem o repo da organizacao em `upstream`, e e o nome canonico
+que o Flow manda. A traducao para `owner/repo` mora no `pedido.js`, que e string pura e testavel sem
+repositorio nenhum, e ela **descarta credencial embutida** antes de o valor chegar ao `projetos.json`.
+
+**Fica GRAVADO, e o `listar()` continua sem spawnar git**: ele roda a cada refresh do renderer, e este
+arquivo ja tem a historia de como spawn sincrono por ciclo travou o processo principal por segundos.
+Gravado no `adicionar`/`adicionarVarios`, preenchido uma vez no arranque para quem ja estava
+cadastrado, e -- **so quando a resolucao nao acha o repo** -- uma releitura forcada antes de responder
+404. E a unica hora em que pagar por isso vale, e e o que faz "adicionei o remote ontem" se resolver
+sozinho.
+
+**A regra que nao pode ser contornada e uma questao de ASSINATURA:** `pedido.resolver(pedido, projetos)`
+recebe a lista e devolve **um item dela**. Nao existe caminho de codigo em que uma string do pedido
+vire caminho de disco -- nao porque alguem se lembre de validar, mas porque a funcao nao constroi
+caminho nenhum. Do lado do renderer o que chega e **id de projeto**, procurado de novo. E o
+`pedido.projeto` e DESEMPATE de ambiguidade, nunca chave: se valesse sozinho, `{ repo: 'qualquer',
+projeto: 'pj-x' }` abriria o pj-x.
+
+### Branch literal, e o que isso custou
+
+O Flow diz que `feature/TECH-1120` e convencao dele e que reconhece as duas formas. **O app cria o
+branch literal mesmo assim**, porque e o nome que aparece na PR, nas regras de protecao de branch e
+nos filtros de CI (`on: push: branches: ['feature/*']`) -- `worktree-feature-TECH-1120` nao casa com
+nenhum deles.
+
+Logo: **quem cria a worktree e o app**, como na dupla, e o comando sobe **sem `-w`**. A pasta continua
+`<projeto>/.claude/worktrees/<slug>` e o `SLUG_VALIDO` continua como estava; sem `branch`, tudo se
+comporta byte a byte como antes.
+
+**Validar com `git check-ref-format --branch`**, e nao com regex nova -- mas com **tres portoes
+antes**, e nenhum e paranoia (medido com git 2.55):
+
+- `refs/heads/x` **passa** no check-ref-format, e `worktree add -b refs/heads/x` criaria
+  `refs/heads/refs/heads/x`.
+- `-` no comeco e argumento de git disfarcado, e o `git worktree add` documenta que `<commit-ish>` pode
+  ser um `-` puro, *"synonymous with `@{-1}`"*: um branch chamado `-` abriria o branch anterior.
+- **`con`, `nul`, `aux`, `com1`… passam no check-ref-format** e o Windows nao deixa criar pasta com
+  esse nome -- o `worktree add` morreria com um erro de sistema que nao diz nada. Ja era defeito
+  latente com nome digitado.
+
+Tres caminhos em `criar`, e cada um **diz qual tomou** (`origem`): branch local existe -> reaproveita;
+so no remoto -> `fetch --no-tags` pelo **`gitDeRede`** (o unico passo de rede: um repositorio privado
+sem credencial abriria uma JANELA do Git Credential Manager do nada) e entao
+`worktree add --track -b <branch> <path> <remoto>/<branch>`; em lugar nenhum -> `-b`, como sempre.
+Falha de rede **nao recusa** -- a ref de rastreio ja esta no disco, foi por ela que chegamos ali; vira
+aviso, a mesma politica do updater.
+
+**Nem `--guess-remote` nem DWIM puro.** O `--guess-remote` so vale quando o `<commit-ish>` e OMITIDO e
+casa contra `$(basename <path>)` -- que aqui e o **slug** (`feature-TECH-1120`), nao o branch
+(`feature/TECH-1120`): ele procuraria um branch remoto com o nome da pasta, nao acharia, e cairia em
+branch orfao. O DWIM puro usa a ref de rastreio **como esta no disco**, sem buscar, entao a worktree
+pode nascer de uma copia de uma semana atras sem nada dizer -- e o codigo de saida nao conta qual dos
+tres caminhos foi tomado, o que quebraria a promessa de "criar / reaproveitar".
+
+**Descobrir sem gastar rede:** `for-each-ref refs/remotes/*/<branch>` le o que um fetch anterior
+deixou, entao `prever()` continua **sincrona e funcionando offline** -- que e o que ela promete desde
+o comeco.
+
+**O que se perde ao tirar o `-w`:** o CLI e quem copia o `.worktreeinclude` (o `copiarInclude` ja
+repunha isso, desde a dupla) e quem tranca a worktree com o PID. **A trava com PID nao volta**, e e
+correto: quem protege a pasta enquanto o painel vive e o portao de "painel aberto nesta pasta", que ja
+existia.
+
+#### A colisao de slug, e as tres primas dela
+
+`slugFeature` colapsa `/` em `-`, entao `feature/TECH-1120` e `feature-TECH-1120` disputam a MESMA
+pasta -- e `prever()` diria "reaproveitar" para uma worktree cujo branch e outro. O guarda compara com
+o branch **que esta no disco**, o que cobre as quatro de uma vez: a barra, a **caixa** (refs distintas
+para o git, mesma pasta no NTFS), o **corte de 60 caracteres**, e o nome reservado. A recusa nomeia
+`branchAtual` -- sem isso a pessoa nao entende por que dois branches obviamente diferentes colidiram.
+
+**Nao resolver com sufixo de hash:** e o nome da pasta que o `listar()`, a faxina, a lateral e o
+`rotuloDeLigacao` mostram, e pasta ilegivel e troca pior que uma recusa que sugere outro nome.
+
+⚠️ **O `-1120` tem de sobreviver ao slug.** O Flow avisa: se o corte em 60 caracteres comer a chave e
+o numero, o vinculo issue<->branch se perde **em silencio**.
+
+#### Um bug latente que isto tornou grave: `desfazer` apagava branch que nao criou
+
+`criar` marcava `criada: true` sempre que rodava `worktree add`, **inclusive reaproveitando branch que
+ja existia**, e o `criarDupla` chamava `desfazer`, que faz `branch -D`. O comentario justificava o
+`-D` com *"o branch tem a idade do comando anterior"* -- ja falso no caso em que o `arquivar` deixou o
+branch para tras por ter commit nao mesclado.
+
+Com branch vindo de fora viraria: **abrir uma sessao em `main` no primeiro repositorio, o segundo
+falhar, e o `main` local ser apagado.** Agora `criar` devolve `branchCriado` e `desfazer` recebe
+`{ apagarBranch }`.
+
+### O primeiro prompt: `--prefill-b64`, e a sonda que o protege
+
+O Flow **nao manda `prompt`**. O texto e montado aqui com `issue`, `title` e `url` -- e `description`
+foi **pedido a eles** (ofereceram; e um arquivo, duas linhas), e entra no mesmo lugar sem nenhuma
+mudanca de mecanica.
+
+**MEDIDO contra o CLI 2.1.267:** `--prefill <texto>` e *"Pre-fill the prompt input with text without
+submitting it"* -- por dentro e literalmente `buffer = texto`, aplicado **antes** de a TUI subir. Ha a
+irma `--prefill-b64` (base64url, descrita pelo proprio CLI como *"deep-link shell-safe launch
+paths"*), lida junto de `--deep-link-origin`. **Isso elimina a danca de digitar na TUI**, e com ela
+todo o risco de timing: o comando anda pelo `aoPrimeiroDado` + `OrqFila.pedirVaga` de sempre.
+
+Por que a forma base64 e nao `--prefill "<texto>"`:
+
+- O alfabeto base64url e `[A-Za-z0-9_-]`: **nenhum metacaractere do `cmd.exe`**. Com aspas duplas o
+  `cmd` **expande `%VAR%`** (um titulo com `%USERPROFILE%` viraria um caminho, calado), e um `"` no
+  meio do texto quebra a linha em dois argumentos.
+- **`OrqShell.citar` seria errado aqui**: ele troca `/` por `\` no Windows, e `and/or` viraria
+  `and\or`. Ele e para CAMINHO.
+- O validador do CLI normaliza `\r\n` e `\r` solto para `\n` e permite `\n`/`\t`, entao prompt
+  multilinha sobrevive -- por argumento com aspas seria impossivel.
+- **Teto de 5000 caracteres, e a recusa do CLI e MUDA** (vai para o log de depuracao dele, e a sessao
+  abre com a caixa vazia). Por isso o corte e nosso, e e **recusa, nao truncagem**.
+
+#### O teto de 8191 do cmd.exe, e por que ele e mais apertado que o do prompt
+
+MEDIDO no proprio painel, com um executavel de verdade (`node -e` recebendo um argumento gigante):
+ate **8100** caracteres de linha o argumento chega inteiro; a partir de **8200 nao acontece nada**.
+E o limite de 8191 do `cmd.exe`, e **o descarte e MUDO** -- nenhum erro, nenhuma saida, a linha
+simplesmente some. (Com `echo`, que e builtin, passa 12000: sem `CreateProcess` o teto nao aparece.
+Medir com builtin teria dado o numero errado.)
+
+O modo de falha e o pior deste app: o `claude` nunca subiria, e o painel ficaria com um prompt de
+shell parado, marcado como `rodando` pelo `index.js` e sem hook nenhum para corrigir -- **bolinha
+verde para sempre**. Exatamente o que o `tipoPainel: terminal` existe para evitar no caso do shell.
+
+Dai o `MAX_LINHA` (8000) conferido sobre a **linha pronta**, e nao estimado a partir do tamanho do
+prompt: o base64 infla 4/3 sobre os **bytes**, e nao sobre os caracteres. 5000 caracteres de
+portugues sao ~5300 bytes -> ~7100 de base64, que cabe com folga; o mesmo texto cheio de emoji
+(4 bytes por caractere) nao caberia. Quando nao cabe, `comPrefill` devolve o comando **sem** o
+prefill e quem chama copia o contexto para a area de transferencia -- a sessao abre igual.
+
+`prefillCabe()` e definida em termos do `comPrefill` de proposito: uma conta propria seria uma
+segunda fonte da verdade, e erraria no dia em que o formato da flag mudasse.
+
+**O deeplink NAO tem esse teto.** Medido pelo caminho real (segunda instancia com a URL no argv):
+uma URL de **32 124** caracteres chega inteira, e uma de 33 124 se perde -- e o limite de 32767 do
+`CreateProcess` do Windows, valendo para a linha toda. Ou seja: o transporte aguenta muito mais do
+que o prompt consegue aproveitar, e o gargalo real e sempre a linha que sobe o Claude.
+**O argumento POSICIONAL nao serve, e isso foi medido:** `claude auth` roda o **subcomando auth**, e
+`claude updatee` imprime `Did you mean claude update?` e **SAI**. Prompt de uma palavra seria
+cara-ou-coroa entre abrir sessao e nao abrir nada -- com o pior modo de falha deste app, porque o
+painel nasce `rodando` e nenhum hook corrige um shell morto: bolinha **verde para sempre**.
+
+**Tudo isso e opcao interna do CLI (`hideHelp()`), e a diferenca perigosa e que NAO DEGRADA** --
+medido, `claude --zzz-not-real` responde `error: unknown option` e sai. Dai `src/main/claude-flags.js`:
+uma sonda memoizada por execucao, ~200ms, sem sessao, sem rede e sem token. O truque e o `--tmux`, que
+no Windows falha **depois** do parse:
+
+```
+claude --prefill-b64 aGk --deep-link-origin --tmux
+  -> "Error: --tmux requires --worktree"        a flag existe
+  -> "error: unknown option '--prefill-b64'"    a flag sumiu
+```
+
+**Nao e relogio**, de proposito: o orcamento de CPU parado ja esta apertado. Sem a flag, a sessao abre
+igual e o prompt vai para a area de transferencia com um toast.
+
+### A issue no painel
+
+`painel.issue = { repo, identificador, titulo, url }` e `painel.branch`, e os dois persistem.
+
+- **`branch` e ROTULO e NUNCA portao.** Tudo que DECIDE algo sobre a worktree (arquivar, diff, faxina)
+  continua perguntando ao git, porque isto envelhece -- um `git switch` dentro da pasta nao avisa
+  ninguem. Persiste porque, sem ele, todo rotulo consciente de branch voltaria a `worktree-<slug>`
+  depois de reiniciar.
+- **`promptInicial` NAO persiste, de proposito.** Um pedido e evento, nao arranjo: retomar amanha nao
+  pode redigitar na caixa o pedido de ontem. E assimetrico com o `--add-dir`, que **e** reaplicado no
+  `despertar()`, e a assimetria e o ponto -- ligacao e estado duravel, pedido nao.
+- **Quatro listas brancas**, e esquecer uma e exatamente como o `tipoPainel` quebrou: `retratoSessao()`,
+  `sessao.carregar()` **e** `sessao.salvar()`, e `layouts.limparPainel()`. O normalizador mora no
+  `sessao.js` e o `layouts.js` o **importa** -- copiar seria a terceira copia.
+- **O chip vai no grupo da ESQUERDA**, entre o nome e a pill do projeto, e nao em `.painel-acoes`:
+  aquele grupo e `flex: 0 0 auto` justamente para o botao de fechar continuar alcancavel. A issue e
+  **identidade**, nao acao.
+- **`<button>`, nunca `<a>`.** Nao existe `will-navigate` nem `setWindowOpenHandler` em todo o `src/`,
+  e o CSP nao restringe navegacao de topo: um `<a href>` clicado navegaria a **unica** `BrowserWindow`
+  para fora do `index.html` e levaria **todos os terminais vivos** junto. Quem abre o navegador e o
+  processo principal, e o IPC so aceita `http`/`https` -- validar la ALEM do `normalizarIssue` nao e
+  redundancia: aquele protege o arquivo, este protege a chamada.
+- No `@container`, a issue sai **depois** da pill e antes da porta: a cor do projeto sobrevive a pill
+  (a faixa mora no frame), entao esconder a pill nao apaga o projeto da tela -- esconder a issue apaga
+  a issue, que e o unico caminho daqui de volta para o Flow.
+
+`rotuloDeLigacao` parou de derivar `worktree-<slug>` do caminho quando ha painel nosso naquela pasta:
+com branch literal, derivar virou **inventar**. Sem IPC e sem cache de proposito -- a funcao e chamada
+de forma sincrona pelo `mostrarLigacoes()`, e uma fonte assincrona forcaria invalidacao em `arquivar`,
+`arquivarVarias` e na faxina, tres pecas moveis para um tooltip. **O `atualizarDica` do `casca.js` NAO
+mudou**: aquele campo ainda usa `claude -w`, onde o branch realmente e `worktree-<slug>`.
+
+### O que o app NAO faz
+
+- **Nunca clona repositorio** a pedido da rede. Repo desconhecido e 404 mais um toast nomeando o repo.
+- **Nunca toca no estado da issue**: atribuicao, coluna, comentario na PR e `PullRequestLink` sao todos
+  do Flow, que ja cuida disso sozinho.
+- **Nunca envia o prompt.** Se tudo falhar, o pior resultado e texto visivel parado na caixa de
+  entrada -- a mesma propriedade que o digito `1` da aprovacao tem.
+- Limite de ritmo (6 aceitos em 10s) mais teto de fila de 8: uma rajada de partidas e exatamente o que
+  a fila da Fase 6 existe para evitar, e isto e um jeito novo de produzir uma **de fora da maquina**.
+
+### Os testes
+
+`npm run teste:abrir` roda em **Node puro** e cobre parse, normalizacao de remote, resolucao (fork com
+`upstream`, dois clones -> ambiguo), allowlist, o prompt e o teto, a mecanica de branch com git de
+verdade num repositorio descartavel -- e o **roteador HTTP**, subido numa porta efemera.
+
+`npm run teste:abrir-ui` faz o caminho inteiro contra o app do `npm run dev`, **sem invocar o
+Claude**: o `montarComando` e trocado por `echo claude` pelo CDP, de fora, e como o `comPrefill` so
+exige a palavra `claude` no comando, o shell ecoa exatamente o que o CLI receberia. Dai da para
+**decodificar o base64 do buffer** e provar que o prompt chegou ao PTY, em vez de supor.
 
 ## Ligar sessoes entre repositorios
 

@@ -39,6 +39,19 @@
         DetailPrint "Nao consegui remover os hooks automaticamente (codigo $0)."
       ${EndIf}
     semExe:
+
+    ; O APP REGISTRA O ESQUEMA SOZINHO, a cada arranque (src/main/externo.js), e
+    ; o desinstalador do electron-builder so apaga o que ELE escreveu. Sem esta
+    ; linha, um `orquestrador://` clicado depois de desinstalar tenta abrir um
+    ; executavel que nao existe mais -- e o Windows nao diz o que aconteceu.
+    ;
+    ; Dentro do `${ifNot} ${isUpdated}` pelo motivo desta secao inteira: o
+    ; instalador de um clique roda o desinstalador antigo antes de instalar a
+    ; versao nova, e apagar a chave ali deixaria uma janela em que o link nao
+    ; funciona ate alguem abrir o app e ele reregistrar.
+    ;
+    ; HKCU porque o instalador e `perMachine: false` -- roda como o usuario.
+    DeleteRegKey HKCU "SoftwareClassesorquestrador"
   ${else}
     DetailPrint "Atualizacao: os hooks do Claude Code ficam como estao."
   ${endif}

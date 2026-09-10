@@ -67,6 +67,28 @@ contextBridge.exposeInMainWorld('orq', {
   // nome de branch, porque cada um tem a sua issue.
   worktreesPreverDupla: (a, b) => ipcRenderer.invoke('worktrees:preverDupla', { a, b }),
   worktreesCriarDupla: (a, b) => ipcRenderer.invoke('worktrees:criarDupla', { a, b }),
+  // Uma worktree so, num branch escolhido -- o irmao da dupla. `branch` vazio
+  // volta a convencao `worktree-<slug>` do `claude -w`.
+  worktreesPrever: (caminho, slug, branch) =>
+    ipcRenderer.invoke('worktrees:prever', { caminho, slug, branch }),
+  worktreesCriar: (caminho, slug, branch) =>
+    ipcRenderer.invoke('worktrees:criar', { caminho, slug, branch }),
+
+  // ------------------------------------------- pedido externo (Pronix Flow)
+  //
+  // `aoPedidoAbrir` e a familia `ao...`: push do processo principal, que e quem
+  // recebe o deeplink e o POST /abrir.
+  aoPedidoAbrir: (fn) => ipcRenderer.on('abrir:pedido', (_e, p) => fn(p)),
+  aoAvisoAbrir: (fn) => ipcRenderer.on('abrir:aviso', (_e, a) => fn(a)),
+  // O renderer avisa que `OrqProjetos` ja tem a lista de projetos. So entao a
+  // fila de pedidos e drenada -- ver o comentario no `externo.js`.
+  externoPronto: () => ipcRenderer.send('externo:pronto'),
+  // O veredito sobre um pedido, que e o que o /abrir responde ao Flow.
+  abrirResposta: (r) => ipcRenderer.send('abrir:resposta', r),
+  // Abrir a issue no navegador. O portao de esquema mora no main.
+  abrirExterno: (url) => ipcRenderer.invoke('abrir:externo', url),
+  // O CLI ainda aceita `--prefill-b64`? Memoizado no processo principal.
+  claudePrefill: () => ipcRenderer.invoke('claude:prefill'),
 
   gitSituacao: (projeto) => ipcRenderer.invoke('git:situacao', projeto),
   gitBuscar: (projeto) => ipcRenderer.invoke('git:buscar', projeto),

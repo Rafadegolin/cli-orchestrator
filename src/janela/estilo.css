@@ -1414,13 +1414,48 @@ button.primario:hover {
 
 .painel-fechar:hover { color: var(--danger); border-color: var(--danger); }
 
+/* A issue do Pronix Flow que originou a sessao.
+
+   Reusa a paleta da `.painel-porta` de proposito: nenhum par de cor novo entra
+   na conta de contraste AA que o `teste:ui` calcula.
+
+   O `flex: 0 50 auto` o poe na escada de compressao entre a pill do projeto
+   (200) e o nome (1), entao o deficit de largura e absorvido na ordem
+   status -> pill -> issue -> nome. Na pratica `TECH-1120` tem ~60px e nunca
+   encolhe; o peso existe para o cabecalho nao estourar com um identificador
+   longo. */
+.painel-issue {
+  flex: 0 50 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--info);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.painel-issue:hover:not(:disabled) { border-color: var(--info); }
+
 /* Painel muito estreito: encolher texto ate sumir nao ajuda ninguem. Aqui a
    escolha e por PRIORIDADE, do menos util para o mais util -- primeiro sai a
-   pill do projeto e o chip de ligar, depois a porta. O nome e o fechar nunca
-   saem: um identifica o painel, o outro e a saida. */
+   pill do projeto e o chip de ligar, depois a issue, depois a porta. O nome e o
+   fechar nunca saem: um identifica o painel, o outro e a saida. */
 @container (max-width: 260px) {
   .painel-local { display: none; }
   .painel-ligacoes:not(.tem-ligacao) { display: none; }
+}
+
+/* A issue sai DEPOIS da pill, e nao junto: a cor do projeto sobrevive a pill
+   (a faixa mora no frame, `.painel-tinto::before`), entao esconder a pill nao
+   apaga o projeto da tela. Esconder a issue apaga a issue, que e o unico
+   caminho daqui de volta para o Flow. */
+@container (max-width: 235px) {
+  .painel-issue { display: none; }
 }
 
 @container (max-width: 210px) {

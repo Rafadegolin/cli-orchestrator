@@ -18,6 +18,37 @@ const arquivo = require('./arquivo');
 const NOME = 'sessao.json';
 const VERSAO = 1;
 
+const MAX_TEXTO = 255;
+
+// http(s) e mais nada.
+//
+// Este e o UNICO campo do arquivo que vira um clique que SAI do app
+// (`shell.openExternal`, no main): um `file:` abriria um arquivo do disco, um
+// `ms-settings:` abriria o painel do Windows. O arquivo e do usuario e pode ser
+// editado a mao, entao o portao mora aqui E no IPC -- este protege o arquivo,
+// aquele protege a chamada.
+function urlSegura(u) {
+  try {
+    const url = new URL(String(u));
+    return (url.protocol === 'https:' || url.protocol === 'http:') ? url.href : '';
+  } catch { return ''; }
+}
+
+// A issue do Pronix Flow que originou a sessao.
+//
+// `identificador` e STRING (TECH-1120) e nao numero -- e o que o contrato do
+// Flow manda --, e `url` aponta para a issue no Flow, nao para o GitHub.
+function normalizarIssue(i) {
+  if (!i || typeof i !== 'object') return null;
+  const identificador = String(i.identificador || '').slice(0, 60);
+  const url = urlSegura(i.url);
+  const titulo = String(i.titulo || '').slice(0, MAX_TEXTO);
+  const repo = String(i.repo || '').slice(0, MAX_TEXTO);
+  // Sem nada que identifique, nao ha chip para desenhar.
+  if (!identificador && !titulo && !url) return null;
+  return { repo, identificador, titulo, url };
+}
+
 function carregar() {
   const bruto = arquivo.lerJson(NOME, {});
   const paineis = Array.isArray(bruto.paineis) ? bruto.paineis : [];
@@ -37,6 +68,16 @@ function carregar() {
       // As que o CLI ainda nao aceitou. Sem elas no disco, reabrir o app
       // transformava toda ligacao pendente em "aplicada" na interface.
       ligacoesPendentes: Array.isArray(p.ligacoesPendentes) ? p.ligacoesPendentes.map(String) : [],
+      // O branch REAL desta sessao. E ROTULO, e NUNCA portao: quem decide
+      // qualquer coisa sobre a worktree continua perguntando ao git
+      // (`worktrees.lerUma`), porque isto envelhece -- um `git switch` dentro da
+      // pasta nao avisa ninguem. Persiste porque, sem ele, todo rotulo
+      // consciente de branch voltaria a `worktree-<slug>` depois de reiniciar.
+      branch: String(p.branch || '').slice(0, MAX_TEXTO),
+      // A issue do Pronix Flow. `promptInicial` NAO entra aqui de proposito: um
+      // pedido e evento, nao arranjo -- retomar amanha nao pode redigitar na
+      // caixa o pedido de ontem.
+      issue: normalizarIssue(p.issue),
       ordem: Number.isFinite(p.ordem) ? p.ordem : i,
       // Posicao no mapa. `null` significa "nunca foi arrastado" -- e o mapa
       // arruma sozinho, em vez de empilhar tudo no canto superior esquerdo.
@@ -68,6 +109,16 @@ function salvar(paineis) {
       ligacoes: Array.isArray(p.ligacoes) ? [...new Set(p.ligacoes.map(String))] : [],
       ligacoesPendentes: Array.isArray(p.ligacoesPendentes)
         ? [...new Set(p.ligacoesPendentes.map(String))] : [],
+      // O branch REAL desta sessao. E ROTULO, e NUNCA portao: quem decide
+      // qualquer coisa sobre a worktree continua perguntando ao git
+      // (`worktrees.lerUma`), porque isto envelhece -- um `git switch` dentro da
+      // pasta nao avisa ninguem. Persiste porque, sem ele, todo rotulo
+      // consciente de branch voltaria a `worktree-<slug>` depois de reiniciar.
+      branch: String(p.branch || '').slice(0, MAX_TEXTO),
+      // A issue do Pronix Flow. `promptInicial` NAO entra aqui de proposito: um
+      // pedido e evento, nao arranjo -- retomar amanha nao pode redigitar na
+      // caixa o pedido de ontem.
+      issue: normalizarIssue(p.issue),
       ordem: Number.isFinite(p.ordem) ? p.ordem : i,
       x: Number.isFinite(p.x) ? Math.round(p.x) : null,
       y: Number.isFinite(p.y) ? Math.round(p.y) : null,
@@ -88,4 +139,6 @@ function limpar() {
   return salvar([]);
 }
 
-module.exports = { NOME, ARQUIVO: arquivo.caminho(NOME), carregar, salvar, limpar };
+module.exports = {
+  NOME, ARQUIVO: arquivo.caminho(NOME), carregar, salvar, limpar, normalizarIssue,
+};
