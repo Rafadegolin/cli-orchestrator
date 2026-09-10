@@ -110,6 +110,26 @@ class Painel {
     this.elLocal = document.createElement('span');
     this.elLocal.className = 'painel-local';
 
+    // A issue do Pronix Flow que originou esta sessao.
+    //
+    // `button`, e NUNCA `a`. Nao existe `will-navigate` nem
+    // `setWindowOpenHandler` em todo o `src/`, e o CSP nao restringe navegacao de
+    // topo: um `<a href>` clicado navegaria a UNICA BrowserWindow para fora do
+    // index.html e levaria TODOS os terminais vivos junto. Quem abre o navegador e
+    // o processo principal, que confere o esquema antes.
+    //
+    // Vai no grupo da ESQUERDA, entre o nome e a pill do projeto, e nao em
+    // `.painel-acoes`: aquele grupo e `flex: 0 0 auto` justamente para o botao de
+    // fechar continuar alcancavel, e um chip ali disputaria espaco garantido com a
+    // saida. A issue e IDENTIDADE, nao acao -- le-se como parte do nome.
+    this.elIssue = document.createElement('button');
+    this.elIssue.className = 'painel-issue';
+    this.elIssue.hidden = true;
+    this.elIssue.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (this.issue?.url) window.orq.abrirExterno(this.issue.url);
+    });
+
     // Cor sozinha nao carrega significado: toda bolinha vem com texto ao lado.
     // Some na densidade 3 (regra do CSS), onde o espaco vale mais que a
     // redundancia e a bolinha assume.
@@ -155,7 +175,7 @@ class Painel {
     acoes.className = 'painel-acoes';
     acoes.append(this.elPorta, this.elFila, this.elLigacoes, this.elRender, btnFechar);
 
-    cab.append(this.elBolinha, elFeature, this.elLocal, this.elStatus, acoes);
+    cab.append(this.elBolinha, elFeature, this.elIssue, this.elLocal, this.elStatus, acoes);
 
     this.elTerm = document.createElement('div');
     this.elTerm.className = 'painel-term';
@@ -620,6 +640,21 @@ class Painel {
       : 'Dar a esta sessão acesso ao código de outro repositório';
   }
 
+  // O chip so aparece quando ha issue. `hidden` funciona aqui por causa do
+  // `[hidden] { display: none !important }` do topo do estilo.css -- a armadilha
+  // n1 daquele arquivo, e a mesma de que a `.painel-fila` ja depende.
+  mostrarIssue() {
+    if (!this.elIssue) return;
+    const i = this.issue;
+    this.elIssue.hidden = !i;
+    if (!i) return;
+    this.elIssue.textContent = i.identificador || 'issue';
+    this.elIssue.disabled = !i.url;
+    this.elIssue.title = `${i.repo ? `${i.repo} ` : ''}${i.identificador || ''}`
+      + `${i.titulo ? ` — ${i.titulo}` : ''}`
+      + (i.url ? `\n\n${i.url}` : '\n\n(sem link)');
+  }
+
   definirPortas(portas) {
     this.portas = portas || [];
     if (!this.portas.length) {
@@ -771,6 +806,23 @@ function rebalancearRenderizadores() {
 function rotuloDeLigacao(caminho) {
   const texto = String(caminho || '');
   const projeto = window.OrqProjetos?.projetoDe?.(texto);
+
+  // O branch REAL, quando ha painel naquela pasta e ele sabe o proprio branch.
+  //
+  // Derivar do caminho so era honesto enquanto a convencao do `claude -w` fosse
+  // a unica. Desde que o branch pode ser qualquer um (um pedido do Pronix Flow
+  // abre `feature/TECH-1120`), derivar passou a ser INVENTAR: a pasta se chama
+  // `feature-TECH-1120` e o branch nao.
+  //
+  // Sem IPC e sem cache, de proposito: esta funcao e chamada de forma SINCRONA
+  // pelo `mostrarLigacoes()`, e uma fonte assincrona forcaria um cache com
+  // invalidacao em `arquivar`, `arquivarVarias` e na faxina -- tres pecas moveis
+  // para um tooltip. A informacao ja esta no app no momento em que importa.
+  const dono = window.OrqLigacoes?.painelEm?.(texto);
+  if (dono?.branch) return `${projeto?.nome || nomeCurto(texto)} · ${dono.branch}`;
+
+  // Sem painel nosso, a pasta e de uma worktree que o CLI criou -- e ali a
+  // convencao `worktree-<slug>` continua sendo verdadeira.
   const m = texto.replace(/\\/g, '/').match(/\/\.claude\/worktrees\/([^/]+)\/?$/);
   if (!m) return projeto?.nome ? `${projeto.nome} — ${texto}` : texto;
   return `${projeto?.nome || nomeCurto(texto)} · worktree-${m[1]}`;

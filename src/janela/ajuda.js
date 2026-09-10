@@ -294,6 +294,41 @@ const TODAS_SECOES = [
     ],
   },
   {
+    id: 'flow',
+    titulo: 'Abrir uma sessão a partir do Pronix Flow',
+    blocos: [
+      p('No Flow, o botão <b>Abrir no Claude</b> de uma issue abre a sessão aqui: o app cria a '
+        + 'worktree no branch da issue, sobe o Claude nela e deixa o contexto da issue <b>digitado '
+        + 'na caixa de entrada</b>. Você lê e aperta Enter — nada é enviado sozinho.'),
+      passos([
+        '<b>Cadastre o projeto</b> aqui, apontando para a pasta do clone. É por ele que o app '
+          + 'descobre onde o repositório mora: o Flow manda <code>owner/repo</code>, e nunca um '
+          + 'caminho de disco.',
+        '<b>Defina o repositório na issue</b>, no painel lateral do detalhe dela, dentro do Flow.',
+        '<b>Clique em Abrir no Claude.</b> Com o app fechado, o link <code>{protocolo}://</code> '
+          + 'abre ele primeiro.',
+      ]),
+      p('O branch é o que o Flow manda (<code>feature/TECH-1120</code>), e é esse mesmo que vai '
+        + 'para o git — é o que faz a PR e as regras de CI do time baterem. A pasta da worktree '
+        + 'usa a versão sem barra (<code>feature-TECH-1120</code>), porque barra não vira nome '
+        + 'de pasta.'),
+      lista([
+        'Clicar de novo na mesma issue <b>foca</b> a sessão que já existe, em vez de abrir outra.',
+        'Worktree que já existe é reaproveitada, então dá para voltar amanhã à mesma issue.',
+        'O número da issue vira um chip no cabeçalho do painel: clicar abre a issue no navegador.',
+        'Se o repositório da issue não estiver cadastrado aqui, o Flow copia o nome da branch '
+          + 'para a área de transferência e este app avisa qual repositório faltou.',
+        'O app <b>não</b> mexe na issue: atribuir, mover de coluna e comentar na PR continuam '
+          + 'sendo do Flow.',
+      ]),
+      aviso('O app escuta em <code>127.0.0.1:{portaEventos}</code>, a mesma porta dos hooks, e só '
+        + 'aceita pedido de site que esteja na lista de origens. Para fechar essa porta de '
+        + 'entrada inteira, ponha <code>"externo": "desligado"</code> '
+        + 'no <code>ui.json</code> da pasta <code>{pastaDados}</code> — o link '
+        + '<code>{protocolo}://</code> para junto.'),
+    ],
+  },
+  {
     id: 'grade',
     titulo: 'A grade: densidade, ordem e tema',
     blocos: [

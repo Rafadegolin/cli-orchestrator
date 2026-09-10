@@ -33,6 +33,19 @@ npmRebuild: false
 asarUnpack:
   - '**/node_modules/node-pty/**'
 
+# O esquema `orquestrador://`, que e como o Pronix Flow pede uma sessao.
+#
+# NO macOS ISTO E OBRIGATORIO: sem `CFBundleURLTypes` no Info.plist o
+# `setAsDefaultProtocolClient` nao tem o que registrar e o `open-url` nunca
+# dispara. No Windows quem faz o trabalho de verdade e a chamada em tempo de
+# execucao (src/main/externo.js): ela cobre o zip portatil e o pacote -sac, que
+# o electron-builder nunca toca, e se conserta sozinha quando a pasta muda de
+# lugar -- a chave do registro guarda caminho ABSOLUTO.
+protocols:
+  - name: Orquestrador
+    schemes:
+      - orquestrador
+
 win:
   # Dois formatos de proposito:
   #

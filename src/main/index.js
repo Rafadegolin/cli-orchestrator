@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, clipboard, shell } = require('electron');
 const path = require('path');
 const os = require('os');
 
@@ -24,6 +24,8 @@ const uso = require('./uso');
 const remoto = require('./remoto');
 const avisos = require('./avisos');
 const registro = require('./registro');
+const externo = require('./externo');
+const claudeFlags = require('./claude-flags');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -71,6 +73,44 @@ function conterFalha(origem, err) {
 
 process.on('uncaughtException', (err) => conterFalha('uncaughtException', err));
 process.on('unhandledRejection', (err) => conterFalha('unhandledRejection', err));
+
+// UMA INSTANCIA SO, e o que isso tem a ver com o deeplink.
+//
+// Um `orquestrador://` clicado no navegador ABRE O EXECUTAVEL de novo -- nao ha
+// canal nenhum ligando o clique ao app que ja esta aberto. Sem a trava, esse
+// segundo processo sobe inteiro, nao consegue a porta 47615, mostra o dialogo de
+// "porta ocupada" e fica ali: duas janelas disputando o sessao.json, uma delas
+// sem bolinha nenhuma. A trava transforma o segundo processo num CARTEIRO -- ele
+// entrega o argv para quem ja esta rodando e morre.
+//
+// VAI DEPOIS DO BLOCO `--remover-hooks`, e o motivo e pior do que parece: o
+// desinstalador roda `<exe> --remover-hooks` com o app quase sempre ABERTO
+// (recursos/instalador.nsh). Com a trava acima daquele bloco, esse processo
+// perderia o lock, sairia pelo `app.quit()` e NAO removeria os hooks -- que e
+// exatamente o defeito permanente que aquele bloco existe para evitar.
+//
+// E vai antes do `corrigirPath()` logo abaixo: quem perdeu a trava nao precisa
+// pagar uma sondagem de login shell para morrer em seguida.
+//
+// `return` no topo de modulo CommonJS e legal (o modulo e embrulhado numa
+// funcao) e e o certo aqui: tudo abaixo e REGISTRO de handler, e um perdedor que
+// registra quarenta IPCs para so entao sair e estritamente pior.
+//
+// A trava e chaveada pelo `userData`, e o `testes/subir.ps1` lanca o app de
+// desenvolvimento com `--user-data-dir` proprio: dev e app instalado nao se
+// enxergam, e a suite continua rodando com o app instalado aberto.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+  return;
+}
+
+app.on('second-instance', (_ev, argv) => externo.deArgv(argv));
+
+// macOS entrega o deeplink por `open-url`, e ele pode chegar ANTES do
+// `whenReady`. Registrar aqui, no topo, e a unica posicao segura: dentro do
+// `whenReady().then()` o primeiro deeplink do dia -- justamente o que ABRIU o
+// app -- chegaria antes de o ouvinte existir e sumiria sem erro nenhum.
+app.on('open-url', (ev, url) => { ev.preventDefault(); externo.deUrl(url); });
 
 // cmd.exe abre em dezenas de ms; o PowerShell leva algumas centenas e sozinho
 // comeria boa parte da meta de 1,5s ate o primeiro terminal. Fora do Windows o
@@ -202,6 +242,7 @@ function criarJanela() {
   uso.iniciar(janela);
   remoto.iniciar(janela);
   registro.iniciar(janela);
+  externo.definirJanela(janela);
   janela.loadFile(path.join(__dirname, '..', 'janela', 'index.html'));
 }
 
@@ -216,6 +257,22 @@ app.whenReady().then(async () => {
   // notificacoes sem avisar. Ver o comentario em atalho.garantir().
   atalho.garantir();
 
+  // O esquema `orquestrador://`, no mesmo slot e pela mesma razao do atalho:
+  // garantir a identidade no sistema antes de a janela existir.
+  externo.registrarProtocolo();
+
+  // Os remotes de quem ja estava cadastrado antes desta versao. Uma vez por
+  // arranque, com UMA gravacao -- o `listar()` continua sem spawnar git.
+  try {
+    projetos.garantirRemotes();
+  } catch (err) {
+    console.error('[projetos] remotes:', err.message);
+  }
+
+  // Pergunta ao CLI se `--prefill-b64` ainda existe, para o primeiro prompt do
+  // Pronix Flow saber se pode contar com ele. ~200ms, memoizado, sem relogio.
+  claudeFlags.suportaPrefill();
+
   // Corte do historico UMA VEZ por arranque, antes de a janela pedir o resumo.
   try {
     historico.podar();
@@ -226,7 +283,7 @@ app.whenReady().then(async () => {
   criarJanela();
 
   try {
-    await eventos.iniciar();
+    await eventos.iniciar({ aoAbrir: externo.atender, versao: app.getVersion() });
   } catch (err) {
     // Porta ocupada nao pode derrubar o app: os terminais continuam servindo,
     // so as bolinhas param de mudar sozinhas.
@@ -431,13 +488,55 @@ ipcMain.handle('worktrees:criarDupla', async (_e, { a, b }) => {
   if (!rb.ok) {
     let sobrou = '';
     if (ra.criada) {
-      const d = await worktrees.desfazer(a.caminho, ra.caminho, ra.branch);
+      // `apagarBranch` so quando fomos NOS que criamos o branch: `criar`
+      // reaproveita branch que ja existia, e um `-D` ali levaria trabalho de
+      // alguem junto.
+      const d = await worktrees.desfazer(a.caminho, ra.caminho, ra.branch, { apagarBranch: ra.branchCriado });
       if (!d.ok) sobrou = ` A worktree ${ra.caminho} ficou para tras (${d.texto}).`;
     }
     return { ok: false, onde: 'b', texto: rb.texto + sobrou };
   }
 
   return { ok: true, a: ra, b: rb, avisos: [...(ra.avisos || []), ...(rb.avisos || [])] };
+});
+
+// ------------------------------------------------- pedido externo (Flow)
+
+// O renderer avisa que `OrqProjetos` ja tem a lista, e so entao a fila de
+// pedidos e drenada. `did-finish-load` diria que a pagina carregou, nao que ela
+// sabe quais projetos existem -- e um pedido entregue antes disso viraria "repo
+// nao cadastrado" numa maquina onde ele esta.
+ipcMain.on('externo:pronto', () => externo.pronto());
+
+// O veredito do renderer sobre um pedido: e o que o /abrir responde ao Flow.
+ipcMain.on('abrir:resposta', (_e, r) => externo.veredito(r));
+
+// Uma worktree so, num branch escolhido. O irmao do `worktrees:criarDupla`.
+ipcMain.handle('worktrees:prever', (_e, { caminho, slug, branch } = {}) => worktrees.prever(caminho, slug, { branch }));
+
+ipcMain.handle('worktrees:criar', (_e, { caminho, slug, branch } = {}) => worktrees.criar(caminho, slug, { branch }));
+
+// O CLI ainda aceita `--prefill-b64`? Memoizado no modulo; aqui so o repasse.
+ipcMain.handle('claude:prefill', () => claudeFlags.suportaPrefill());
+
+// Abrir a issue no navegador.
+//
+// O portao e o ESQUEMA, e ele mora AQUI: a url vem do `sessao.json`, que e do
+// usuario e pode ser editado a mao, e `openExternal` entrega ao sistema --
+// `file:` abriria um arquivo do disco e `ms-settings:` abriria o painel do
+// Windows. Validar aqui ALEM do `normalizarIssue` nao e redundancia: aquele
+// protege o arquivo, este protege a chamada, e este e alcancavel por qualquer
+// codigo do renderer.
+//
+// Devolve `{ erro }` em vez de estourar, como o `projetos:adicionar`.
+ipcMain.handle('abrir:externo', (_e, url) => {
+  let alvo;
+  try { alvo = new URL(String(url || '')); } catch { return { ok: false, texto: 'endereco invalido' }; }
+  if (alvo.protocol !== 'https:' && alvo.protocol !== 'http:') {
+    return { ok: false, texto: `nao abro ${alvo.protocol}` };
+  }
+  shell.openExternal(alvo.href);
+  return { ok: true };
 });
 
 // Leitura pura, sem rede: quanto a base local esta atras do que ja foi buscado.
@@ -674,6 +773,8 @@ ipcMain.handle('app:constantes', () => ({
   // Como se le uma variavel de ambiente na linha de comando do shell de cada
   // sistema. O `%PORT%` do cmd nao existe em zsh, e vice-versa.
   porta: plataforma.EH_WIN ? '%PORT%' : '$PORT',
+  // O esquema que o Pronix Flow chama. A ajuda cita, entao sai daqui.
+  protocolo: externo.ESQUEMA,
 }));
 
 ipcMain.handle('ui:carregar', () => preferencias.carregar());
@@ -719,12 +820,9 @@ ipcMain.handle('atualizacao:situacao', () => ({ ...atualizacao.situacao }));
 ipcMain.handle('atualizacao:verificar', () => { atualizacao.verificar(); return true; });
 ipcMain.handle('atualizacao:aplicar', (_e, opcoes) => atualizacao.aplicar(opcoes));
 
-ipcMain.on('app:focar', () => {
-  if (!janela) return;
-  if (janela.isMinimized()) janela.restore();
-  janela.show();
-  janela.focus();
-});
+// Delega para o `avisos.js`, que ja tinha este corpo byte a byte. Tres copias
+// do mesmo restore/show/focus era o caminho curto para uma delas divergir.
+ipcMain.on('app:focar', () => avisos.trazerParaFrente());
 
 // Delegador: o piscar, o toast e o portao da preferencia vivem no `avisos.js`,
 // que e o mesmo caminho do aviso de atualizacao.

@@ -45,6 +45,8 @@
     "spike:aprovacao": "node testes/spike-aprovacao.js",
     "perfil": "powershell -NoProfile -ExecutionPolicy Bypass -File testes/perfil.ps1",
     "diagnostico": "powershell -NoProfile -ExecutionPolicy Bypass -File testes/diagnostico-assinatura.ps1",
+    "teste:abrir": "node testes/abrir.js",
+    "teste:abrir-ui": "node testes/abrir-ui.js",
     "teste:worktrees": "node testes/worktrees.js",
     "teste:worktrees-ui": "node testes/worktrees-ui.js",
     "teste:metas": "node testes/metas.js",

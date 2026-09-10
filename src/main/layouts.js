@@ -8,6 +8,7 @@
 // isso ficou barato depois da Fase 7 e do redesenho.
 
 const arquivo = require('./arquivo');
+const sessao = require('./sessao');
 
 const NOME = 'layouts.json';
 const VERSAO = 1;
@@ -25,6 +26,12 @@ function limparPainel(p, i) {
     // devolvia uma sessao dormindo esperando `claude` no lugar do terminal.
     tipoPainel: p.tipoPainel === 'terminal' ? 'terminal' : 'sessao',
     ligacoes: Array.isArray(p.ligacoes) ? [...new Set(p.ligacoes.map(String))] : [],
+    branch: String(p.branch || ''),
+    // Um layout reabre os MESMOS painéis, entao o chip da issue tem de vir junto
+    // -- some-lo ao aplicar um layout seria a mesma perda silenciosa que trouxe o
+    // `tipoPainel` para ca. O normalizador vem do `sessao.js`: copiar seria a
+    // terceira copia da mesma regra.
+    issue: sessao.normalizarIssue(p.issue),
     ordem: Number.isFinite(p.ordem) ? p.ordem : i,
   };
 }

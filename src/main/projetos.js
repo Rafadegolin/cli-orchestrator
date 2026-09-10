@@ -12,6 +12,8 @@ const path = require('path');
 
 const arquivo = require('./arquivo');
 const claude = require('./claude-dados');
+const worktrees = require('./worktrees');
+const pedido = require('./pedido');
 
 const NOME = 'projetos.json';
 const PASTA = arquivo.PASTA;
@@ -99,6 +101,63 @@ function definirCor(id, cor) {
   return { ok: true, projeto: p };
 }
 
+// ------------------------------------------------------------ remotes
+
+// Os `owner/repo` deste projeto, para casar com o que o Pronix Flow pede.
+//
+// Fica GRAVADO no projetos.json, e nao derivado no `listar()`, e a razao esta
+// escrita no CLAUDE.md com nome e sobrenome: o `listar()` roda a cada refresh do
+// renderer, e spawn sincrono de git por ciclo ja travou o processo principal por
+// segundos neste app. Um `git config` e barato, mas barato vezes seis projetos
+// vezes cada redesenho da lateral deixa de ser.
+function lerRemotes(caminho) {
+  const brutos = worktrees.remotesDe(caminho);
+  const vistos = new Set();
+  for (const url of brutos) {
+    const nome = pedido.normalizarRepo(url);
+    if (nome) vistos.add(nome);
+  }
+  return [...vistos];
+}
+
+// Preenche o que estiver faltando, com UMA gravacao.
+//
+// `forcar` rele todo mundo -- e o que faz "adicionei o remote ontem" se resolver
+// sozinho, e so e pago quando a resolucao de um pedido NAO acha o repo.
+function garantirRemotes({ forcar = false } = {}) {
+  const projetos = ler();
+  let mexeu = false;
+
+  for (const p of projetos) {
+    if (!forcar && Array.isArray(p.remotes)) continue;
+    if (!fs.existsSync(p.caminho) || !ehRepositorio(p.caminho)) {
+      // Sem repositorio nao ha remote, e uma lista vazia gravada evita reler a
+      // cada arranque uma pasta que nunca vai responder.
+      if (!Array.isArray(p.remotes)) { p.remotes = []; mexeu = true; }
+      continue;
+    }
+    const novos = lerRemotes(p.caminho);
+    if (JSON.stringify(novos) !== JSON.stringify(p.remotes || null)) {
+      p.remotes = novos;
+      mexeu = true;
+    }
+  }
+
+  if (mexeu) gravar(projetos);
+  return projetos.length;
+}
+
+// Quais projetos cadastrados apontam para `owner/repo`.
+//
+// Devolve ARRAY, e nao o primeiro que casar: dois clones do mesmo repositorio e
+// caso real (um fork ao lado do original), e a resposta certa ali e "ambiguo,
+// escolha", nao escolher no lugar da pessoa.
+function acharPorRepo(nome) {
+  const alvo = pedido.normalizarRepo(nome);
+  if (!alvo) return [];
+  return listar().filter((p) => p.existe && pedido.combinaRepo(alvo, p.remotes));
+}
+
 // Faixa valida e um par de inteiros crescente com espaco para pelo menos um
 // bloco. Valor torto no JSON (editado a mao, ou de uma versao futura) nao pode
 // derrubar a reserva de portas -- cai no padrao e segue.
@@ -125,6 +184,8 @@ function adicionar(caminho, faixa) {
     nome: nomeCurto(resolvido),
     cor: proximaCor(),
     adicionadoEm: new Date().toISOString(),
+    // Os `owner/repo` deste clone, para o Pronix Flow achar a pasta certa.
+    remotes: ehRepositorio(resolvido) ? lerRemotes(resolvido) : [],
   };
   if (faixaValida(faixa)) projeto.faixa = [faixa[0], faixa[1]];
 
@@ -190,6 +251,7 @@ function adicionarVarios(caminhos) {
       // cores entre eles, e nao dar a mesma para todos.
       cor: proximaCor(novos),
       adicionadoEm: new Date().toISOString(),
+      remotes: ehRepositorio(resolvido) ? lerRemotes(resolvido) : [],
     };
     if (faixa) projeto.faixa = faixa;
     novos.push(projeto);
@@ -268,4 +330,5 @@ module.exports = {
   definirCor,
   ARQUIVO, PASTA, listar, adicionar, remover, renomear, nomeCurto, ehRepositorio,
   faixaDe, faixaValida, donoDe,
+  lerRemotes, garantirRemotes, acharPorRepo,
 };

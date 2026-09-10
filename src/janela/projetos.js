@@ -137,6 +137,99 @@ function montarComando(feature, ehGit, { worktree = true } = {}) {
   return `${limpa} && claude --name ${slug} -w ${slug}`;
 }
 
+// O primeiro prompt de uma sessao aberta pelo Pronix Flow vai como
+// `--prefill-b64`, e NAO como argumento posicional.
+//
+// MEDIDO contra o CLI 2.1.267 (`--help`, o binario, e execucoes sem token):
+//
+//  - `--prefill <texto>` e "Pre-fill the prompt input with text without
+//    submitting it". Por dentro e literalmente `buffer = texto`, aplicado ANTES
+//    de a TUI subir: e exatamente "ja digitado, esperando voce ler e apertar
+//    Enter".
+//  - `--prefill-b64 <b64url>` e o mesmo valor em base64url, descrito pelo
+//    proprio CLI como "deep-link shell-safe launch paths", e so e lido junto de
+//    `--deep-link-origin`.
+//  - O alfabeto base64url e [A-Za-z0-9_-]: NENHUM metacaractere do cmd.exe. Com
+//    `--prefill "texto"` o cmd EXPANDE %VAR% dentro das aspas duplas -- um
+//    titulo de issue com %USERPROFILE% viraria um caminho, calado -- e um `"` no
+//    meio do texto quebra a linha em dois argumentos. O `title` que o Flow manda
+//    e texto livre com acento e emoji, entao isso nao e hipotese.
+//  - `OrqShell.citar` seria ERRADO aqui: ele troca `/` por `\` no Windows, e
+//    `and/or` viraria `and\or`. Ele e para CAMINHO, nao para prompt.
+//  - O validador do CLI normaliza `\r\n` e `\r` solto para `\n` e permite
+//    `\n`/`\t`, entao prompt multilinha sobrevive. Por argumento com aspas seria
+//    impossivel: o `comandoInicial` e entregue com `\r` no fim.
+//  - O teto e 5000 caracteres e a recusa do CLI e MUDA (vai para o log de
+//    depuracao dele, e a sessao abre com a caixa vazia). Por isso o corte e
+//    nosso, e la no `pedido.js` ele e RECUSA e nao truncagem.
+//  - O argumento POSICIONAL nao serve: `claude auth` roda o SUBCOMANDO auth, e
+//    `claude updatee` imprime "Did you mean claude update?" e SAI. Prompt de uma
+//    palavra viraria uma sessao que nunca subiu -- com a bolinha verde para
+//    sempre, porque nenhum hook corrige um shell morto.
+//
+// TUDO ISSO E OPCAO INTERNA DO CLI (`hideHelp()`), como o layout do
+// `claude-dados.js`. A diferenca perigosa e que aqui NAO DEGRADA: sem a flag, o
+// CLI responde `unknown option` e sai. Quem cobre isso e a sonda do
+// `src/main/claude-flags.js` -- ver o `abrir-externo.js`.
+const MAX_PROMPT = 5000;
+
+// Teto da LINHA que vai para o PTY, e ele e mais apertado que o do prompt.
+//
+// MEDIDO no proprio painel, com um executavel de verdade (`node -e` recebendo um
+// argumento gigante): ate 8100 caracteres o argumento chega inteiro; a partir de
+// 8200 **nao acontece nada**. E o limite de 8191 do cmd.exe, e o descarte e MUDO
+// -- nenhum erro, nenhuma saida, a linha simplesmente some.
+//
+// O modo de falha e o pior deste app: o `claude` nunca subiria, e o painel
+// ficaria com um prompt de shell parado, marcado como `rodando` pelo `index.js`
+// e sem hook nenhum para corrigir -- bolinha VERDE para sempre.
+//
+// O base64 infla 4/3 sobre os BYTES, e nao sobre os caracteres: 5000 caracteres
+// de portugues sao ~5300 bytes -> ~7100 de base64, que cabe. O mesmo texto cheio
+// de emoji (4 bytes cada) nao caberia. Dai o teto ser conferido sobre a linha
+// pronta, e nao estimado a partir do tamanho do prompt.
+const MAX_LINHA = 8000;
+
+function base64url(texto) {
+  const bytes = new TextEncoder().encode(texto);
+  let bruto = '';
+  for (const b of bytes) bruto += String.fromCharCode(b);
+  return btoa(bruto).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function promptCabe(prompt) {
+  return String(prompt || '').replace(/\r\n?/g, '\n').length <= MAX_PROMPT;
+}
+
+// Insere as flags logo depois de `claude`, pelo MESMO caminho do
+// `OrqLigacoes.comAddDir`: um lugar por flag, e nenhuma string de comando
+// montada a mao fora daqui.
+//
+// Aplicar DEPOIS do `comAddDir` nao e detalhe: os dois substituem o primeiro
+// `\bclaude\b`, e o base64url pode conter a palavra `claude` com fronteira de
+// palavra dos dois lados (`-claude-`). Com esta ordem, a palavra de comando e
+// sempre a primeira da string e nenhum dos dois tem como errar o alvo.
+function comPrefill(comando, prompt) {
+  const t = String(prompt || '').replace(/\r\n?/g, '\n');
+  if (!comando || !t.trim() || !promptCabe(t)) return comando;
+  if (!/\bclaude\b/.test(comando)) return comando;
+
+  const candidato = comando.replace(/\bclaude\b/, `claude --deep-link-origin --prefill-b64 ${base64url(t)}`);
+  // Nao cabe na linha -> devolve o comando SEM o prefill. A sessao abre igual e
+  // quem chama copia o contexto para a area de transferencia; o que nao pode
+  // acontecer e a linha inteira ser descartada pelo cmd.exe e o Claude nunca
+  // subir. Ver o MAX_LINHA.
+  if (candidato.length > MAX_LINHA) return comando;
+  return candidato;
+}
+
+// O prefill cabe nesta linha? Definida em termos do `comPrefill` de proposito:
+// uma conta propria aqui seria uma segunda fonte da verdade, e ela erraria no
+// dia em que o formato da flag mudasse.
+function prefillCabe(comando, prompt) {
+  return comPrefill(comando, prompt) !== comando;
+}
+
 // Caminho comparavel: separador unico, sem barra no fim, minusculo.
 //
 // Sem normalizar `\` e `/` a comparacao vira loteria -- o mesmo caminho vindo
@@ -690,6 +783,11 @@ carregarProjetos();
 window.OrqProjetos = {
   slugFeature,
   montarComando,
+  comPrefill,
+  prefillCabe,
+  promptCabe,
+  MAX_PROMPT,
+  MAX_LINHA,
   carregarProjetos,
   abrirProjeto,
   abrirUltimo,

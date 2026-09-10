@@ -34,7 +34,8 @@ function atualizarVazio() {
 }
 
 async function criarPainel({
-  cwd, feature, comandoInicial, tipoPainel, dormindo, indisponivel, ligacoes, ligacoesPendentes, x, y, w, h,
+  cwd, feature, comandoInicial, tipoPainel, dormindo, indisponivel, ligacoes, ligacoesPendentes,
+  issue, branch, promptInicial, x, y, w, h,
 }) {
   const id = novoId();
 
@@ -74,6 +75,14 @@ async function criarPainel({
   // sessao que ja enxerga o outro repositorio, e o unico lugar que nomeia o
   // branch do outro lado ficava vazio. Foi o teste que pegou.
   painel.mostrarLigacoes();
+  // O branch REAL desta sessao. E ROTULO, e NUNCA portao: tudo que DECIDE algo
+  // sobre a worktree (arquivar, diff, faxina) continua perguntando ao git, porque
+  // isto envelhece -- um `git switch` dentro da pasta nao avisa ninguem.
+  painel.branch = typeof branch === 'string' ? branch : '';
+  // A issue do Pronix Flow que originou a sessao. Chega ja normalizada do
+  // processo principal; o painel so guarda e desenha.
+  painel.issue = issue && typeof issue === 'object' ? issue : null;
+  painel.mostrarIssue();
   painel.x = Number.isFinite(x) ? x : null;
   painel.y = Number.isFinite(y) ? y : null;
   // Tamanho no mapa. Separado de x/y porque um sessao.json gravado antes do
@@ -110,9 +119,19 @@ async function criarPainel({
   if (comandoInicial) {
     // Sessao nova entra ja com as flags: lancar com --add-dir nao pede
     // confirmacao nenhuma, ao contrario do /add-dir em sessao viva.
-    const comando = window.OrqLigacoes
+    const base = window.OrqLigacoes
       ? window.OrqLigacoes.comAddDir(comandoInicial, painel.ligacoes)
       : comandoInicial;
+    // O prompt inicial e do NASCIMENTO, e nao do painel: ele nao entra no
+    // `retratoSessao()` e nao volta no `despertar()`. Retomar amanha nao pode
+    // redigitar na caixa o pedido de ontem, nem enfiar 5000 caracteres de base64
+    // num `sessao.json` que e regravado a cada mudanca de arranjo.
+    //
+    // A assimetria com o `--add-dir` -- que E reaplicado no despertar -- e o
+    // ponto: ligacao e estado duravel, pedido e evento.
+    const comando = window.OrqProjetos
+      ? window.OrqProjetos.comPrefill(base, promptInicial)
+      : base;
     painel.aoPrimeiroDado(() => {
       const enviar = () => window.orq.escrever(id, `${comando}\r`);
       if (window.OrqFila) window.OrqFila.pedirVaga(id, enviar);
@@ -163,6 +182,11 @@ function retratoSessao() {
       // sobrevive ao fechar e reabrir.
       ligacoes: p.ligacoes || [],
       ligacoesPendentes: p.ligacoesPendentes || [],
+      // Rotulo, e nao arranjo: nao e reaplicado no despertar (a pasta ja existe e
+      // o comando vai sem `-w`). Volta so para os rotulos nao mentirem depois de
+      // fechar e reabrir.
+      branch: p.branch || '',
+      issue: p.issue || null,
       ordem,
       // Posicao e tamanho no mapa, quando o painel ja passou por la.
       x: Number.isFinite(p.x) ? p.x : null,
@@ -235,6 +259,8 @@ async function restaurarSessao() {
       tipoPainel: s.tipoPainel,
       ligacoes: s.ligacoes,
       ligacoesPendentes: s.ligacoesPendentes,
+      issue: s.issue,
+      branch: s.branch,
       x: s.x,
       y: s.y,
       w: s.w,

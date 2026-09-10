@@ -649,11 +649,99 @@ function temBranch(projeto, branch) {
   return gitSilencioso(projeto, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}`]).ok;
 }
 
+// Nomes de pasta que o Windows nao deixa criar, e que o git ACEITA como branch.
+//
+// MEDIDO: `git check-ref-format --branch con` sai com 0, e `nul` e `aux`
+// tambem. Como o slug vira nome de pasta, o `worktree add` morreria com um erro
+// de sistema que nao explica nada. So nome puro -- `feat/nul` vira `feat-nul`,
+// que e uma pasta legitima.
+const RESERVADOS_WINDOWS = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+
+// Nome de branch valido segundo o PROPRIO git, e nao segundo um regex nosso.
+//
+// `check-ref-format --branch` e a mesma funcao que recusa um `git branch`, entao
+// ela cobre os cantos que um regex daqui esqueceria (`..`, `@{`, terminar em
+// `.lock`). MEDIDO com git 2.55: aceita `feature/TECH-1120`, `FEAT/X`, `master`;
+// recusa `-bad`, `a..b`, `HEAD`, `x.lock`, `com espaco`, `@{-1}`, `x/`.
+//
+// Os dois portoes ANTES da chamada nao sao paranoia:
+//  - `refs/heads/x` PASSA no check-ref-format, e `worktree add -b refs/heads/x`
+//    criaria `refs/heads/refs/heads/x`;
+//  - `-` no comeco e argumento de git disfarcado de branch, e pior: o
+//    `git worktree add` documenta que `<commit-ish>` pode ser um `-` puro,
+//    "synonymous with @{-1}". Um branch chamado `-` abriria o branch anterior.
+function branchValido(projeto, nome) {
+  const b = String(nome || '');
+  if (!b || b.startsWith('-') || /^refs\//.test(b)) return false;
+  return gitSilencioso(projeto, ['check-ref-format', '--branch', b]).ok;
+}
+
+// Em QUAL worktree este branch ja esta checado, ou null.
+//
+// `git worktree add` recusa o mesmo branch em duas arvores, e ate agora isso era
+// impossivel: o branch era sempre `worktree-<slug>`, privado deste app. Com
+// branch vindo de fora, `main` esta SEMPRE checado no proprio projeto. Custa
+// zero comandos novos -- e a mesma leitura que `listar()` ja faz.
+function worktreeComBranch(projeto, branch) {
+  const r = gitSilencioso(projeto, ['worktree', 'list', '--porcelain']);
+  if (!r.ok) return null;
+  const alvo = `refs/heads/${branch}`;
+  const b = blocos(r.saida).find((p) => p && p.worktree && p.branch === alvo);
+  return b ? path.resolve(b.worktree) : null;
+}
+
+// Em quais remotos este branch ja existe, LENDO O DISCO.
+//
+// Sem rede: `for-each-ref` so olha `refs/remotes`, que e o que um fetch anterior
+// deixou. E o que permite `prever()` continuar sincrona e funcionando offline --
+// que e o que ela promete desde o comeco, e o que deixa o dialogo dizer o que
+// vai acontecer ANTES de qualquer escrita.
+function remotosComBranch(projeto, branch) {
+  const r = gitSilencioso(projeto, ['for-each-ref', '--format=%(refname)', `refs/remotes/*/${branch}`]);
+  if (!r.ok) return [];
+  const prefixo = 'refs/remotes/';
+  return r.saida.split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.startsWith(prefixo))
+    .map((l) => l.slice(prefixo.length))
+    // O `*` do for-each-ref casa atravessando `/`, entao `refs/remotes/a/b/x`
+    // entraria para o branch `x`. So vale quem termina no branch pedido e cujo
+    // nome de remoto nao tem barra.
+    .filter((s) => s.endsWith(`/${branch}`))
+    .map((s) => s.slice(0, s.length - branch.length - 1))
+    .filter((remoto) => remoto && !remoto.includes('/'));
+}
+
+// As URLs de TODOS os remotes, cruas.
+//
+// Todos, e nao so `origin`: quem clonou um fork tem o repo da organizacao em
+// `upstream`, e e justamente o nome canonico que o Pronix Flow manda. Sai com 1
+// quando nao ha remote nenhum, dai o `gitSilencioso`.
+//
+// Le pelo git, e nao o `.git/config` como texto, porque e o git que resolve
+// `includeIf`, `insteadOf` e o `.git` que e ARQUIVO dentro de um worktree.
+// A traducao para `owner/repo` mora no `pedido.js`, que e string pura e testavel
+// sem repositorio nenhum.
+function remotesDe(projeto) {
+  const r = gitSilencioso(projeto, ['config', '--get-regexp', '^remote\\..*\\.url$']);
+  if (!r.ok) return [];
+  return r.saida.split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => l.slice(l.indexOf(' ') + 1).trim())
+    .filter(Boolean);
+}
+
 // So LEITURA. Alimenta o "criar / reaproveitar" do dialogo antes de qualquer
 // escrita, para o usuario ver o que vai acontecer com cada repositorio.
-function prever(projeto, slug) {
+//
+// `branch` opcional: sem ele vale `worktree-<slug>`, que e a convencao do
+// `claude -w` e o comportamento de sempre. Com ele, o branch e literalmente o
+// que veio -- e o que faz `feature/TECH-1120` aparecer assim na PR, em vez do
+// `worktree-feature-TECH-1120` que nenhuma regra de CI casa.
+function prever(projeto, slug, { branch: pedido = '' } = {}) {
   const caminho = caminhoDeWorktree(projeto, slug);
-  const branch = branchDeWorktree(slug);
+  const branch = String(pedido || '') || branchDeWorktree(slug);
 
   if (!projeto || !fs.existsSync(projeto)) {
     return { ok: false, motivo: 'pasta', texto: 'a pasta do projeto nao existe' };
@@ -662,19 +750,87 @@ function prever(projeto, slug) {
     return { ok: false, motivo: 'sem-git', texto: 'nao e um repositorio git' };
   }
   if (!SLUG_VALIDO.test(String(slug || ''))) {
-    return { ok: false, motivo: 'nome', texto: 'nome invalido para pasta e branch' };
+    // Com branch pedido, "nome invalido" nao diz nada: o branch podia estar
+    // certo e so o slug ter morrido (`slugFeature('很长的分支')` e vazio).
+    return {
+      ok: false,
+      motivo: 'nome',
+      slug: String(slug || ''),
+      branchPedido: branch,
+      texto: pedido
+        ? `"${pedido}" nao produz nome de pasta usavel (sobrou "${slug}")`
+        : 'nome invalido para pasta e branch',
+    };
+  }
+  if (RESERVADOS_WINDOWS.test(String(slug))) {
+    return {
+      ok: false,
+      motivo: 'nome-reservado',
+      slug: String(slug),
+      texto: `"${slug}" e um nome de pasta reservado no Windows`,
+    };
+  }
+  if (pedido && !branchValido(projeto, branch)) {
+    return {
+      ok: false,
+      motivo: 'branch',
+      branchPedido: branch,
+      texto: `"${branch}" nao e um nome de branch valido para o git`,
+    };
   }
 
   const wt = lerUma(projeto, caminho);
   // Registrada E com a pasta no disco: da para reaproveitar de verdade.
   const existe = Boolean(wt && wt.existe);
 
+  // A COLISAO. `slugFeature` colapsa `/` em `-`, entao `feature/TECH-1120` e
+  // `feature-TECH-1120` disputam a MESMA pasta -- e o mesmo vale para caixa
+  // diferente num disco que ignora caixa, e para dois branches longos cortados
+  // em 60 caracteres. Comparar com o branch que esta NO DISCO cobre os quatro de
+  // uma vez, e nomear `branchAtual` e o que deixa a pessoa entender por que dois
+  // branches obviamente diferentes colidiram.
+  if (existe && wt.branch && wt.branch !== branch) {
+    return {
+      ok: false,
+      motivo: 'colisao',
+      caminho,
+      slug: String(slug),
+      branchPedido: branch,
+      branchAtual: wt.branch,
+      texto: `a pasta ${slug} ja e a worktree do branch ${wt.branch}. `
+        + `Para abrir ${branch} escolha outro nome de pasta.`,
+    };
+  }
+
+  // Branch ja aberto em OUTRA arvore. Deixou de ser hipotese no momento em que o
+  // branch pode vir de fora: `main` esta sempre checado no proprio projeto.
+  const ocupada = worktreeComBranch(projeto, branch);
+  if (ocupada && !mesmoCaminho(ocupada, caminho)) {
+    return {
+      ok: false,
+      motivo: 'em-uso',
+      caminho,
+      branch,
+      ocupada,
+      texto: `o branch ${branch} ja esta checado em ${ocupada}`,
+    };
+  }
+
+  const branchExiste = temBranch(projeto, branch);
+  const remotos = branchExiste ? [] : remotosComBranch(projeto, branch);
+
   return {
     ok: true,
     caminho,
+    slug: String(slug),
     branch,
     existe,
-    branchExiste: temBranch(projeto, branch),
+    branchExiste,
+    remotos,
+    branchAtual: existe ? wt.branch : '',
+    // De onde o branch vai sair, para o dialogo e a resposta HTTP dizerem sem
+    // reimplementar o criterio.
+    origem: existe ? 'reaproveitada' : (branchExiste ? 'local' : (remotos.length ? 'remoto' : 'novo')),
     acao: existe ? 'reaproveitar' : 'criar',
   };
 }
@@ -685,14 +841,17 @@ function prever(projeto, slug) {
 // sincrona. `worktree add` faz um checkout inteiro, e sincrono ele bloquearia o
 // processo principal -- sem IPC, sem hooks, e a janela que o Windows oferece
 // fechar.
-async function criar(projeto, slug) {
-  const p = prever(projeto, slug);
+async function criar(projeto, slug, { branch: pedido = '', buscar: buscarRemoto = true } = {}) {
+  const p = prever(projeto, slug, { branch: pedido });
   if (!p.ok) return p;
 
   // Reaproveitar, nunca recriar: e o que deixa reabrir a mesma dupla amanha so
   // redigitando o nome. Recriar apagaria trabalho.
   if (p.existe) {
-    return { ok: true, caminho: p.caminho, branch: p.branch, criada: false, avisos: [] };
+    return {
+      ok: true, caminho: p.caminho, branch: p.branch, origem: p.origem,
+      criada: false, branchCriado: false, avisos: [],
+    };
   }
 
   // Pasta apagada a mao deixa o registro orfao, e o `add` recusa por causa dele.
@@ -700,12 +859,47 @@ async function criar(projeto, slug) {
   // so o `git worktree prune` na mao resolveria.
   await gitLento(projeto, ['worktree', 'prune']);
 
-  // Branch ja existe? Aproveita, em vez de `-b`, que falharia. E o caso de quem
-  // arquivou a pasta e manteve o branch -- que e exatamente o que `arquivar` faz
-  // quando o `-d` recusa por commit nao mesclado.
-  const args = temBranch(projeto, p.branch)
-    ? ['worktree', 'add', p.caminho, p.branch]
-    : ['worktree', 'add', '-b', p.branch, p.caminho];
+  const avisos = [];
+  let args;
+  let branchCriado = false;
+
+  if (p.branchExiste) {
+    // Branch ja existe local: aproveita, em vez de `-b`, que falharia. E o caso
+    // de quem arquivou a pasta e manteve o branch -- que e exatamente o que
+    // `arquivar` faz quando o `-d` recusa por commit nao mesclado.
+    args = ['worktree', 'add', p.caminho, p.branch];
+  } else if (p.remotos.length) {
+    // So no remoto: busca ANTES e cria rastreando, com o upstream EXPLICITO.
+    //
+    // Nem `--guess-remote` nem o DWIM puro do `worktree add` servem aqui.
+    // O `--guess-remote` so vale quando o `<commit-ish>` e OMITIDO e casa contra
+    // `$(basename <path>)` -- que aqui e o SLUG (`feature-TECH-1120`), e nao o
+    // branch (`feature/TECH-1120`): ele procuraria um branch remoto com o nome
+    // da pasta, nao acharia, e cairia em branch orfao. O DWIM puro usa a ref de
+    // rastreio COMO ESTA NO DISCO, sem buscar, entao a worktree pode nascer de
+    // uma copia de uma semana atras sem nada dizer -- e o codigo de saida nao
+    // conta qual dos tres caminhos foi tomado, o que quebraria a promessa de
+    // "criar / reaproveitar" do `prever`.
+    const remoto = p.remotos.includes('origin') ? 'origin' : p.remotos[0];
+    if (buscarRemoto) {
+      // O UNICO passo de rede, e por isso pelo `gitDeRede`: um repositorio
+      // privado sem credencial valida abriria uma JANELA do Git Credential
+      // Manager do nada, e o `execFileSync` congelaria o processo principal
+      // enquanto um remoto lento pendura.
+      const f = await gitDeRede(projeto, ['fetch', '--no-tags', remoto, p.branch]);
+      // Falha de rede NAO recusa: a ref de rastreio ja esta no disco, foi por
+      // ela que chegamos aqui. Vira aviso -- a mesma politica do updater.
+      if (!f.ok) {
+        avisos.push(`nao consegui atualizar ${remoto}/${p.branch}; a worktree saiu da copia local`);
+      }
+    }
+    args = ['worktree', 'add', '--track', '-b', p.branch, p.caminho, `${remoto}/${p.branch}`];
+    branchCriado = true;
+  } else {
+    // Em lugar nenhum: forka do HEAD do projeto.
+    args = ['worktree', 'add', '-b', p.branch, p.caminho];
+    branchCriado = true;
+  }
 
   const r = await gitLento(projeto, args, { ms: MS_GIT_REMOVER });
   if (!r.ok) return { ok: false, motivo: 'add', texto: `Nao consegui criar o worktree: ${r.erro}` };
@@ -714,8 +908,12 @@ async function criar(projeto, slug) {
     ok: true,
     caminho: p.caminho,
     branch: p.branch,
+    origem: p.origem,
     criada: true,
-    avisos: copiarInclude(projeto, p.caminho),
+    // Quem criou o BRANCH, que e diferente de quem criou a pasta. E o que o
+    // `desfazer` precisa para nao apagar branch de outra pessoa.
+    branchCriado,
+    avisos: [...avisos, ...copiarInclude(projeto, p.caminho)],
   };
 }
 
@@ -770,10 +968,19 @@ function copiarInclude(projeto, destino) {
 // perder -- o branch tem a idade do comando anterior, e o `copiarInclude`
 // acabou de deixar a arvore suja com o `.env`, que faria as duas versoes
 // educadas recusarem sempre.
-async function desfazer(projeto, caminho, branch) {
+//
+// `apagarBranch` EXISTE PORQUE AQUELE "o branch tem a idade do comando anterior"
+// nem sempre foi verdade, e deixou de ser de vez quando o branch passou a poder
+// vir de fora. `criar` reaproveita branch que ja existia (o caso de quem
+// arquivou a pasta e o `arquivar` deixou o branch para tras por ter commit nao
+// mesclado), e com o branch vindo do Pronix Flow o caso extremo e real: abrir
+// uma sessao em `main` no primeiro repositorio, o segundo falhar, e o `main`
+// local ser apagado. Quem passa o valor e o chamador, com o `branchCriado` que
+// o `criar` devolve.
+async function desfazer(projeto, caminho, branch, { apagarBranch = true } = {}) {
   const rm = await gitLento(projeto, ['worktree', 'remove', '--force', caminho], { ms: MS_GIT_REMOVER });
   if (!rm.ok) return { ok: false, texto: rm.erro };
-  if (branch) await gitLento(projeto, ['branch', '-D', branch]);
+  if (branch && apagarBranch) await gitLento(projeto, ['branch', '-D', branch]);
   return { ok: true };
 }
 
@@ -918,6 +1125,11 @@ module.exports = {
   prever,
   criar,
   desfazer,
+  branchValido,
+  worktreeComBranch,
+  remotosComBranch,
+  remotesDe,
+  RESERVADOS_WINDOWS,
   caminhoDeWorktree,
   branchDeWorktree,
   triarLote,
