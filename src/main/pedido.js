@@ -11,8 +11,8 @@
 // (`apps/web/src/lib/orquestrador.ts`). Mudar qualquer campo aqui exige mudar
 // aquele arquivo:
 //
-//   POST /abrir  { repo, branch, issue, title, url }
-//   orquestrador://abrir?repo=&branch=&issue=&title=&url=
+//   POST /abrir  { repo, branch, issue, title, url, description }
+//   orquestrador://abrir?repo=&branch=&issue=&title=&url=&description=
 //
 // `issue` e STRING (TECH-1120), nao numero, e `url` aponta para a issue no
 // Flow -- nao para o GitHub.
@@ -92,6 +92,8 @@ function combinaRepo(alvo, remotes) {
 
 // ------------------------------------------------------------ o pedido
 
+// Campo de UMA linha: branch, titulo, identificador. Eles viram rotulo de painel,
+// `sessao.json` e argumento de git, e ali quebra de linha nao tem o que fazer.
 function limpar(v, max = MAX_TEXTO) {
   return String(v == null ? '' : v)
     // Runs colapsam num espaco so: um `\r\n` e UMA quebra, e nao duas.
@@ -100,6 +102,25 @@ function limpar(v, max = MAX_TEXTO) {
     // ENVIA sozinho, e "a gente nunca manda" falharia por dentro -- por isso a
     // varredura pega C0 e DEL inteiros, e nao so os dois obvios.
     .replace(/[\u0000-\u001f\u007f]+/g, ' ')
+    .trim()
+    .slice(0, max);
+}
+
+// Texto de VARIAS linhas: a descricao da issue, que so vai para o prompt.
+//
+// O `limpar` achatava a descricao num bloco so, e o argumento dele nao vale aqui:
+// o prompt NUNCA e digitado no PTY. Ele vai como `--prefill-b64` (base64url, sem
+// nenhum caractere de controle na linha de comando) ou para a area de
+// transferencia -- ver o `comPrefill` em `src/janela/projetos.js`.
+//
+// `\n` e `\t` ficam porque o validador do CLI os aceita. O resto do C0 e o DEL
+// continuam caindo: ali a recusa do CLI e MUDA, e a sessao abriria com a caixa
+// vazia. Linha em branco repetida NAO e colapsada -- o texto chega como foi
+// escrito no Flow.
+function limparTexto(v, max) {
+  return String(v == null ? '' : v)
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f]+/g, ' ')
     .trim()
     .slice(0, max);
 }
@@ -136,9 +157,9 @@ function normalizarPedido(bruto) {
       issue: limpar(b.issue, 60),
       title: limpar(b.title),
       url: urlSegura(b.url),
-      // Ainda nao vem no contrato de hoje; foi pedido ao Flow. Quando chegar, o
-      // prompt melhora sem nenhuma mudanca de mecanica.
-      description: limpar(b.description, MAX_PROMPT),
+      // Multilinha de proposito: paragrafos e listas da issue chegam ao prompt
+      // como foram escritos. Ver `limparTexto`.
+      description: limparTexto(b.description, MAX_PROMPT),
       // Desempate de ambiguidade, e SO isso -- ver `resolver`.
       projeto: limpar(b.projeto, 80),
     },

@@ -936,8 +936,8 @@ exige mudar aquele arquivo.
 ```
 GET  http://127.0.0.1:47615/ping     timeout de 1s, o Flow le SO `res.ok`, cacheado por carregamento
 POST http://127.0.0.1:47615/abrir    content-type application/json, o Flow le SO `res.ok`
-     { repo, branch, issue, title, url }
-orquestrador://abrir?repo=&branch=&issue=&title=&url=      (URLSearchParams, percent-encoded)
+     { repo, branch, issue, title, url, description }
+orquestrador://abrir?repo=&branch=&issue=&title=&url=&description=   (URLSearchParams, percent-encoded)
 ```
 
 `repo` e `owner/repo` (`VDVTech/pronix-flow`) e **nunca** um caminho; `branch` e a convencao
@@ -1216,6 +1216,16 @@ Por que a forma base64 e nao `--prefill "<texto>"`:
   multilinha sobrevive -- por argumento com aspas seria impossivel.
 - **Teto de 5000 caracteres, e a recusa do CLI e MUDA** (vai para o log de depuracao dele, e a sessao
   abre com a caixa vazia). Por isso o corte e nosso, e e **recusa, nao truncagem**.
+
+**A descricao e multilinha, e o `limpar` NAO serve para ela.** O `limpar` do `pedido.js` troca todo
+o C0 por espaco -- certo para `branch`/`title`/`issue`, que viram rotulo, `sessao.json` e argumento
+de git. Aplicado a `description`, ele achatava a issue num bloco so (relatado assim: paragrafos do
+Flow chegando como uma linha). O argumento dele ("`\n` no PTY e Enter") nao vale para o prompt, que
+**nunca e digitado**: vai em base64url ou para a area de transferencia. Dai o `limparTexto`: `\r\n`
+e `\r` viram `\n`, `\n` e `\t` ficam, o resto do C0 e o DEL continuam caindo (a recusa do CLI e muda),
+e linha em branco repetida **nao** e colapsada. A prova de que o CLI preserva `\n` ja estava na tela:
+o cabecalho e a URL que o `montarPrompt` junta com `\n` sempre chegaram em linhas proprias -- e o
+prompt achatado do relato tinha exatamente os 1.495 caracteres que o codigo antigo produz.
 
 #### O teto de 8191 do cmd.exe, e por que ele e mais apertado que o do prompt
 

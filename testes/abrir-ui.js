@@ -92,6 +92,7 @@ const abrir = (carga) => pedir('/abrir', {
     issue: 'TESTE-4242',
     title: 'Pedido de teste do orquestrador',
     url: 'https://flow.pronixhub.com.br/teams/t/issues/i',
+    description: 'Primeiro paragrafo.\nSegunda linha.\n\nSegundo paragrafo.',
   };
 
   const r1 = await abrir(carga);
@@ -160,6 +161,10 @@ const abrir = (carga) => pedir('/abrir', {
     checar('o prompt carrega a issue', texto.includes('TESTE-4242'), texto);
     checar('o prompt carrega o titulo', texto.includes('Pedido de teste do orquestrador'), texto);
     checar('o prompt carrega o link de volta', texto.includes('flow.pronixhub.com.br'), texto);
+    // As quebras da descricao chegam ao CLI: o base64 nao tem caractere de
+    // controle na linha, entao nao ha motivo para achatar.
+    checar('o prompt preserva os paragrafos da descricao',
+      texto.endsWith('\n\nPrimeiro paragrafo.\nSegunda linha.\n\nSegundo paragrafo.'), JSON.stringify(texto));
   }
   checar('o comando levou --deep-link-origin', tela.includes('--deep-link-origin'), tela.slice(-200));
 
