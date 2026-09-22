@@ -108,6 +108,20 @@ function montarRepo() {
   // Controle no meio do texto nao sobrevive: `\r` e `\n` escritos no PTY sao
   // Enter, e um prompt que se envia sozinho quebra a promessa de "so digitado".
   igual('controle vira espaco', pedido.normalizarPedido({ repo: 'a/b', branch: 'x\r\ny' }).pedido.branch, 'x y');
+  igual('titulo continua de uma linha', pedido.normalizarPedido({ repo: 'a/b', branch: 'x', title: 'a\nb' }).pedido.title, 'a b');
+
+  // A descricao e a excecao: ela so vai para o prompt, e o prompt nunca e
+  // digitado no PTY (vai por --prefill-b64). Achatar ali custava a formatacao
+  // inteira da issue -- paragrafos viravam um bloco so.
+  const desc = (d) => pedido.normalizarPedido({ repo: 'a/b', branch: 'x', description: d }).pedido.description;
+  igual('descricao preserva paragrafos', desc('A\nB\n\nC'), 'A\nB\n\nC');
+  igual('descricao: CRLF e CR solto viram \\n', desc('A\r\nB\rC'), 'A\nB\nC');
+  igual('descricao preserva tab', desc('lista:\n\t- item'), 'lista:\n\t- item');
+  igual('descricao: resto do C0 e DEL viram espaco', desc('a\u0000b\u001bc\u007fd'), 'a b c d');
+  igual('descricao: linha em branco repetida NAO colapsa', desc('A\n\n\n\nB'), 'A\n\n\n\nB');
+
+  const dlDesc = pedido.deDeeplink('orquestrador://abrir?repo=a%2Fb&branch=x&description=A%0A%0AB');
+  igual('deeplink: descricao multilinha', dlDesc.pedido.description, 'A\n\nB');
 
   // -------------------------------------------------------------- resolver
 
@@ -143,6 +157,14 @@ function montarRepo() {
 
   const comDesc = pedido.montarPrompt({ issue: 'T-1', title: 'x', url: '', description: 'corpo da issue' });
   checar('description entra quando o Flow mandar', comDesc.prompt.endsWith('corpo da issue'), comDesc.prompt);
+
+  // O caminho inteiro, como o Flow manda: normalizar e montar, sem perder paragrafo.
+  const multi = pedido.normalizarPedido({
+    repo: 'a/b', branch: 'x', issue: 'T-1', title: 'x', url: 'https://flow.x/i/1',
+    description: 'O que e?\r\nPrimeiro paragrafo.\r\n\r\nPor que?\r\nSegundo paragrafo.',
+  }).pedido;
+  igual('prompt preserva os paragrafos da descricao', pedido.montarPrompt(multi).prompt,
+    'Trabalhe na issue T-1 — x\nhttps://flow.x/i/1\n\nO que e?\nPrimeiro paragrafo.\n\nPor que?\nSegundo paragrafo.');
 
   // O CLI recusa acima de 5000 EM SILENCIO. Recusa, e nao truncagem: prompt
   // cortado e prompt errado.
