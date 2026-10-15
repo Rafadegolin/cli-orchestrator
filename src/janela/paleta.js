@@ -159,6 +159,13 @@
 
     lista.push({
       tag: 'tema',
+      rotulo: 'Cor de destaque…',
+      dica: '',
+      correr: () => window.OrqAcento?.abrir(),
+    });
+
+    lista.push({
+      tag: 'tema',
       rotulo: window.OrqCasca?.lateral() === 'fechada'
         ? 'Mostrar a barra lateral'
         : 'Ocultar a barra lateral',

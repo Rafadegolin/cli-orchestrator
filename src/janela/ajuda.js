@@ -298,8 +298,9 @@ const TODAS_SECOES = [
     titulo: 'Abrir uma sessão a partir do Pronix Flow',
     blocos: [
       p('No Flow, o botão <b>Abrir no Claude</b> de uma issue abre a sessão aqui: o app cria a '
-        + 'worktree no branch da issue, sobe o Claude nela e deixa o contexto da issue <b>digitado '
-        + 'na caixa de entrada</b>. Você lê e aperta Enter — nada é enviado sozinho.'),
+        + 'worktree no branch da issue, sobe o Claude nela e deixa a <b>descrição da issue digitada '
+        + 'na caixa de entrada</b> — só ela, sem cabeçalho nem link. Você lê e aperta Enter: nada é '
+        + 'enviado sozinho. Issue sem descrição abre com a caixa vazia.'),
       passos([
         '<b>Cadastre o projeto</b> aqui, apontando para a pasta do clone. É por ele que o app '
           + 'descobre onde o repositório mora: o Flow manda <code>owner/repo</code>, e nunca um '
@@ -337,8 +338,9 @@ const TODAS_SECOES = [
       tabela(['Controle', 'O que faz'], [
         ['Urgência / Projeto', 'Ordena a grade e a lista de sessões. Em <b>Urgência</b>, quem espera '
           + 'vem primeiro; em <b>Projeto</b>, agrupa por repositório.'],
-        ['1 · 2 · 3', 'Quantas colunas. Cada densidade tem uma altura fixa de painel, para a grade '
-          + 'ficar previsível. Na 3 o rótulo de status some e a bolinha assume.'],
+        ['1 · 2 · 3', 'Quantas colunas. Cada linha de painéis ocupa a <b>altura visível inteira</b> '
+          + 'da janela; o que não cabe numa linha rola para baixo. Na 3 o rótulo de status some e a '
+          + 'bolinha assume.'],
         ['P', 'O slot personalizado: aqui cada painel pode ter um tamanho diferente. Arraste a '
           + '<b>alça do canto inferior direito</b> e ele cresce em colunas e linhas da grade — por '
           + 'exemplo dois terminais grandes lado a lado e dois pequenos dividindo a terceira coluna.'],
@@ -349,6 +351,11 @@ const TODAS_SECOES = [
         + 'status mudam. Para redefinir, procure <b>layout</b> na paleta.'),
       p('O botão de tema fica na barra de título, ao lado da busca. O <b>terminal continua escuro '
         + 'nos dois temas</b>: código monoespaçado sobre fundo claro atrapalha a leitura.'),
+      p('A <b>cor de destaque</b> (foco, botões principais, a bolinha de sessão rodando e o cursor '
+        + 'do terminal) não precisa ser verde: procure <b>Cor de destaque</b> na paleta ({mod}+K) e '
+        + 'escolha uma das prontas ou qualquer outra. O tom é ajustado sozinho em cada tema para o '
+        + 'texto continuar legível, e o seletor avisa se a cor ficar parecida com a de "esperando". '
+        + 'Ela vale para o app todo e não entra nos layouts salvos.'),
       p('No canto esquerdo da barra de título, o primeiro botão <b>recolhe a barra lateral</b> '
         + '(<b>{mod}+B</b>), e a grade ocupa o espaço dela — os terminais refluem sozinhos. A escolha '
         + 'é lembrada. Com ela recolhida, a fila de atenção continua alcançável por <b>{mod}+Enter</b> '
@@ -484,6 +491,10 @@ const TODAS_SECOES = [
         + 'O {mod}+C só copia quando há texto selecionado: sem seleção ele continua sendo '
         + 'o interromper de sempre, e copiar limpa a seleção justamente para o próximo '
         + '{mod}+C voltar a interromper.'),
+      p('Enquanto você <b>seleciona</b> num terminal, a saída da sessão espera: arrastar além da '
+        + 'borda rola o terminal, e texto novo chegando no meio disso fazia a seleção perder o '
+        + 'começo. A saída retida aparece assim que você copia, clica, digita — ou em alguns '
+        + 'segundos, para um pedido de permissão nunca ficar escondido atrás de uma seleção esquecida.'),
     ],
   },
   {

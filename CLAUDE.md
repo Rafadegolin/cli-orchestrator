@@ -350,6 +350,20 @@ subconjunto dos 5 que os hooks entregam — `terminou` (evento `Stop`) fica, com
   existe regra `.claro .algumacoisa` no arquivo; se voce precisar de uma, o token que falta e o
   problema. **O terminal fica escuro nos dois temas** (`--term`/`--termfg`, repetidos como literais
   no `TEMA` do `painel.js`) — codigo monoespacado sobre fundo claro quebra a leitura.
+- **A cor de destaque e escolhivel** (`src/janela/acento.js`, `acento` no `ui.json`, pela paleta:
+  "Cor de destaque…"). A cor escolhida e a BASE: `derivar()` anda a luminosidade (mesmo matiz) ate
+  `--acc` passar 4,6:1 contra o `--bg1` do tema e `--acc-texto` passar sobre ele — clareia no
+  escuro, escurece no claro, o mesmo que foi feito a mao com o `#0b7b52`. Os tres tokens
+  (`--acc`, `--accd`, `--acc-texto`) vao **inline no `<html>`**, que vence `:root` e
+  `html.claro`; e por isso o `aplicarTema()` do casca reaplica DEPOIS de trocar a classe.
+  - **A cor padrao nao escreve inline nenhum**: os valores calibrados do CSS seguem valendo byte a
+    byte. O `teste:ui` cobra isso e varre presets + tres cores livres ruins nos dois temas.
+  - **`rodando` acompanha a cor** (decisao de quem pediu), entao o seletor avisa quando o matiz cai
+    a menos de 25° do `--warn` ou do `--danger`. O cursor do xterm segue (variante do tema
+    escuro, `OrqPainel.definirCursor`); o verde ANSI nao — e cor do programa. A marca SVG nao muda.
+  - `::selection` e a sombra do botao primario passaram a usar `color-mix` sobre `--acc`; eram
+    `rgba(61, 220, 151, …)` cravado. O verde do `.diff-mais` fica: e semantica de diff.
+  - Nao entra nos layouts salvos: e identidade visual, nao arranjo.
 - **Fontes vendorizadas** em `src/janela/fontes/` (Space Grotesk + JetBrains Mono, subsets latin e
   latin-ext, OFL). Baixadas uma vez e commitadas: o CSP e `font-src 'self'` e o app tem de abrir sem
   internet. `teste:ui` confere com `document.fonts.check` — sem isso o app cai em fallback e a tela
@@ -358,9 +372,19 @@ subconjunto dos 5 que os hooks entregam — `terminou` (evento `Stop`) fica, com
   os do Windows (Snap Layouts preservado); a faixa e nossa. Duas consequencias: a cor deles nao sai
   do CSS (o `ui:salvar` chama `setTitleBarOverlay`), e o `#titulo` reserva a area deles com
   `padding-right: calc(100vw - env(titlebar-area-width))`.
-- **Densidade 1/2/3** (`--cols` e `--altura-painel` vindos de `#app[data-densidade]`) com altura
-  FIXA por densidade. As colunas nao dependem mais da contagem de painéis: numero que muda sozinho a
-  cada painel aberto e o oposto de uma grade previsivel.
+- **Densidade 1/2/3** (`--cols` vindo de `#app[data-densidade]`). As colunas nao dependem da
+  contagem de painéis: numero que muda sozinho a cada painel aberto e o oposto de uma grade
+  previsivel.
+  - **A altura e a da JANELA, nao mais fixa.** Cada LINHA de painéis ocupa a altura visivel do
+    `#conteudo` (`--altura-painel: max(220px, 100cqb)`, com `container-type: size` no
+    `#conteudo`); o que nao cabe numa linha rola. Os 460/320/268px antigos davam terminais baixos
+    demais na densidade 3 — foi pedido assim.
+  - **`cqb` ja e a caixa de CONTEUDO**: subtrair o padding de 14px de novo deixou 28px sobrando
+    embaixo, e foi o `teste:ui` que pegou. O `cqb` e resolvido no `.painel` (onde a variavel e
+    usada) contra o `#conteudo`; o `.painel` e `inline-size` e por isso nao conta para `cqb`.
+  - Consequencias: o `teste:fase6` deixou de aceitar "4 painéis nao rolam" (na densidade 2 sao duas
+    linhas de altura cheia) e agora fixa a densidade no comeco. E o CPU parado do `teste:fase2` caiu
+    de ~1,6% para **1,23%** — menos painéis a vista, menos composicao.
 - **Mais o slot `P`** (`src/janela/personalizado.js`), onde a altura deixa de ser fixa e vira **span
   de linhas** — ver a secao propria abaixo.
 - **Preferencias em `ui.json`** (`preferencias.js`), separado do `sessao.json`: arranjo muda o tempo
@@ -1195,9 +1219,11 @@ falhar, e o `main` local ser apagado.** Agora `criar` devolve `branchCriado` e `
 
 ### O primeiro prompt: `--prefill-b64`, e a sonda que o protege
 
-O Flow **nao manda `prompt`**. O texto e montado aqui com `issue`, `title` e `url` -- e `description`
-foi **pedido a eles** (ofereceram; e um arquivo, duas linhas), e entra no mesmo lugar sem nenhuma
-mudanca de mecanica.
+O Flow **nao manda `prompt`**. O texto e montado aqui, e hoje e **so a `description`** -- que foi
+**pedida a eles** (ofereceram; e um arquivo, duas linhas). Ja levou um cabecalho
+(`Trabalhe na issue X — titulo`) e a URL; foi pedido para sair: a caixa deve ter o texto da issue
+e mais nada. A issue continua na tela pelo chip do painel. **Sem descricao, a caixa abre VAZIA**
+(`prompt: ''`, e o `comPrefill` ja devolve o comando sem flag para texto vazio).
 
 **MEDIDO contra o CLI 2.1.267:** `--prefill <texto>` e *"Pre-fill the prompt input with text without
 submitting it"* -- por dentro e literalmente `buffer = texto`, aplicado **antes** de a TUI subir. Ha a
@@ -2180,6 +2206,30 @@ proprio textarea, entao digitar dentro de um terminal ja nao chega aqui". Ele so
 nas teclas que **consome**, e `1`–`4` puras ele nao consome — quem protege a densidade e a guarda de
 `TEXTAREA` da linha anterior. O comportamento estava certo; a explicacao, nao, e e a explicacao que o
 proximo leitor usaria para decidir se pode remover a guarda.
+
+### Selecionar segura a saida do PTY
+
+Relatado: com o terminal pequeno, arrastar a selecao alem da borda (o xterm rola sozinho) as vezes so
+pegava o ultimo trecho visivel. **Nenhum codigo do app limpava selecao** — o unico `clearSelection`
+e o de depois de copiar. O que mexia era a saida chegando NO MEIO do arrasto: a TUI do Claude
+redesenha e rola o buffer debaixo da ancora. Num terminal pequeno o autoscroll comeca antes e anda
+mais, dai o "as vezes".
+
+- **`mousedown` (botao 0, em captura, no `elTerm` — nao no painel, para o cabecalho e o Aprovar
+  ficarem de fora) liga `segurando`**, e `escreverBytes` desvia para o MESMO `pendentes` da Fase
+  6.1. O `mouseup` e ouvido na JANELA (`soltarArrastos`, um ouvinte para todos), porque o
+  autoscroll leva o ponteiro para fora do painel; `blur` conta como soltar.
+- Soltou **sem** selecao: entrega na hora. **Com** selecao: segura ate ela sumir (copiar, clicar,
+  digitar — `onSelectionChange`/`onData`) ou ate **10s**; o arrasto em si tem teto de 30s. Nunca
+  para sempre: terminal congelado por selecao esquecida esconderia um pedido de permissao.
+- **Quem le a tela para DECIDIR fura a retencao** (`textoDoBuffer`, `textoDaTela({ flush })`): ali
+  texto certo vale mais que selecao. O farejador (sem flush) nao fura — le a tela velha por ate 10s.
+- Estourar os 200 KB durante a retencao **solta** em vez de descartar: perder saida de um painel a
+  vista e pior que perder a selecao.
+- O `rebalancearRenderizadores()` do primeiro clique num painel nao focado espera o fim do arrasto:
+  trocar de addon no instante em que a ancora e fixada era a outra suspeita.
+- O `teste:copiar` prova a mecanica (byte retido, solto nos dois finais, furado pelo flush). O
+  arrasto real com autoscroll nao se simula por CDP de forma confiavel.
 
 ### Colar duas vezes: o gancho chega antes do cancelamento, e cancelar virou nosso
 

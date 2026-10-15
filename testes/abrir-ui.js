@@ -158,13 +158,12 @@ const abrir = (carga) => pedir('/abrir', {
   checar('o comando levou --prefill-b64', Boolean(m), tela.slice(-200));
   if (m) {
     const texto = Buffer.from(m[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
-    checar('o prompt carrega a issue', texto.includes('TESTE-4242'), texto);
-    checar('o prompt carrega o titulo', texto.includes('Pedido de teste do orquestrador'), texto);
-    checar('o prompt carrega o link de volta', texto.includes('flow.pronixhub.com.br'), texto);
-    // As quebras da descricao chegam ao CLI: o base64 nao tem caractere de
-    // controle na linha, entao nao ha motivo para achatar.
-    checar('o prompt preserva os paragrafos da descricao',
-      texto.endsWith('\n\nPrimeiro paragrafo.\nSegunda linha.\n\nSegundo paragrafo.'), JSON.stringify(texto));
+    // So a descricao, e com as quebras: o base64 nao tem caractere de controle
+    // na linha, entao nao ha motivo para achatar.
+    checar('o prompt e SO a descricao, com os paragrafos',
+      texto === 'Primeiro paragrafo.\nSegunda linha.\n\nSegundo paragrafo.', JSON.stringify(texto));
+    checar('sem a issue, o titulo ou o link no prompt',
+      !texto.includes('TESTE-4242') && !texto.includes('flow.pronixhub.com.br'), texto);
   }
   checar('o comando levou --deep-link-origin', tela.includes('--deep-link-origin'), tela.slice(-200));
 

@@ -25,6 +25,24 @@ const MS_DEBOUNCE_RESIZE = 100;
 // mostrar, entao o teto so corta o que seria descartado de qualquer jeito.
 const TETO_INVISIVEL_BYTES = 200 * 1024;
 
+// Enquanto voce SELECIONA, a saida do PTY espera. Relatado: com o terminal
+// pequeno, arrastar a selecao para alem da borda (o xterm rola sozinho) as vezes
+// so pegava o ultimo trecho visivel. Escrever no meio do arrasto faz a TUI do
+// Claude redesenhar e rolar o buffer debaixo da ancora da selecao -- e ela
+// perde o comeco. Os bytes vao para o MESMO buffer do painel fora da vista
+// (Fase 6.1), e saem no primeiro destes: a selecao some (copiou, clicou,
+// digitou), o prazo abaixo vence, ou alguem precisa ler a tela para DECIDIR
+// (`textoDoBuffer`, `textoDaTela({ flush })` -- ali o texto certo vale mais
+// que a selecao).
+//
+// Depois de soltar o botao ainda segura um pouco, porque o gesto so termina
+// quando voce copia. Mas nao para sempre: um terminal congelado por uma selecao
+// esquecida esconderia um pedido de permissao.
+const MS_SEGURAR_SELECAO = 10000;
+// O arrasto em si tem teto proprio: um mouseup perdido nao pode congelar o
+// painel.
+const MS_SEGURAR_ARRASTO = 30000;
+
 // O TERMINAL FICA ESCURO NOS DOIS TEMAS, e por isso os valores estao aqui em
 // vez de saírem das variaveis CSS: nao e esquecimento, e decisao -- codigo
 // monoespacado sobre fundo claro quebra a leitura. Sao os tokens --term e
@@ -74,6 +92,11 @@ class Painel {
     // que o corte aconteceu, em vez de inferir por numero de linha -- e ajuda a
     // responder "por que falta saida no comeco?" sem adivinhacao.
     this.descartadosBytes = 0;
+    // Saida retida por causa de uma selecao em andamento (ver MS_SEGURAR_SELECAO).
+    this.segurando = false;
+    this.arrastando = false;
+    this.timerSegurar = null;
+    this.rebalancearAoSoltar = false;
 
     // Registra ANTES de montar o terminal: _aplicarRenderizador() decide entre
     // WebGL e canvas pela posicao em ordemDeUso, e um id ainda nao registrado
@@ -226,7 +249,7 @@ class Painel {
       fontSize: 11.5,
       // O doc de UI pede 1.65, medida pensada para o terminal FALSO do
       // prototipo (uma pilha de divs). Aqui altura de linha nao e decoracao, e
-      // quantidade de LINHAS: com o painel de 268px da densidade 3, 1.65 daria
+      // quantidade de LINHAS: num painel de 268px (a antiga densidade 3), 1.65 daria
       // 11 linhas contra 13 -- 18% a menos de TUI do Claude a vista. Fica em
       // 1.35, que e visualmente proximo e materialmente utilizavel.
       lineHeight: 1.35,
@@ -239,7 +262,25 @@ class Painel {
     this.term.loadAddon(this.fit);
     this.term.open(this.elTerm);
 
-    this.term.onData((d) => window.orq.escrever(this.id, d));
+    this.term.onData((d) => {
+      // Digitar no terminal encerra o gesto de selecao.
+      if (this.segurando && !this.arrastando) this.soltarSelecao();
+      window.orq.escrever(this.id, d);
+    });
+
+    // Arrastar para selecionar: a saida espera ate o gesto acabar. Em CAPTURA
+    // e no elemento do terminal (nao no painel inteiro), para rodar antes do
+    // xterm e para o cabecalho e o botao Aprovar nao entrarem nisso. O mouseup
+    // e ouvido na janela (`soltarArrastos`), porque o autoscroll do xterm
+    // leva o ponteiro para fora do painel.
+    this.elTerm.addEventListener('mousedown', (ev) => {
+      if (ev.button === 0) this.segurarSelecao();
+    }, true);
+    this.term.onSelectionChange(() => {
+      // Durante o arrasto a selecao muda o tempo todo, inclusive vazia no
+      // primeiro clique; so depois dele "sumiu" quer dizer "acabou".
+      if (this.segurando && !this.arrastando && !this.term.hasSelection()) this.soltarSelecao();
+    });
 
     // Copiar/colar. Sem isto o Ctrl+C do xterm vira ETX e chama
     // preventDefault() SEM olhar se ha selecao, entao o navegador nunca dispara
@@ -314,7 +355,51 @@ class Painel {
     if (i === 0) return;
     if (i > 0) ordemDeUso.splice(i, 1);
     ordemDeUso.unshift(this.id);
+    // O primeiro clique num painel nao focado e tambem o comeco do arrasto de
+    // selecao: trocar de renderizador ali (descartar e recarregar o addon) e
+    // mexer no terminal no exato instante em que a ancora e fixada. Espera o
+    // gesto acabar.
+    if (this.arrastando) { this.rebalancearAoSoltar = true; return; }
     rebalancearRenderizadores();
+  }
+
+  // ----------------------------------------------------------- selecao
+
+  segurarSelecao() {
+    if (this.encerrado) return;
+    this.arrastando = true;
+    this.segurando = true;
+    clearTimeout(this.timerSegurar);
+    this.timerSegurar = setTimeout(() => this.soltarSelecao(), MS_SEGURAR_ARRASTO);
+  }
+
+  // O botao foi solto. Com algo selecionado, segura mais um pouco (o gesto so
+  // acaba ao copiar); sem selecao, solta ja.
+  fimDoArrasto() {
+    if (!this.arrastando) return;
+    this.arrastando = false;
+    if (this.rebalancearAoSoltar) {
+      this.rebalancearAoSoltar = false;
+      rebalancearRenderizadores();
+    }
+    if (!this.term.hasSelection()) { this.soltarSelecao(); return; }
+    clearTimeout(this.timerSegurar);
+    this.timerSegurar = setTimeout(() => this.soltarSelecao(), MS_SEGURAR_SELECAO);
+  }
+
+  soltarSelecao() {
+    clearTimeout(this.timerSegurar);
+    this.timerSegurar = null;
+    if (this.arrastando) {
+      this.arrastando = false;
+      if (this.rebalancearAoSoltar) {
+        this.rebalancearAoSoltar = false;
+        rebalancearRenderizadores();
+      }
+    }
+    if (!this.segurando) return;
+    this.segurando = false;
+    if (this.visivel && !this.encerrado) this.descarregarPendentes();
   }
 
   // ------------------------------------------------------------ dados
@@ -323,8 +408,13 @@ class Painel {
     if (this.encerrado) return;
 
     // Fora da vista, nao paga o custo de parsear e desenhar: guarda e escreve
-    // de uma vez quando o painel voltar.
-    if (!this.visivel) {
+    // de uma vez quando o painel voltar. Selecionando, guarda tambem -- mas ai
+    // estourar o teto SOLTA em vez de descartar: perder saida de um painel que
+    // voce esta olhando e pior que perder a selecao.
+    if (this.segurando && this.visivel && this.pendentesBytes + bytes.length > TETO_INVISIVEL_BYTES) {
+      this.soltarSelecao();
+    }
+    if (!this.visivel || this.segurando) {
       this.pendentes.push(bytes);
       this.pendentesBytes += bytes.length;
       // Descarta PEDACOS INTEIROS do inicio, nunca por offset de byte: cortar
@@ -366,6 +456,7 @@ class Painel {
   // texto que o proprio CLI quebrou com indentacao.
   textoDoBuffer() {
     if (this.encerrado || !this.term) return '';
+    this.soltarSelecao();
     this.descarregarPendentes();
     return Painel._juntar(this.term.buffer.active, 0, this.term.buffer.active.length);
   }
@@ -417,7 +508,7 @@ class Painel {
   //    velho e responder ao pedido errado -- num caminho que escreve no PTY.
   textoDaTela({ flush = false } = {}) {
     if (this.encerrado || !this.term) return '';
-    if (flush) this.descarregarPendentes();
+    if (flush) { this.soltarSelecao(); this.descarregarPendentes(); }
     const b = this.term.buffer.active;
     return Painel._juntar(b, b.baseY, b.baseY + this.term.rows);
   }
@@ -425,7 +516,7 @@ class Painel {
   definirVisivel(visivel) {
     if (this.encerrado || this.visivel === visivel) return;
     this.visivel = visivel;
-    if (visivel) this.descarregarPendentes();
+    if (visivel && !this.segurando) this.descarregarPendentes();
     // A visibilidade manda no orcamento de WebGL: nao faz sentido um painel
     // fora da vista segurar contexto enquanto um visivel desenha em canvas.
     rebalancearRenderizadores();
@@ -746,6 +837,7 @@ class Painel {
 
     clearTimeout(this.timerResize);
     clearTimeout(this.timerPrimeiroDado);
+    clearTimeout(this.timerSegurar);
     this.pendentePrimeiroDado = null;
     this.pendentes.length = 0;
     this.pendentesBytes = 0;
@@ -769,6 +861,15 @@ class Painel {
     if (this.aoFecharExterno) this.aoFecharExterno(this.id);
   }
 }
+
+// O fim do arrasto de selecao e ouvido na JANELA, uma vez para todos os
+// painéis: o autoscroll do xterm leva o ponteiro para fora do painel, e o
+// mouseup cai em qualquer lugar. Perder o foco da janela conta como soltar.
+function soltarArrastos() {
+  for (const p of painelPorId.values()) if (p.arrastando) p.fimDoArrasto();
+}
+window.addEventListener('mouseup', soltarArrastos, true);
+window.addEventListener('blur', soltarArrastos);
 
 // Visivel primeiro, e entre os visiveis o mais recentemente usado.
 //
@@ -834,4 +935,15 @@ function nomeCurto(caminho) {
   return partes[partes.length - 1] || caminho;
 }
 
-window.OrqPainel = { Painel, painelPorId, nomeCurto, achatar: Painel.achatar };
+// O cursor segue a cor de destaque (`acento.js`). Muta o TEMA, que e o que os
+// painéis NOVOS recebem, e reaplica nos que ja existem -- o xterm so redesenha
+// com um objeto de tema novo, nao com o mesmo objeto alterado.
+function definirCursor(cor) {
+  if (!cor || TEMA.cursor === cor) return;
+  TEMA.cursor = cor;
+  for (const p of painelPorId.values()) {
+    if (p.term && !p.encerrado) p.term.options.theme = { ...TEMA };
+  }
+}
+
+window.OrqPainel = { Painel, painelPorId, nomeCurto, achatar: Painel.achatar, definirCursor };

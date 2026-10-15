@@ -39,6 +39,7 @@
     lateral: 'aberta',
     uso: 'barras',
     avisos: 'ligados',
+    acento: '#3ddc97',
     personalizado: { cols: 3, alturaLinha: 160, celulas: [] },
   };
   const ouvintes = [];
@@ -72,6 +73,10 @@
     // alternador de tema usa e o que as pessoas ja esperam.
     btnTema.textContent = ui.tema === 'claro' ? '☾' : '☀';
     btnTema.title = ui.tema === 'claro' ? 'Mudar para o tema escuro' : 'Mudar para o tema claro';
+    // A cor de destaque e ajustada POR TEMA (contraste AA contra o fundo de
+    // cada um), entao trocar de tema refaz a conta. Depois da classe, sempre:
+    // o `acento.js` le o fundo do tema que esta valendo.
+    window.OrqAcento?.aplicar(ui.acento);
   }
 
   function aplicarDensidade() {
@@ -318,6 +323,7 @@
     ordem: () => ui.ordem,
     densidade: () => ui.densidade,
     tema: () => ui.tema,
+    acento: () => ui.acento,
     lateral: () => ui.lateral,
     mudar,
     alternarLateral,

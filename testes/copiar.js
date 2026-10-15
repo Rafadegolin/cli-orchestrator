@@ -242,6 +242,56 @@ async function ate(fn, cond, ms = 10000) {
   checar('"Copiar" fica desabilitado sem selecao', menu.semSelecao === true, JSON.stringify(menu));
   checar('e habilitado com selecao', menu.comSelecao === false, JSON.stringify(menu));
 
+  // --- selecionar segura a saida -------------------------------------------
+  //
+  // Relatado: arrastar a selecao alem da borda (o xterm rola sozinho) as vezes
+  // so pegava o ultimo trecho. Saida chegando no meio do arrasto rola o buffer
+  // debaixo da ancora. Aqui se prova a MECANICA: durante o arrasto o byte nao
+  // chega ao xterm, e sai quando o gesto acaba -- nos dois finais possiveis.
+  const segura = JSON.parse(await cdp.avaliar(`(async () => {
+    const p = window.OrqPainel.painelPorId.get(${JSON.stringify(id)});
+    const enc = (s) => new TextEncoder().encode(s);
+    const tem = (m) => p.term.buffer.active.length && window.OrqPainel.achatar(
+      (() => { const b = p.term.buffer.active; let t = '';
+        for (let i = 0; i < b.length; i++) t += b.getLine(i).translateToString(true) + ' ';
+        return t; })()).includes(m);
+    const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
+    p.term.clearSelection();
+
+    // 1. arrasto sem selecao: o mouseup solta na hora.
+    p.elTerm.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    const durante = p.segurando;
+    p.escreverBytes(enc('\\r\\nORQSEGURA1\\r\\n'));
+    await pausa(150);
+    const escondido = !tem('ORQSEGURA1');
+    window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+    await pausa(150);
+    const soltouSemSelecao = !p.segurando && tem('ORQSEGURA1');
+
+    // 2. arrasto que deixou selecao: segura ate a selecao sumir (copiar limpa).
+    p.elTerm.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    p.term.selectAll();
+    window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+    p.escreverBytes(enc('ORQSEGURA2\\r\\n'));
+    await pausa(150);
+    const seguraComSelecao = p.segurando && !tem('ORQSEGURA2');
+    p.term.clearSelection();
+    await pausa(150);
+    const soltouAoLimpar = !p.segurando && tem('ORQSEGURA2');
+
+    // 3. quem precisa DECIDIR pela tela fura a retencao.
+    p.elTerm.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    p.escreverBytes(enc('ORQSEGURA3\\r\\n'));
+    p.textoDaTela({ flush: true });
+    const furou = !p.segurando && !p.arrastando;
+    window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+    return JSON.stringify({ durante, escondido, soltouSemSelecao, seguraComSelecao, soltouAoLimpar, furou });
+  })()`));
+  checar('arrastar no terminal segura a saida', segura.durante === true && segura.escondido === true, JSON.stringify(segura));
+  checar('soltar sem selecao entrega a saida na hora', segura.soltouSemSelecao === true, JSON.stringify(segura));
+  checar('com selecao, segura ate ela sumir', segura.seguraComSelecao === true && segura.soltouAoLimpar === true, JSON.stringify(segura));
+  checar('ler a tela para decidir solta a retencao', segura.furou === true, JSON.stringify(segura));
+
   await zerarGrade(cdp);
   encerrar('COPIAR');
 })().catch((e) => { console.error('ERRO', e.message); process.exit(3); });

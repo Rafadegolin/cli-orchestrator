@@ -259,7 +259,13 @@ function resolver(pedido, projetos) {
 
 // ------------------------------------------------------------ o prompt
 
-// O primeiro prompt, montado AQUI porque o Flow nao manda um.
+// O primeiro prompt: SO a descricao da issue, e nada mais.
+//
+// Ja levou um cabecalho (`Trabalhe na issue X — titulo`) e a URL da issue, e
+// foi pedido para sair: quem abre pelo Flow quer a caixa com o texto da issue e
+// so. A issue continua na tela, no chip do painel (`painel.issue`), que e o
+// caminho de volta para o Flow. Sem descricao, a caixa abre VAZIA -- nao se
+// inventa um texto no lugar.
 //
 // Ele vai para a caixa de entrada do Claude e NAO e enviado -- ver o
 // `--prefill-b64` no `src/janela/projetos.js`. Se tudo falhar, o pior resultado
@@ -270,13 +276,7 @@ function resolver(pedido, projetos) {
 // recusa acima de 5000 EM SILENCIO (a recusa vai para o log de depuracao dele, e
 // a sessao abre com a caixa vazia). Melhor dizer o numero.
 function montarPrompt(pedido) {
-  const linhas = [];
-  const cabeca = [pedido.issue, pedido.title].filter(Boolean).join(' — ');
-  if (cabeca) linhas.push(`Trabalhe na issue ${cabeca}`);
-  if (pedido.url) linhas.push(pedido.url);
-  if (pedido.description) linhas.push('', pedido.description);
-
-  const texto = linhas.join('\n').trim();
+  const texto = String(pedido.description || '').trim();
   if (texto.length > MAX_PROMPT) {
     return {
       ok: false,

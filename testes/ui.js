@@ -222,7 +222,8 @@ async function arrastarAlca(cdp, id, dx, dy) {
     { cwd: ${JSON.stringify(RAIZ)}, feature: 'ui-dois' }); return 'ok'; })()`);
   await esperar(2500);
 
-  const esperado = { 1: 460, 2: 320, 3: 268 };
+  // A altura nao e mais fixa por densidade: cada LINHA ocupa a altura visivel do
+  // #conteudo, menos o padding (14px dos dois lados), com piso de 220px.
   for (const d of [1, 2, 3]) {
     await cdp.avaliar(`window.OrqCasca.mudar({ densidade: ${d} })`);
     await esperar(500);
@@ -236,12 +237,13 @@ async function arrastarAlca(cdp, id, dx, dy) {
         cols: est.getPropertyValue('--cols').trim(),
         colunasReais: grade.gridTemplateColumns.split(' ').length,
         altura: Math.round(painel.getBoundingClientRect().height),
+        util: Math.max(220, document.getElementById('conteudo').clientHeight - 28),
         rotuloVisivel: getComputedStyle(st).display !== 'none',
         ativa: document.querySelector('#densidade button.ativa')?.dataset.cols,
       });
     })()`));
-    checar(`densidade ${d}: ${d} coluna(s) de ${esperado[d]}px`,
-      r.cols === String(d) && r.colunasReais === d && r.altura === esperado[d], JSON.stringify(r));
+    checar(`densidade ${d}: ${d} coluna(s) com a altura visivel inteira`,
+      r.cols === String(d) && r.colunasReais === d && Math.abs(r.altura - r.util) <= 1, JSON.stringify(r));
     checar(`densidade ${d}: o botao correspondente fica marcado`, r.ativa === String(d), r.ativa);
     // Na densidade 3 o espaco vale mais que a redundancia; nas outras, cor
     // nunca pode ser o unico portador de significado.
@@ -976,6 +978,69 @@ async function arrastarAlca(cdp, id, dx, dy) {
     const ruins = medido.filter((m) => m.razao < 4.5);
     checar(`contraste AA no tema ${tema}`, ruins.length === 0,
       ruins.map((r) => `${r.nome}=${r.razao}`).join(' ') || medido.map((r) => `${r.nome}=${r.razao}`).join(' '));
+  }
+
+  // --- 14a0. a cor de destaque ------------------------------------------
+  //
+  // A cor escolhida e a BASE: o acento.js ajusta a luminosidade por tema ate
+  // passar AA. Varre os presets e tres cores livres de proposito ruins (amarelo
+  // puro some no branco, azul-marinho some no escuro, cinza nao tem matiz),
+  // lendo o que o NAVEGADOR aplicou -- e nao o que a funcao diz que aplicou.
+  {
+    const livres = ['#ffff00', '#000080', '#808080'];
+    const presets = JSON.parse(await cdp.avaliar('JSON.stringify(window.OrqAcento.PRESETS.map((p) => p.cor))'));
+    const ruins = [];
+    for (const tema of ['escuro', 'claro']) {
+      await cdp.avaliar(`window.OrqCasca.mudar({ tema: ${JSON.stringify(tema)} })`);
+      for (const cor of [...presets, ...livres]) {
+        const r = JSON.parse(await cdp.avaliar(`(() => {
+          window.OrqCasca.mudar({ acento: ${JSON.stringify(cor)} });
+          const raiz = getComputedStyle(document.documentElement);
+          const tok = (n) => raiz.getPropertyValue(n).trim();
+          const rgb = (c) => {
+            const d = document.createElement('div');
+            d.style.color = c;
+            document.body.append(d);
+            const m = getComputedStyle(d).color.match(/[\\d.]+/g).map(Number);
+            d.remove();
+            return m;
+          };
+          const canal = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+          const lum = (c) => { const [r, g, b] = rgb(c); return 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b); };
+          const razao = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+          return JSON.stringify({
+            acc: razao(tok('--acc'), tok('--bg1')),
+            texto: razao(tok('--acc-texto'), tok('--acc')),
+          });
+        })()`));
+        if (r.acc < 4.5 || r.texto < 4.5) ruins.push(`${tema} ${cor}: acc=${r.acc.toFixed(2)} texto=${r.texto.toFixed(2)}`);
+      }
+    }
+    checar('toda cor de destaque passa AA nos dois temas', ruins.length === 0, ruins.join(' | '));
+
+    // A cor padrao NAO escreve nada: os valores calibrados do estilo.css valem.
+    await cdp.avaliar(`window.OrqCasca.mudar({ tema: 'escuro', acento: '#3ddc97' })`);
+    const padrao = JSON.parse(await cdp.avaliar(`JSON.stringify({
+      inline: document.documentElement.style.getPropertyValue('--acc'),
+      cursor: [...window.OrqPainel.painelPorId.values()][0]?.term?.options.theme.cursor || '#3ddc97',
+    })`));
+    checar('a cor padrao nao deixa inline no <html>', padrao.inline === '', padrao.inline);
+    checar('e o cursor volta ao verde', padrao.cursor === '#3ddc97', padrao.cursor);
+
+    // O cursor do terminal segue a cor (a variante do tema escuro), e a escolha
+    // vai para o ui.json.
+    await cdp.avaliar(`window.OrqCasca.mudar({ acento: '#a78bfa' })`);
+    await esperar(400);
+    const roxo = JSON.parse(await cdp.avaliar(`JSON.stringify({
+      acc: getComputedStyle(document.documentElement).getPropertyValue('--acc').trim(),
+      cursor: [...window.OrqPainel.painelPorId.values()].find((p) => p.term)?.term.options.theme.cursor || null,
+    })`));
+    checar('o --acc segue a cor escolhida', roxo.acc === '#a78bfa', roxo.acc);
+    checar('o cursor do terminal segue a cor', roxo.cursor === null || roxo.cursor === '#a78bfa', String(roxo.cursor));
+    const disco = JSON.parse(await cdp.avaliar(
+      `(async () => JSON.stringify(await window.orq.uiCarregar()))()`));
+    checar('a cor de destaque e gravada no ui.json', disco.acento === '#a78bfa', String(disco.acento));
+    await cdp.avaliar(`window.OrqCasca.mudar({ acento: '#3ddc97' })`);
   }
 
   // --- 14a1. o painel focado NAO muda de lugar ----------------------------

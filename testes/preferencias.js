@@ -75,6 +75,17 @@ const gravarBruto = (ui) => fs.writeFileSync(
     preferencias.avisosLigados({ avisos: 'desligados' }) === false
     && preferencias.avisosLigados({ avisos: 'ligados' }) === true, '');
 
+  // --- a cor de destaque --------------------------------------------------
+  checar('a cor de destaque nasce verde', padrao.acento === '#3ddc97', String(padrao.acento));
+  checar('cor valida sobrevive, em minusculo',
+    preferencias.salvar({ acento: '#A78BFA' }).acento === '#a78bfa', '');
+  // Valor torto vira variavel CSS invalida, e isso apagaria o foco do app
+  // inteiro -- por isso cai no padrao, como a densidade 9.
+  for (const torto of ['red', '#fff', 'url(x)', 7, null]) {
+    checar(`cor torta (${JSON.stringify(torto)}) volta para o verde`,
+      preferencias.salvar({ acento: torto }).acento === '#3ddc97', '');
+  }
+
   // --- o molde entra pela porta da normalizacao ---------------------------
   const salvo = preferencias.salvar({
     personalizado: { cols: 3, alturaLinha: 200, celulas: [{ c: 1, r: 2 }, { c: 2, r: 1 }] },

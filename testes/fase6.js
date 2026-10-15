@@ -48,15 +48,25 @@ const buffer = (id) => `(() => {
   await zerarGrade(cdp);
 
   // --- 1. grade rolavel ---------------------------------------------------
-  await abrirVarios(cdp, 4, 'poucos');
+  // Densidade fixada aqui: a conta de rolagem depende do numero de colunas, e
+  // o teste nao pode herdar a da suite anterior.
+  await cdp.avaliar(`window.OrqMapa.definirModo('grade')`);
+  await cdp.avaliar(`window.OrqCasca.mudar({ densidade: 2 })`);
+
+  // Nas densidades 1/2/3 cada LINHA ocupa a altura visivel inteira: uma linha
+  // (2 painéis na densidade 2) cabe sem rolar, e e da altura do #conteudo.
+  await abrirVarios(cdp, 2, 'poucos');
   const poucos = JSON.parse(await cdp.avaliar(`(() => {
     // Quem rola e o #conteudo; o #grade so cresce dentro dele.
     const g = document.getElementById('conteudo');
-    return JSON.stringify({ rola: g.scrollHeight > g.clientHeight + 2 });
+    const h = Math.round(document.querySelector('.painel').getBoundingClientRect().height);
+    return JSON.stringify({ rola: g.scrollHeight > g.clientHeight + 2, h, util: g.clientHeight - 28 });
   })()`));
-  checar('com 4 painéis a grade nao rola', poucos.rola === false, JSON.stringify(poucos));
+  checar('com uma linha de painéis a grade nao rola', poucos.rola === false, JSON.stringify(poucos));
+  checar('e a linha ocupa a altura visivel inteira',
+    Math.abs(poucos.h - Math.max(220, poucos.util)) <= 1, JSON.stringify(poucos));
 
-  await abrirVarios(cdp, 8, 'muitos');
+  await abrirVarios(cdp, 10, 'muitos');
   const muitos = JSON.parse(await cdp.avaliar(`(() => {
     // Quem rola e o #conteudo; o #grade so cresce dentro dele.
     const g = document.getElementById('conteudo');

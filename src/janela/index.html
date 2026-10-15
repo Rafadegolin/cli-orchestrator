@@ -378,6 +378,28 @@
     </div>
   </div>
 
+  <!-- A cor de destaque do app. Os presets e a cor livre sao a BASE: o
+       acento.js ajusta a luminosidade por tema ate passar AA. -->
+  <div id="acento" class="overlay" hidden>
+    <div class="modal-caixa">
+      <h2>Cor de destaque</h2>
+      <p class="modal-explica">Foco, botões principais e a bolinha de sessão rodando. O tom é ajustado
+        sozinho em cada tema para o texto continuar legível.</p>
+      <div class="cor-grade" id="acento-grade"></div>
+      <div class="acento-livre">
+        <label for="acento-livre">Outra cor</label>
+        <input id="acento-livre" type="color" value="#3ddc97" />
+        <span id="acento-valor" class="mono"></span>
+      </div>
+      <p class="acento-aviso" id="acento-aviso" hidden></p>
+      <div class="modal-acoes">
+        <button id="acento-padrao">Padrão</button>
+        <!-- `acento-pronto`, e nao `-fechar`: ver o comentario do cor-projeto. -->
+        <button id="acento-pronto">Fechar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Uma feature que atravessa dois repositorios: as duas worktrees sao
        criadas de uma vez e UMA sessao enxerga as duas, via --add-dir. -->
   <div id="dupla" class="overlay" hidden>
@@ -484,4 +506,5 @@
 <script src="abrir-externo.js"></script>
 <script src="navegar.js"></script>
 <script src="cor-projeto.js"></script>
+<script src="acento.js"></script>
 <script src="paleta.js"></script>

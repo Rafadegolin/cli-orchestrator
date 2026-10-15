@@ -40,6 +40,9 @@ const PADRAO = {
   lateral: 'aberta',
   uso: 'barras',
   avisos: 'ligados',
+  // A cor de destaque. E a BASE escolhida; o ajuste de contraste por tema e
+  // feito na janela (`acento.js`), entao aqui so entra hex valido.
+  acento: '#3ddc97',
   // As rotas /ping e /abrir, que e por onde o Pronix Flow pede uma sessao.
   externo: 'ligado',
   origens: [ORIGEM_FLOW],
@@ -95,6 +98,10 @@ function normalizar(bruto) {
     // -- o projeto padroniza pares, e um meio-termo obrigaria a explicar na
     // ajuda dois canais que a pessoa nem sabe que existem.
     externo: b.externo === 'desligado' ? 'desligado' : 'ligado',
+    // A cor de destaque. So `#rrggbb`, e minusculo para comparar com o padrao:
+    // um ui.json editado a mao com `red` ou `#FFF` cai no verde, em vez de
+    // virar uma variavel CSS invalida que apaga o foco do app inteiro.
+    acento: /^#[0-9a-f]{6}$/i.test(String(b.acento || '')) ? String(b.acento).toLowerCase() : PADRAO.acento,
     // A LISTA DE ORIGENS, e a UNICA chave deste arquivo em que `[]` NAO cai no
     // padrao.
     //

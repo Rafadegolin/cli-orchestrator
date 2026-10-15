@@ -152,11 +152,13 @@ function montarRepo() {
 
   // ---------------------------------------------------------- o prompt
 
+  // So a descricao vai para a caixa: nada de cabecalho, titulo ou URL.
   const pr = pedido.montarPrompt({ issue: 'TECH-1120', title: 'Vincular issue', url: 'https://flow.x/i/1', description: '' });
-  igual('prompt monta com o que chega', pr.prompt, 'Trabalhe na issue TECH-1120 — Vincular issue\nhttps://flow.x/i/1');
+  igual('sem descricao a caixa abre VAZIA', pr.prompt, '');
+  checar('e sem descricao nao e recusa', pr.ok === true, JSON.stringify(pr));
 
-  const comDesc = pedido.montarPrompt({ issue: 'T-1', title: 'x', url: '', description: 'corpo da issue' });
-  checar('description entra quando o Flow mandar', comDesc.prompt.endsWith('corpo da issue'), comDesc.prompt);
+  const comDesc = pedido.montarPrompt({ issue: 'T-1', title: 'x', url: 'https://flow.x/i/1', description: 'corpo da issue' });
+  igual('o prompt e SO a descricao', comDesc.prompt, 'corpo da issue');
 
   // O caminho inteiro, como o Flow manda: normalizar e montar, sem perder paragrafo.
   const multi = pedido.normalizarPedido({
@@ -164,11 +166,11 @@ function montarRepo() {
     description: 'O que e?\r\nPrimeiro paragrafo.\r\n\r\nPor que?\r\nSegundo paragrafo.',
   }).pedido;
   igual('prompt preserva os paragrafos da descricao', pedido.montarPrompt(multi).prompt,
-    'Trabalhe na issue T-1 — x\nhttps://flow.x/i/1\n\nO que e?\nPrimeiro paragrafo.\n\nPor que?\nSegundo paragrafo.');
+    'O que e?\nPrimeiro paragrafo.\n\nPor que?\nSegundo paragrafo.');
 
   // O CLI recusa acima de 5000 EM SILENCIO. Recusa, e nao truncagem: prompt
   // cortado e prompt errado.
-  const longo = pedido.montarPrompt({ issue: 'T', title: 'y'.repeat(6000), url: '', description: '' });
+  const longo = pedido.montarPrompt({ issue: 'T', title: 'x', url: '', description: 'y'.repeat(6000) });
   igual('prompt longo e RECUSADO', longo.erro, 'prompt-longo');
   checar('a recusa diz o numero', /6\d{3}/.test(longo.texto), longo.texto);
 
