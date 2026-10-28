@@ -69,6 +69,9 @@ async function criarPainel({
       // Painel fechado antes de partir nao pode deixar entrada presa na fila.
       window.OrqFila?.remover(id);
       window.OrqFila?.reavaliar();
+      // A saida guardada vai junto, na hora (Fase 10.5): fechar o painel e
+      // dizer que ele nao interessa mais, e saida de terminal pode ter segredo.
+      window.orq.telasApagar?.(cwd, painel.feature);
       salvarSessao();
     },
   });
@@ -240,18 +243,65 @@ function salvarSessao({ agora = false } = {}) {
 
 // Fechar dentro da janela do debounce perderia a ultima mudanca -- justo o
 // arranjo que voce acabou de montar.
-window.addEventListener('beforeunload', () => salvarSessao({ agora: true }));
+window.addEventListener('beforeunload', () => {
+  // As telas ANTES do arranjo: o `sendSync` delas segura a janela ate o main
+  // gravar, e o arranjo continua indo pelo caminho de sempre.
+  try { salvarTelas(); } catch (err) { console.error('[telas]', err); }
+  salvarSessao({ agora: true });
+});
+
+// A saida de cada painel, guardada para o painel restaurado nao voltar vazio
+// (Fase 10.5). Vai a lista INTEIRA, inclusive os vazios: o main apaga do disco
+// tudo que nao estiver nela, e e assim que painel fechado e layout trocado
+// somem. Desligado, nao manda nada -- quem decide de verdade e o main.
+function salvarTelas() {
+  if (window.OrqCasca?.ui().telas === 'nao-guardar') return null;
+  const lista = [...porId.values()]
+    .filter((p) => !p.encerrado && !p.indisponivel)
+    .map((p) => ({ cwd: p.cwd, feature: p.feature, conteudo: p.retratoTela() }));
+  return window.orq.telasSalvar?.(lista) || null;
+}
+
+function telasLigadas() {
+  return window.OrqCasca?.ui().telas !== 'nao-guardar';
+}
+
+// Pela paleta. Desligar apaga o que ja estava no disco (o main faz isso no
+// `ui:salvar`), e o toast diz.
+function alternarTelas() {
+  const antes = telasLigadas();
+  window.OrqCasca?.mudar({ telas: antes ? 'nao-guardar' : 'guardar' });
+  window.OrqToast?.mostrar(antes
+    ? 'A saída dos terminais não será mais guardada — o que estava salvo foi apagado'
+    : 'A saída dos terminais volta a ser guardada ao fechar o app');
+  return !antes;
+}
 
 async function despertar(id) {
   const painel = porId.get(id);
   if (!painel || !painel.dormindo) return null;
 
+  // Com a saida da vez anterior na tela (Fase 10.5), o `cls &&` do comando
+  // salvo apagaria justo o que acabou de ser restaurado. Sem ele, o Claude
+  // desenha por baixo do separador "— sessao anterior —".
+  //
+  // E o ConPTY, ao conectar, LIMPA a area visivel (medido: o `teste:telas`
+  // perdia o fim da saida e o separador, e num painel com pouco texto perdia
+  // tudo). Uma tela inteira de quebras antes empurra o que foi restaurado para o
+  // SCROLLBACK, que essa limpeza nao toca -- o Claude desenha na area vazia e a
+  // sessao anterior fica logo acima, a uma rolagem.
+  const tinhaTela = Boolean(painel.telaAnterior);
+  painel.telaAnterior = null;
+  if (tinhaTela) painel.term.write('\r\n'.repeat(painel.term.rows));
+
   painel.acordou();
   painel.ajustar();
 
-  const comando = window.OrqLigacoes
+  let comando = window.OrqLigacoes
     ? window.OrqLigacoes.comAddDir(painel.comandoInicial, painel.ligacoes)
     : painel.comandoInicial;
+  const limpar = `${window.OrqShell.limpar()} && `;
+  if (tinhaTela && comando && comando.startsWith(limpar)) comando = comando.slice(limpar.length);
   if (comando) {
     painel.aoPrimeiroDado(() => {
       const enviar = () => window.orq.escrever(id, `${comando}\r`);
@@ -299,6 +349,10 @@ async function restaurarSessao() {
       h: s.h,
       dormindo: true,
       indisponivel: !s.existe,
+    }).then(async (painel) => {
+      if (!s.existe || !painel) return;
+      const t = await window.orq.telasCarregar?.(s.cwd, s.feature);
+      if (t && t.conteudo) painel.mostrarTelaAnterior(t.conteudo, t.salvoEm);
     });
   }
   window.OrqLateral?.atualizarRetomarTodas?.();
@@ -430,6 +484,7 @@ window.addEventListener('resize', () => {
 window.OrqGrade = {
   criarPainel, focarPainel, painelPorId: porId,
   despertar, restaurarSessao, retomarTodas, dormindos, retratoSessao, salvarSessao,
+  salvarTelas, telasLigadas, alternarTelas,
   ordenarGrade,
   desfocar,
   focado: () => focado,

@@ -204,6 +204,17 @@
       correr: () => window.OrqLateral?.alternarAvisos(),
     });
 
+    // A saida dos terminais guardada ao fechar (Fase 10.5). Desligar apaga o que
+    // ja estava no disco.
+    lista.push({
+      tag: 'app',
+      rotulo: window.OrqGrade?.telasLigadas()
+        ? 'Não guardar mais a saída dos terminais ao fechar'
+        : 'Guardar a saída dos terminais ao fechar',
+      dica: 'privacidade',
+      correr: () => window.OrqGrade?.alternarTelas(),
+    });
+
     // Atualizacao nunca vira dialogo neste app, entao o unico canal era o rodape
     // da lateral -- que some com Ctrl+B. E a checagem so acontecia de tempos em
     // tempos: este e o caminho para "acabou de sair uma release, quero agora".

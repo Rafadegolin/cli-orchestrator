@@ -522,6 +522,13 @@ const TODAS_SECOES = [
     blocos: [
       p('O arranjo de painéis é salvo. Ao reabrir, eles voltam <b>adormecidos</b>, com um botão de '
         + 'retomar em cada um e um <b>Retomar todas</b> na lateral — nada sobe sozinho sem você pedir.'),
+      p('Cada painel volta com a <b>saída da vez anterior</b>, com cores: as últimas ~500 linhas, e um '
+        + 'separador dizendo quando foram salvas. Ao retomar, a sessão nova desenha por baixo e o '
+        + 'texto anterior fica logo acima, a uma rolagem.'),
+      aviso('Saída de terminal pode ter segredo. Ela fica só nesta máquina, em '
+        + '<code>{pastaDados}</code>, numa pasta de telas com nomes embaralhados, e some quando você '
+        + 'fecha o painel. Para não guardar nada: {mod}+K → "Não guardar mais a saída dos terminais" '
+        + '— o que já estava salvo é apagado na hora.'),
       p('Fechar o app com sessão rodando pede confirmação, dizendo quantas serão interrompidas.'),
       // A promessa muda de plataforma: no Windows o botao aplica e reinicia
       // sozinho; fora dele a troca depende do cmd.exe, entao o botao leva a

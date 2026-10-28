@@ -26,7 +26,8 @@ Ali ja esta levantado o que o CLI oferece para isso: `--add-dir` como flag **e**
 comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma delas.
 
 **Em andamento: a Fase 10** (`docs/fase-10-proximos-passos.md`). O 10.7 (metricas), o 10.1
-(comentar o diff), o 10.2 (scripts) e o 10.3 (branch, PR e CI) estao feitos; o proximo e o 10.5.
+(comentar o diff), o 10.2 (scripts), o 10.3 (branch, PR e CI) e o 10.5 (saida que sobrevive ao
+reinicio) estao feitos; o proximo e o 10.4.
 Ver a secao "Proximos passos" logo abaixo.
 
 ## Proximos passos: Fase 10
@@ -42,8 +43,7 @@ Ordem combinada:
 2. ~~**10.1 Comentario por linha no diff**~~ **feito**: ver "Comentar o diff para o agente".
 3. ~~**10.2 Scripts `setup`/`run`/`arquivar` por projeto**~~ **feito**: ver "Scripts do projeto".
 4. ~~**10.3 Git, PR e CI no cabecalho**~~ **feito**: ver "Branch, PR e CI no painel".
-5. **10.5 Scrollback persistente** (ultimas ~500 linhas, `@xterm/addon-serialize` pinado sem `^` --
-   a mesma armadilha de versao do `addon-webgl`).
+5. ~~**10.5 Scrollback persistente**~~ **feito**: ver "A saida dos painéis sobrevive ao reinicio".
 6. **10.4 Inbox de issues do Flow**, abrindo pelo MESMO caminho do `/abrir`. Bloqueado por endpoint e
    autenticacao do lado do Flow -- o contrato e deles.
 7. **10.6 Rotas `/orq/*` + skill de orquestracao via `curl`**: um Claude coordenador cria e acompanha
@@ -69,6 +69,7 @@ npm run teste:copiar      # copiar/colar, o Ctrl+C que ainda interrompe, e colar
 npm run teste:revisao     # o botao Revisao: cola sem enviar, singular/plural, recusa em esperando
 npm run teste:diff-comentar # comentar linhas do diff e colar no agente, sem invocar o Claude
 npm run teste:scripts     # setup/run do projeto e a heranca de portas, sem invocar o Claude
+npm run teste:telas       # a saida guardada ao fechar e restaurada, com reload da janela
 npm run teste:branch      # chip de branch, push, PR/CI com fetch falso, "pronto para revisar"
 npm run teste:github-real # o spike: API do GitHub e git credential fill de verdade (sem token do Claude)
 npm run teste:dupla       # implementacao dupla: duas worktrees, um painel so
@@ -125,7 +126,8 @@ brigam pela porta 9222 e pelo cache do perfil, e a segunda morre com erro de bin
 - **Electron 43 nao tem mais `postinstall`.** O binario nao vem sozinho no `npm install` — rode
   `npx install-electron` (bin declarado pelo proprio pacote).
 - **Versoes do xterm sao um conjunto casado, nao independentes.** `@xterm/xterm@5.5.0` +
-  `@xterm/addon-webgl@0.18.0` (pinado sem `^`). O `addon-webgl@0.19.0` e compilado contra as
+  `@xterm/addon-webgl@0.18.0` + `@xterm/addon-serialize@0.13.0` (os dois pinados sem `^`, e os tres
+  publicados no mesmo dia, 05/04/2024 -- e assim que se acha o par). O `addon-webgl@0.19.0` e compilado contra as
   internals do xterm 6 e estoura `Cannot read properties of undefined (reading '_isDisposed')` ao
   carregar — o painel cai para canvas em silencio. O peer `^5.0.0` do `addon-canvas` e metadado
   desatualizado (a propria beta dele ainda declara `^5`), nao sinal de incompatibilidade.
@@ -810,6 +812,54 @@ falha entrou na conta AA do `teste:ui`.
 
 `npm run teste:branch`: metade em Node puro (remoto **bare** local para push e divergencia, `fetch`
 falso para PR/CI), metade pelo CDP com o `Stop` falso pelo HTTP com `X-Orq-Id`.
+
+## A saida dos painéis sobrevive ao reinicio (Fase 10.5)
+
+`src/main/telas.js` + `Painel.retratoTela`/`mostrarTelaAnterior` + `grade.salvarTelas`. Ao fechar o
+app, as ultimas **500 linhas** de cada painel, **com cores**, vao para `~/.orquestrador/telas/`; o
+painel restaurado volta dormindo e mostra esse texto com um separador "— sessao anterior · salva
+em … —". **Reve uma decisao da Fase 7**, que nao guardava saida nenhuma -- o que ela recusou com
+razao (processo vivo com o app fechado) continua recusado.
+
+- **`@xterm/addon-serialize@0.13.0`, pinado sem `^`.** Saiu no MESMO DIA (05/04/2024) do
+  `@xterm/xterm@5.5.0` e do `addon-webgl@0.18.0`; a `0.14.0` saiu junto do xterm 6.0.0 e e a mesma
+  armadilha do webgl 0.19. E opcional no `painel.js`: sem ele o painel funciona e so nao guarda.
+- **`excludeModes: true` nao e detalhe.** Por padrao o serializador grava os MODOS do terminal, e
+  restaurar ligaria o bracketed paste num painel dormindo -- exatamente a trava que decide se e
+  seguro colar texto multilinha (`colarTexto`, 10.1). Mouse tracking iria junto. O teste cobra.
+- **Os bytes pendentes entram crus no fim.** Painel fora da vista (6.1) ou com selecao segurando a
+  saida tem bytes que ainda nao estao no buffer; descarregar e ler depois nao da, porque o
+  `term.write` e assincrono e o `beforeunload` nao espera.
+- **`sendSync`, o primeiro do app** (`telas:salvar`), no `beforeunload` e antes do arranjo: so a
+  resposta sincrona garante que o main recebeu antes de a janela morrer. **Medido: 8 painéis cheios
+  em ~35ms**, o main gravando em ~12ms.
+- **A poda e a propria lista do fechamento**: o main grava o arranjo inteiro e apaga o resto, entao
+  painel fechado, worktree arquivada e layout trocado somem ali. `podar()` no arranque (30 dias, e
+  `.tmp` orfao) e a rede para quando o app caiu. Fechar o painel apaga na hora (`aoFechar`).
+- **Privacidade**: teto de 256 KB por arquivo (cortado no INICIO e numa quebra de linha, nunca no
+  meio de um escape), nome do arquivo e hash de pasta + feature, e a preferencia
+  `telas: 'guardar' | 'nao-guardar'` no `ui.json` -- desligar pela paleta **apaga a pasta na hora**,
+  e quem decide gravar e o main (`preferencias.telasLigadas`), nao a janela.
+- **O separador vai abaixo do ultimo conteudo, e nao onde o cursor ficou**: o serializador devolve o
+  cursor ao lugar, e na TUI do Claude isso e a caixa de entrada, no meio da tela.
+- O cartao de retomar vira **rodape** (`.painel-dormindo.com-tela`) quando ha saida: cobrir o
+  terminal seria restaurar o texto e esconde-lo.
+
+### Retomar sem perder o que foi restaurado
+
+Duas coisas apagariam a saida restaurada no `despertar()`, e as duas foram medidas pelo teste:
+
+1. o `cls &&` do comando salvo -- e por isso ele e **tirado** quando o painel tem tela;
+2. **o proprio ConPTY, ao conectar, limpa a area VISIVEL** (nao o scrollback): o fim da saida e o
+   separador sumiam, e num painel com pouco texto sumia tudo. A saida e uma tela inteira de quebras
+   escrita antes de abrir o PTY, que empurra o restaurado para o scrollback.
+
+O resultado: o Claude desenha na area vazia e a sessao anterior fica logo acima, a uma rolagem.
+**A medir numa sessao real**: se a TUI do `claude -c` limpa o scrollback ao subir.
+
+`npm run teste:telas`: metade em Node puro, metade pelo CDP com **reload de verdade da janela**
+(`Page.reload`) -- o unico jeito de exercitar o `beforeunload` e o `sendSync`. Antes do reload os
+PTYs sao fechados no main sem destruir os painéis, que apagaria as telas.
 
 ## O mapa
 
@@ -1669,9 +1719,9 @@ interface.
 antes existia so no `projetos.js` — duplicar isso em dois lugares e o tipo de coisa que diverge em
 silencio.
 
-- **Nao guarda a saida dos terminais** (3000 linhas por painel), e **nao mantem processo vivo com o
-  app fechado**. A spec e explicita: isso viraria servico em segundo plano, com processo orfao e
-  sessao zumbi.
+- **Nao mantem processo vivo com o app fechado.** A spec e explicita: isso viraria servico em
+  segundo plano, com processo orfao e sessao zumbi. A SAIDA, essa passou a ser guardada na Fase 10.5
+  (as ultimas 500 linhas, num arquivo a parte) -- ver "A saida dos painéis sobrevive ao reinicio".
 - **Painel restaurado volta dormindo**, com botao de retomar. Religar seis sessoes sozinho no
   arranque e caro e ninguem pediu. O botao "retomar todas" existe porque a fila da Fase 6 espaca as
   partidas.

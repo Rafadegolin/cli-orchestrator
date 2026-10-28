@@ -40,6 +40,8 @@ const PADRAO = {
   lateral: 'aberta',
   uso: 'barras',
   avisos: 'ligados',
+  // A saida dos terminais guardada ao fechar (Fase 10.5).
+  telas: 'guardar',
   // A cor de destaque. E a BASE escolhida; o ajuste de contraste por tema e
   // feito na janela (`acento.js`), entao aqui so entra hex valido.
   acento: '#3ddc97',
@@ -98,6 +100,10 @@ function normalizar(bruto) {
     // -- o projeto padroniza pares, e um meio-termo obrigaria a explicar na
     // ajuda dois canais que a pessoa nem sabe que existem.
     externo: b.externo === 'desligado' ? 'desligado' : 'ligado',
+    // GUARDAR por padrao: e o que faz o painel restaurado nao voltar vazio. Par
+    // `guardar/nao-guardar`, e desligar apaga o que ja estava gravado
+    // (`telas.apagarTudo`, no handler do `ui:salvar`).
+    telas: b.telas === 'nao-guardar' ? 'nao-guardar' : 'guardar',
     // A cor de destaque. So `#rrggbb`, e minusculo para comparar com o padrao:
     // um ui.json editado a mao com `red` ou `#FFF` cai no verde, em vez de
     // virar uma variavel CSS invalida que apaga o foco do app inteiro.
@@ -204,6 +210,12 @@ function avisosLigados(ui) {
   return (ui || carregar()).avisos !== 'desligados';
 }
 
+// A decisao de guardar a saida mora AQUI, e nao na janela: e o main que escreve
+// no disco, e um renderer desatualizado nao pode gravar o que foi desligado.
+function telasLigadas(ui) {
+  return (ui || carregar()).telas !== 'nao-guardar';
+}
+
 function carregar() {
   return normalizar(arquivo.lerJson(NOME, {}).ui);
 }
@@ -216,6 +228,6 @@ function salvar(parcial) {
 }
 
 module.exports = {
-  carregar, salvar, normalizar, avisosLigados, PADRAO, MOLDE_PADRAO, NOME,
+  carregar, salvar, normalizar, avisosLigados, telasLigadas, PADRAO, MOLDE_PADRAO, NOME,
   origemPermitida, canonizarOrigem, ORIGEM_FLOW, MAX_ORIGENS,
 };

@@ -2,9 +2,11 @@
 
 // O arranjo de painéis, para fechar o app e voltar ao mesmo lugar.
 //
-// NAO guarda a saida dos terminais. Seriam 3000 linhas por painel, e restaurar
-// texto morto daria a impressao falsa de uma sessao viva -- pior que voltar com
-// o painel visivelmente vazio esperando voce retomar.
+// NAO guarda a saida dos terminais AQUI. Ela passou a ser guardada na Fase 10.5,
+// mas a parte (`telas.js`, um arquivo por painel): este arquivo e regravado a
+// cada mudanca de arranjo, e carregar 500 linhas por painel nele seria pagar isso
+// toda vez. E o painel restaurado continua voltando DORMINDO, com o cartao de
+// retomar -- o texto e o que a sessao disse, nao uma sessao viva.
 //
 // Tambem NAO mantem processo vivo com o app fechado: isso viraria um servico em
 // segundo plano, com uma classe inteira de problemas nova (processo orfao,

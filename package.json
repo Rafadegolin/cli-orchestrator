@@ -28,6 +28,7 @@
     "teste:diff-comentar": "node testes/diff-comentar.js",
     "teste:scripts": "node testes/scripts.js",
     "teste:branch": "node testes/branch.js",
+    "teste:telas": "node testes/telas.js",
     "teste:github-real": "node testes/github-real.js",
     "teste:dupla": "node testes/dupla.js",
     "teste:dupla-reais": "node testes/dupla-reais.js",
@@ -65,6 +66,7 @@
   "dependencies": {
     "@xterm/addon-canvas": "^0.7.0",
     "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-serialize": "0.13.0",
     "@xterm/addon-webgl": "0.18.0",
     "@xterm/xterm": "^5.5.0",
     "electron-updater": "^6.8.9",

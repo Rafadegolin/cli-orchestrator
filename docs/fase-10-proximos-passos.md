@@ -228,6 +228,12 @@ worktree e prefill.
 
 ## 10.5 Scrollback que sobrevive ao reinício
 
+> **Feito.** `@xterm/addon-serialize@0.13.0` (publicado no mesmo dia do xterm 5.5.0), com cores, por
+> `sendSync` no `beforeunload` (~35ms com 8 painéis cheios). Duas peças que não estavam aqui:
+> `excludeModes` (senão o bracketed paste restaurado furava a trava do 10.1) e, ao retomar, empurrar
+> a saída para o scrollback, porque o ConPTY limpa a área visível ao conectar. Detalhes no
+> CLAUDE.md, "A saida dos painéis sobrevive ao reinicio".
+
 A Fase 7 recusou **manter processo vivo** com o app fechado, e com razão. Mas ela também deixou de
 guardar a **saída**, e isso é outra coisa: retomar amanhã mostra um painel vazio, sem a última coisa
 que a sessão disse.
@@ -355,7 +361,7 @@ mentir para cima.
 | 10.2 | separador incondicional **feito** (`&`/`;`); o efeito no primeiro desenho da TUI ainda **a medir** numa sessão real |
 | ~~10.3~~ | **decidido:** `git credential fill`, sem janela, lido na hora e descartado |
 | 10.4 | endpoint e autenticação do lado do Flow |
-| 10.5 | versão do `addon-serialize` compatível com o xterm 5.5 |
+| ~~10.5~~ | **decidido:** `addon-serialize@0.13.0`, o par do xterm 5.5.0 |
 | 10.6 | teto do long-poll frente ao timeout do Bash do CLI |
 
 ## Fontes do estudo

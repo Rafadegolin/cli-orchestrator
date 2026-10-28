@@ -1745,6 +1745,34 @@ button.primario:hover {
   background: var(--bg1);
 }
 
+/* Com a saida da vez anterior (Fase 10.5) o cartao deixa de cobrir o terminal
+   e vira um rodape: o ponto de restaurar a saida e ela aparecer. Sem saida
+   guardada, continua cobrindo tudo, como sempre. */
+.painel-dormindo.com-tela {
+  inset: auto 10px 10px 10px;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.painel-dormindo.com-tela .dormindo-onde {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: none;
+  text-align: left;
+  word-break: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.painel-dormindo.com-tela .dormindo-titulo { flex: 0 0 auto; white-space: nowrap; }
+.painel-dormindo.com-tela button { flex: 0 0 auto; }
+
 .dormindo-titulo {
   margin: 0;
   font-family: var(--mono);

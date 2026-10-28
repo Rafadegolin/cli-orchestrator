@@ -8,6 +8,13 @@ const { Terminal } = window;
 const { FitAddon } = window.FitAddon;
 const { WebglAddon } = window.WebglAddon;
 const { CanvasAddon } = window.CanvasAddon;
+// Opcional de proposito: sem ele o painel funciona igual e so deixa de guardar a
+// saida ao fechar (Fase 10.5). Pinado em 0.13.0 -- o par do xterm 5.5.
+const SerializeAddon = window.SerializeAddon ? window.SerializeAddon.SerializeAddon : null;
+
+// Quantas linhas de scrollback vao para o disco ao fechar (Fase 10.5). A tela
+// visivel entra por cima disto.
+const LINHAS_TELA = 500;
 
 // O navegador limita contextos WebGL vivos (na pratica ~16) e mata o mais
 // antigo SEM AVISAR quando estoura -- o sintoma e um painel preto do nada.
@@ -294,6 +301,15 @@ class Painel {
 
     this.fit = new FitAddon();
     this.term.loadAddon(this.fit);
+    this.serializar = null;
+    if (SerializeAddon) {
+      try {
+        this.serializar = new SerializeAddon();
+        this.term.loadAddon(this.serializar);
+      } catch {
+        this.serializar = null;
+      }
+    }
     this.term.open(this.elTerm);
 
     this.term.onData((d) => {
@@ -622,8 +638,10 @@ class Painel {
   // fechado (worktree arquivado, projeto movido).
   mostrarDormindo({ aoRetomar, indisponivel, aoRemover } = {}) {
     this.dormindo = true;
+    this.indisponivel = Boolean(indisponivel);
     this.elDormindo.hidden = false;
     this.elDormindo.replaceChildren();
+    this.elDormindo.classList.remove('com-tela');
     // Sem PTY nao ha o que aprovar nem resize com que se preocupar: aqui a
     // faixa some de vez e devolve os 34px para o convite de retomar.
     this.limparAprovacao();
@@ -662,8 +680,71 @@ class Painel {
     this.dormindo = false;
     this.elDormindo.hidden = true;
     this.elDormindo.replaceChildren();
+    this.elDormindo.classList.remove('com-tela');
     this.elRodape.hidden = false;
     rebalancearRenderizadores();
+  }
+
+  // ------------------------------------------- saida guardada (Fase 10.5)
+
+  // O que vai para o disco ao fechar o app: as ultimas LINHAS_TELA linhas, com
+  // cores, mais a tela visivel.
+  //
+  // Duas coisas que nao sao detalhe:
+  //  - `excludeModes`: sem ele o serializador grava os MODOS do terminal, e
+  //    restaurar ligaria o bracketed paste num painel dormindo -- que e
+  //    exatamente a trava que decide se e seguro colar texto multilinha
+  //    (`colarTexto`, Fase 10.1). Mouse tracking iria junto.
+  //  - os bytes PENDENTES (painel fora da vista, Fase 6.1, ou selecao segurando
+  //    a saida) sao emendados crus no fim. Descarregar e ler depois nao da: o
+  //    `term.write` e assincrono e o `beforeunload` nao espera. Bytes de
+  //    terminal reescritos no xterm depois dao o mesmo resultado.
+  //
+  // Painel ainda DORMINDO devolve a tela que trouxe, para quem nao foi retomado
+  // nao perder a dele no proximo fechamento.
+  retratoTela() {
+    if (this.encerrado || !this.term) return '';
+    if (this.dormindo) return this.telaAnterior || '';
+    if (!this.serializar) return '';
+    let t = '';
+    try {
+      t = this.serializar.serialize({ scrollback: LINHAS_TELA, excludeModes: true, excludeAltBuffer: true });
+    } catch {
+      t = '';
+    }
+    if (this.pendentes.length) {
+      const dec = new TextDecoder();
+      for (const b of this.pendentes) t += dec.decode(b, { stream: true });
+      t += dec.decode();
+    }
+    return t.trim() ? t : '';
+  }
+
+  // Painel restaurado mostra o que a sessao disse por ultimo, com um separador
+  // que diz de quando e. O cartao de retomar vira um rodape (`.com-tela`) para
+  // o texto aparecer.
+  //
+  // O separador vai na linha logo abaixo do ULTIMO conteudo, e nao onde o
+  // cursor ficou: o serializador devolve o cursor para onde ele estava, e na
+  // TUI do Claude isso e a caixa de entrada, no meio da tela -- o separador
+  // escreveria por cima do que a sessao disse.
+  mostrarTelaAnterior(conteudo, salvoEm) {
+    if (!conteudo || this.encerrado) return;
+    this.telaAnterior = conteudo;
+    this.elDormindo.classList.add('com-tela');
+    const quando = salvoEm
+      ? new Date(salvoEm).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+      : '';
+    this.term.write(`${conteudo}\x1b[0m`, () => {
+      if (this.encerrado) return;
+      const b = this.term.buffer.active;
+      let ultima = b.length - 1;
+      while (ultima > 0 && !b.getLine(ultima)?.translateToString(true).trim()) ultima -= 1;
+      const linhaNaTela = ultima - b.baseY;
+      const posicionar = linhaNaTela >= 0 && linhaNaTela < this.term.rows ? `\x1b[${linhaNaTela + 1};1H` : '';
+      this.term.write(`${posicionar}\r\n\r\n\x1b[2m— sessão anterior${quando ? ` · salva em ${quando}` : ''} —\x1b[0m\r\n`,
+        () => this.term.scrollToBottom());
+    });
   }
 
   // ------------------------------------------------- faixa de aprovacao

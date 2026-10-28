@@ -107,6 +107,12 @@ contextBridge.exposeInMainWorld('orq', {
   // Branch, PR e CI de cada painel (Fase 10.3). O token do GitHub nunca passa
   // por aqui: ele nasce e morre no processo principal.
   branchEstado: () => ipcRenderer.invoke('branch:estado'),
+
+  // A saida dos painéis ao fechar (Fase 10.5). `sendSync`: e chamado no
+  // `beforeunload`, e e so assim que o main recebe antes de a janela morrer.
+  telasSalvar: (lista) => ipcRenderer.sendSync('telas:salvar', lista),
+  telasCarregar: (cwd, feature) => ipcRenderer.invoke('telas:carregar', { cwd, feature }),
+  telasApagar: (cwd, feature) => ipcRenderer.send('telas:apagar', { cwd, feature }),
   aoMudarBranch: (fn) => ipcRenderer.on('branch:estado', (_e, carga) => fn(carga)),
   branchAtualizar: (id) => ipcRenderer.invoke('branch:atualizar', id),
   branchPush: (id, confirmar = true) => ipcRenderer.invoke('branch:push', { id, confirmar }),

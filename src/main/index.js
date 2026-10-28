@@ -23,6 +23,7 @@ const atalho = require('./atalho');
 const uso = require('./uso');
 const remoto = require('./remoto');
 const branches = require('./branches');
+const telas = require('./telas');
 const github = require('./github');
 const avisos = require('./avisos');
 const registro = require('./registro');
@@ -300,6 +301,13 @@ app.whenReady().then(async () => {
     historico.podar();
   } catch (err) {
     console.error('[historico] poda falhou:', err.message);
+  }
+  // A rede da poda das telas: a principal e a lista do fechamento, que nao
+  // existe quando o app caiu.
+  try {
+    telas.podar();
+  } catch (err) {
+    console.error('[telas] poda falhou:', err.message);
   }
 
   criarJanela();
@@ -918,6 +926,8 @@ ipcMain.handle('ui:carregar', () => preferencias.carregar());
 // preta no canto superior direito.
 ipcMain.handle('ui:salvar', (_e, parcial) => {
   const ui = preferencias.salvar(parcial);
+  // Desligou a saida guardada: o que ja estava no disco vai junto, na hora.
+  if (!preferencias.telasLigadas(ui)) telas.apagarTudo();
   if (janela && !janela.isDestroyed()) {
     const cores = CORES_TITULO[ui.tema] || CORES_TITULO.escuro;
     try {
@@ -929,6 +939,23 @@ ipcMain.handle('ui:salvar', (_e, parcial) => {
 });
 
 ipcMain.handle('app:metricas', () => metricas.agora());
+
+// ------------------------------------------------- saida guardada (10.5)
+
+// SINCRONO de proposito, e e o primeiro `sendSync` do app: e chamado no
+// `beforeunload`, e so a resposta sincrona garante que o main recebeu antes de
+// a janela morrer. Uma gravacao de ~300 KB custa milissegundos.
+ipcMain.on('telas:salvar', (e, lista) => {
+  try {
+    e.returnValue = preferencias.telasLigadas() ? telas.salvar(lista) : { gravados: 0, desligado: true };
+  } catch (err) {
+    console.error('[telas] salvar falhou:', err.message);
+    e.returnValue = { gravados: 0, erro: err.message };
+  }
+});
+ipcMain.handle('telas:carregar', (_e, { cwd, feature } = {}) => (
+  preferencias.telasLigadas() ? telas.carregar(cwd, feature) : null));
+ipcMain.on('telas:apagar', (_e, { cwd, feature } = {}) => telas.apagar(cwd, feature));
 
 ipcMain.handle('historico:resumo', () => historico.resumo());
 ipcMain.handle('historico:metricas', () => historico.metricas());

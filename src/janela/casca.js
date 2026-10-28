@@ -39,6 +39,7 @@
     lateral: 'aberta',
     uso: 'barras',
     avisos: 'ligados',
+    telas: 'guardar',
     acento: '#3ddc97',
     personalizado: { cols: 3, alturaLinha: 160, celulas: [] },
   };
