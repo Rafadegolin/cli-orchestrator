@@ -58,6 +58,7 @@ function listar() {
     // Valor torto no JSON (editado a mao) nao pode pintar o painel de nada:
     // sem cor valida, a janela volta a sortear pelo caminho.
     cor: corValida(p.cor) ? Number(p.cor) : null,
+    scripts: normalizarScripts(p.scripts).scripts,
     existe: fs.existsSync(p.caminho),
     git: ehRepositorio(p.caminho),
   }));
@@ -99,6 +100,63 @@ function definirCor(id, cor) {
 
   gravar(projetos);
   return { ok: true, projeto: p };
+}
+
+// ------------------------------------------------------------ scripts
+
+// Os tres comandos opcionais do projeto (Fase 10.2): `setup` roda no painel
+// antes do `claude` quando a worktree acabou de ser criada, `run` abre num
+// painel de terminal com as portas da sessao, e `arquivar` roda no processo
+// principal antes do `worktree remove`.
+//
+// Ficam SO aqui, por maquina, e nao num arquivo do repositorio: um clone nao
+// pode passar a executar comando sozinho ao abrir uma worktree.
+const SCRIPTS = ['setup', 'run', 'arquivar'];
+const MAX_SCRIPT = 1000;
+
+// `{ scripts, erro }`. Uma linha so, porque o comando vai digitado numa linha de
+// shell -- no `cmd.exe` uma quebra viraria um Enter no meio. Vazio sai do objeto.
+// Na LEITURA o campo torto e descartado calado (o arquivo e do usuario e pode ter
+// sido editado a mao); na GRAVACAO o `erro` volta para o modal.
+function normalizarScripts(bruto) {
+  const scripts = {};
+  let erro = null;
+  if (!bruto || typeof bruto !== 'object') return { scripts, erro };
+  for (const nome of SCRIPTS) {
+    const v = bruto[nome];
+    if (v === undefined || v === null) continue;
+    if (typeof v !== 'string') { erro = erro || `${nome}: precisa ser texto`; continue; }
+    const t = v.trim();
+    if (!t) continue;
+    if (/[\r\n]/.test(t)) {
+      erro = erro || `${nome}: uma linha so (para mais, use um script do repositorio)`;
+      continue;
+    }
+    if (t.length > MAX_SCRIPT) { erro = erro || `${nome}: passa de ${MAX_SCRIPT} caracteres`; continue; }
+    scripts[nome] = t;
+  }
+  return { scripts, erro };
+}
+
+function definirScripts(id, scripts) {
+  const projetos = ler();
+  const p = projetos.find((x) => x.id === id);
+  if (!p) return { ok: false, erro: 'projeto nao encontrado' };
+
+  const r = normalizarScripts(scripts);
+  if (r.erro) return { ok: false, erro: r.erro };
+
+  if (Object.keys(r.scripts).length) p.scripts = r.scripts;
+  else delete p.scripts;
+  gravar(projetos);
+  return { ok: true, projeto: p };
+}
+
+// O script do projeto dono da pasta, ou '' -- quem chama nao precisa saber se o
+// projeto existe nem se o campo foi configurado.
+function scriptDe(caminho, nome) {
+  const dono = donoDe(caminho);
+  return (dono && normalizarScripts(dono.scripts).scripts[nome]) || '';
 }
 
 // ------------------------------------------------------------ remotes
@@ -328,6 +386,7 @@ module.exports = {
   corValida,
   proximaCor,
   definirCor,
+  SCRIPTS, MAX_SCRIPT, normalizarScripts, definirScripts, scriptDe,
   ARQUIVO, PASTA, listar, adicionar, remover, renomear, nomeCurto, ehRepositorio,
   faixaDe, faixaValida, donoDe,
   lerRemotes, garantirRemotes, acharPorRepo,

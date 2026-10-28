@@ -586,6 +586,41 @@ function achar(nome) {
   fs.rmSync(REMOTO, { recursive: true, force: true });
   fs.rmSync(CLONE, { recursive: true, force: true });
 
+  // --- o script de arquivar do projeto (Fase 10.2) -------------------------
+  // Roda DEPOIS dos portoes e ANTES de apagar. Falhou ou estourou o prazo:
+  // recusa, e a worktree continua inteira no disco.
+  const node = JSON.stringify(process.execPath);
+  const dScFalha = criarWorktree('script-falha');
+  const rFalha = await wt.arquivar(RAIZ, dScFalha, {
+    script: `${node} -e "console.error('quebrou aqui'); process.exit(3)"`,
+  });
+  checar('script que falha recusa o arquivamento com motivo script',
+    rFalha.ok === false && rFalha.motivo === 'script', JSON.stringify(rFalha));
+  checar('e a recusa traz a ultima linha que o script disse',
+    /quebrou aqui/.test(rFalha.texto || '') && /codigo 3/.test(rFalha.texto || ''), rFalha.texto);
+  checar('e a worktree continua no disco', fs.existsSync(dScFalha), dScFalha);
+
+  const rPrazo = await wt.arquivar(RAIZ, dScFalha, {
+    script: `${node} -e "setTimeout(() => {}, 4000)"`, msScript: 300,
+  });
+  checar('script que passa do prazo recusa', rPrazo.ok === false && rPrazo.motivo === 'script'
+    && /nao terminou/.test(rPrazo.texto || ''), JSON.stringify(rPrazo));
+  checar('e a worktree continua no disco depois do prazo', fs.existsSync(dScFalha), dScFalha);
+
+  // As duas variaveis chegam ao script: gravadas FORA da worktree, senao o
+  // proprio arquivo sujaria a arvore e o `worktree remove` recusaria.
+  const saidaEnv = path.join(os.tmpdir(), `orq-teste-script-env-${process.pid}.txt`);
+  fs.rmSync(saidaEnv, { force: true });
+  const rOk = await wt.arquivar(RAIZ, dScFalha, {
+    script: `${node} -e "require('fs').writeFileSync(process.argv[1], process.env.ORQ_RAIZ + '|' + process.env.ORQ_WORKTREE)" ${JSON.stringify(saidaEnv)}`,
+  });
+  checar('script que sai com 0 deixa arquivar', rOk.ok === true, JSON.stringify(rOk));
+  checar('e a pasta sumiu depois do script', !fs.existsSync(dScFalha), dScFalha);
+  const envLido = fs.existsSync(saidaEnv) ? fs.readFileSync(saidaEnv, 'utf8') : '';
+  checar('o script recebe ORQ_RAIZ e ORQ_WORKTREE',
+    envLido === `${RAIZ}|${dScFalha}`, envLido);
+  fs.rmSync(saidaEnv, { force: true });
+
   // Limpeza: o repo e descartavel, mas worktree deixa metadado no git.
   fs.rmSync(RAIZ, { recursive: true, force: true });
 

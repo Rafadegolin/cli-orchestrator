@@ -170,6 +170,17 @@ class Painel {
       this.colarRevisao();
     });
 
+    // O `run` do projeto (Fase 10.2): abre um painel de terminal na mesma pasta,
+    // com as MESMAS portas desta sessao. So aparece quando o projeto tem `run`.
+    this.elRun = document.createElement('button');
+    this.elRun.className = 'painel-run';
+    this.elRun.textContent = '▶';
+    this.elRun.hidden = true;
+    this.elRun.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      this.abrirRun();
+    });
+
     // Ligacoes com outros repositorios. Clicar abre o seletor.
     this.elLigacoes = document.createElement('button');
     this.elLigacoes.className = 'painel-ligacoes';
@@ -209,7 +220,7 @@ class Painel {
     acoes.className = 'painel-acoes';
     acoes.append(this.elPorta, this.elFila, this.elLigacoes, this.elRender, btnFechar);
 
-    cab.append(this.elBolinha, elFeature, this.elIssue, this.elLocal, this.elStatus, this.elRevisao, acoes);
+    cab.append(this.elBolinha, elFeature, this.elIssue, this.elLocal, this.elStatus, this.elRevisao, this.elRun, acoes);
 
     this.elTerm = document.createElement('div');
     this.elTerm.className = 'painel-term';
@@ -769,6 +780,44 @@ class Painel {
     if (!this.elRevisao) return;
     this.elRevisao.hidden = this.tipoPainel === 'terminal';
     this.elRevisao.title = `Cola na caixa do Claude, sem enviar:\n\n${this.textoRevisao()}`;
+    this.mostrarRun();
+  }
+
+  // O `run` sai do projeto dono da pasta, relido a cada desenho: editar os
+  // scripts no modal vale para os painéis ja abertos (`carregarProjetos` chama
+  // `mostrarProjeto` de todos). Painel de terminal nao ganha o botao -- ele e
+  // justamente onde o `run` roda.
+  runDoProjeto() {
+    return window.OrqProjetos?.projetoDe?.(this.cwd)?.scripts?.run || '';
+  }
+
+  mostrarRun() {
+    if (!this.elRun) return;
+    const run = this.tipoPainel === 'terminal' ? '' : this.runDoProjeto();
+    this.elRun.hidden = !run;
+    this.elRun.title = run ? `Rodar em outro painel, com as portas desta sessão:\n\n${run}` : '';
+  }
+
+  // Ja existe um painel rodando este `run` nesta pasta? Foca nele: dois dev
+  // servers no mesmo bloco de portas e exatamente o EADDRINUSE que as faixas
+  // existem para evitar.
+  abrirRun() {
+    const run = this.runDoProjeto();
+    if (!run || !window.OrqGrade) return null;
+    const normalizar = window.OrqLigacoes?.normalizar || ((c) => String(c || '').toLowerCase());
+    for (const p of painelPorId.values()) {
+      if (p === this || p.encerrado || p.tipoPainel !== 'terminal') continue;
+      if (p.comandoInicial === run && normalizar(p.cwd) === normalizar(this.cwd)) {
+        window.OrqGrade.focarPainel(p.id);
+        return p;
+      }
+    }
+    return window.OrqGrade.criarPainel({
+      cwd: this.cwd,
+      feature: `${this.feature} · run`,
+      tipoPainel: 'terminal',
+      comandoInicial: run,
+    });
   }
 
   colarRevisao() {
@@ -880,6 +929,7 @@ class Painel {
     this.el.style.setProperty('--tinta', tinta);
     this.el.classList.toggle('painel-tinto', Boolean(tinta));
     this.elLocal.style.boxShadow = tinta ? `inset 2px 0 0 ${tinta}` : '';
+    this.mostrarRun();
   }
 
   // Redimensionar reflui o buffer inteiro do terminal. Fazer isso a cada pixel

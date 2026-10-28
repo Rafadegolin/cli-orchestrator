@@ -215,6 +215,7 @@
       const anfitriao = onde === 'a' ? r.a : r.b;
       const outro = onde === 'a' ? r.b : r.a;
       const ladoAnfitriao = onde === 'a' ? a : b;
+      const ladoOutro = onde === 'a' ? b : a;
 
       fechar();
       await window.OrqGrade.criarPainel({
@@ -228,11 +229,23 @@
         comandoInicial: window.OrqProjetos.montarComando(ladoAnfitriao.slug, true, { worktree: false }),
         // Vira `--add-dir "<caminho>"` dentro do proprio `criarPainel`.
         ligacoes: [outro.caminho],
+        // O `setup` (Fase 10.2) e so o do ANFITRIAO, a pasta deste painel. O do
+        // outro lado na mesma linha herdaria o `ORQ_RAIZ`/`ORQ_WORKTREE` daqui,
+        // e um setup que copia o `.env` da raiz copiaria do repositorio errado.
+        setupInicial: anfitriao.criada ? (ladoAnfitriao.projeto.scripts?.setup || '') : '',
       });
 
-      // Aviso do que o `.worktreeinclude` nao conseguiu copiar. Um toast so: o
-      // toast e um de cada vez, e varios se atropelariam.
-      if (r.avisos?.length) window.OrqToast?.mostrar(r.avisos[0]);
+      // Um toast so: o toast e um de cada vez, e varios se atropelariam. O setup
+      // que NAO rodou vem primeiro -- e o que deixa a outra worktree sem
+      // dependencias, longe de onde a causa esta.
+      const setupDoOutro = outro.criada ? ladoOutro.projeto.scripts?.setup : '';
+      if (setupDoOutro) {
+        window.OrqToast?.mostrar(
+          `O setup de ${ladoOutro.projeto.nome} não rodou: abra um terminal na worktree dele e rode ${setupDoOutro}`);
+      } else if (r.avisos?.length) {
+        // Aviso do que o `.worktreeinclude` nao conseguiu copiar.
+        window.OrqToast?.mostrar(r.avisos[0]);
+      }
     } catch (err) {
       // O `finally` abaixo e o que impede o botao de ficar preso em "criando…"
       // para sempre -- foi por ai que toda excecao do main virava "travou".

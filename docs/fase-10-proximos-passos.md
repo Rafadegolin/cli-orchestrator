@@ -97,6 +97,12 @@ src/web/login.tsx:118
 
 ## 10.2 Scripts de setup, run e archive por projeto
 
+> **Feito.** Configuração só no `projetos.json` (o arquivo do repo com confiança por hash ficou
+> para depois), editada num modal. Com `setup` configurado, a nova sessão da barra passa a criar a
+> worktree pelo app em vez do `claude -w`. O setup não persiste no `comandoInicial` (o `despertar`
+> o repetiria), e o prazo do `arquivar` mata a árvore de processos, não só o shell. Detalhes no
+> CLAUDE.md, "Scripts do projeto".
+
 Toda worktree nova nasce **sem `node_modules`**, e o agente gasta tokens e minutos descobrindo isso.
 O Conductor resolve com três scripts por repositório; aqui eles casam com uma peça que ele não tem:
 **as faixas de porta**.
@@ -340,8 +346,8 @@ mentir para cima.
 
 | item | decisão |
 |---|---|
-| 10.2 | configuração no `projetos.json`, no repo, ou nos dois com confiança por hash |
-| 10.2 | separador incondicional do `setup` e efeito no primeiro desenho da TUI |
+| ~~10.2~~ | **decidido:** só `projetos.json` por enquanto; o repo com hash fica para depois |
+| 10.2 | separador incondicional **feito** (`&`/`;`); o efeito no primeiro desenho da TUI ainda **a medir** numa sessão real |
 | 10.3 | fonte da credencial do GitHub (token + `safeStorage` ou `git credential fill`) |
 | 10.4 | endpoint e autenticação do lado do Flow |
 | 10.5 | versão do `addon-serialize` compatível com o xterm 5.5 |

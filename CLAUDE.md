@@ -25,8 +25,9 @@ worktree — ate entao isso era sempre do `claude -w`.
 Ali ja esta levantado o que o CLI oferece para isso: `--add-dir` como flag **e** `/add-dir` como
 comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma delas.
 
-**Em andamento: a Fase 10** (`docs/fase-10-proximos-passos.md`). O 10.7 (metricas) e o 10.1
-(comentar o diff) estao feitos; o proximo e o 10.2. Ver a secao "Proximos passos" logo abaixo.
+**Em andamento: a Fase 10** (`docs/fase-10-proximos-passos.md`). O 10.7 (metricas), o 10.1
+(comentar o diff) e o 10.2 (scripts) estao feitos; o proximo e o 10.3. Ver a secao "Proximos
+passos" logo abaixo.
 
 ## Proximos passos: Fase 10
 
@@ -39,9 +40,7 @@ Ordem combinada:
 1. ~~**10.7 Metricas**~~ **feito**: linha de base por dia no overlay do historico (ver "A linha de
    base por dia", na secao do historico).
 2. ~~**10.1 Comentario por linha no diff**~~ **feito**: ver "Comentar o diff para o agente".
-3. **10.2 Scripts `setup`/`run`/`arquivar` por projeto.** O `setup` vai com separador
-   INCONDICIONAL antes do `claude` -- com `&&`, setup que falha deixa a bolinha verde para sempre. O
-   painel de `run` tem de herdar o bloco de portas da sessao.
+3. ~~**10.2 Scripts `setup`/`run`/`arquivar` por projeto**~~ **feito**: ver "Scripts do projeto".
 4. **10.3 Git, PR e CI no cabecalho**, e o estado "pronto para revisar". CI vermelho **nao** e
    `esperando`: o amarelo continua significando so "pergunta te bloqueando". Sem relogio novo, sem
    `gh`, e abrir PR pela URL `compare/...?expand=1`, que dispensa token.
@@ -71,6 +70,7 @@ npm run teste:terminal    # o botao "Abrir terminal" do dialogo: shell puro, sem
 npm run teste:copiar      # copiar/colar, o Ctrl+C que ainda interrompe, e colar UMA vez
 npm run teste:revisao     # o botao Revisao: cola sem enviar, singular/plural, recusa em esperando
 npm run teste:diff-comentar # comentar linhas do diff e colar no agente, sem invocar o Claude
+npm run teste:scripts     # setup/run do projeto e a heranca de portas, sem invocar o Claude
 npm run teste:dupla       # implementacao dupla: duas worktrees, um painel so
 npm run teste:dupla-reais # com Claude de verdade: ~4min e consome tokens
 npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
@@ -681,6 +681,74 @@ os comentarios se acumulam num **rascunho por worktree**, e "Colar no agente" mo
 - `npm run teste:diff-comentar`: o painel que recebe a colagem roda um `node` que so consome a
   entrada, e o teste liga o bracketed paste escrevendo `\x1b[?2004h` no xterm. O caminho "sem
   painel" troca o `COMANDO_RETOMAR` por `echo claude -c` e decodifica o base64 do buffer.
+
+## Scripts do projeto (Fase 10.2)
+
+Tres comandos opcionais por projeto, de uma linha, em `projetos.json` (`scripts: { setup, run,
+arquivar }`), editados no modal `scripts-projeto.js` (botao **scripts…** no card expandido, ou pela
+paleta). **So por maquina, de proposito**: um arquivo no repositorio faria um clone executar comando
+ao abrir uma worktree. A confianca por hash ficou para depois.
+
+- **`normalizarScripts` recusa quebra de linha e texto acima de 1000 caracteres** -- o comando e
+  digitado numa linha de shell, e no `cmd.exe` um `\n` viraria Enter no meio. Na LEITURA o campo
+  torto e descartado calado (o arquivo e do usuario); na GRAVACAO o erro volta para o modal.
+- **`ORQ_RAIZ` e `ORQ_WORKTREE` sao injetados pelo main em todo painel** (`envDoProjeto`, ao lado do
+  `portas.comoEnv`), pelo mesmo motivo da faixa de portas: ninguem precisa lembrar de passar.
+
+### `setup`: a linha, e o que nao pode entrar nela
+
+`comSetup` poe o setup logo depois do `cls &&`, com separador **incondicional**
+(`OrqShell.depois()`: `&` no cmd, `;` no sh): `cls && npm ci & claude --name x`. Nos dois shells
+esse separador tem a menor precedencia, entao e `(cls && setup) & claude`. Com `&&`, setup que falha
+cortaria o Claude e o painel ficaria `rodando` num shell parado -- bolinha verde para sempre.
+
+- **Entra por ULTIMO**, depois do `comAddDir` e do `comPrefill`: os dois trocam o primeiro
+  `\bclaude\b`, e um setup como `node scripts/claude.js` seria o alvo.
+- **Sem parenteses em volta**: um `)` dentro do proprio setup fecharia o grupo no `cmd`.
+- **O teto e da linha final**: `comPrefill(..., { setup })` desconta o setup do `MAX_LINHA`, e se
+  nem o setup cabe ele e largado com toast -- perder o setup e melhor que o `cmd` descartar a linha.
+- **`setupInicial` NAO persiste**, como o `promptInicial`: o `despertar()` repete o
+  `comandoInicial`, e reinstalar dependencias a cada retomada seria errado.
+- **So roda com `criada === true`** do `worktrees.criar`. Reabrir o mesmo nome reaproveita a pasta
+  e nao reinstala.
+- **Projeto com setup troca o `claude -w` pelo app criando a worktree** (`abrirEmWorktreeNova` no
+  `projetos.js`): com o `-w` a worktree nasce dentro do CLI, depois que a linha ja foi digitada, e
+  nao ha "antes do claude" onde o setup caiba. Sem `branch`, o `criar` usa `worktree-<slug>`, o
+  mesmo nome do `-w`, entao a dica do campo continua verdadeira. Perde-se a trava com PID, como ja
+  na dupla e no Flow. **Projeto sem setup segue com `-w`, byte a byte.** O `montarComando` ali e
+  chamado pelo namespace, para o teste conseguir troca-lo por `echo`.
+- **Na dupla roda so o setup do anfitriao.** O do outro lado na mesma linha herdaria o
+  `ORQ_RAIZ`/`ORQ_WORKTREE` daqui -- um setup que copia o `.env` da raiz copiaria do repositorio
+  errado. O outro lado vira toast.
+
+### `run`: o bloco de portas e o MESMO
+
+`portas.reservar(id, faixa, { herdarDe })` grava o mesmo array da sessao. **Sem contador**: o
+`emUso()` ja varre todos os valores, entao o bloco fica ocupado enquanto qualquer um dos dois viver.
+A heranca e resolvida **pela pasta** a cada abertura (`portasDeQuem` no `grade.js`: painel de
+terminal herda de um painel de sessao vivo no mesmo cwd), nunca guardada -- id de painel muda a
+cada vez que o app abre. Efeito colateral desejado: o "Abrir terminal" na pasta de uma sessao
+tambem enxerga a porta dela.
+
+O botao ▶ (`.painel-run`) sai no mesmo degrau de 340px do Revisao, e um segundo clique **foca** o
+run que ja existe: dois dev servers no mesmo bloco e o `EADDRINUSE` que as faixas evitam.
+
+### `arquivar`: o prazo e nosso, e mata a ARVORE
+
+`worktrees.arquivar(..., { script })` roda o script depois dos portoes e antes de qualquer coisa
+ser apagada; falha ou estouro de 60s vira `{ motivo: 'script' }` com a ultima linha que ele disse.
+Os dois dialogos dizem o comando antes de rodar.
+
+**O `timeout` do `exec` NAO serve**: ele mata so o shell, e o processo que o script lancou fica
+vivo com o `cwd` dentro da worktree -- no Windows isso trava a pasta, e o arquivar seguinte morria
+com `Permission denied`. Foi o `teste:worktrees` que pegou. O relogio e proprio e derruba a arvore
+(`taskkill /T` no Windows, grupo de processos no macOS) antes de responder.
+
+`npm run teste:scripts`: metade em Node puro (normalizacao e heranca de portas), metade pelo CDP num
+repositorio descartavel, com o `montarComando` trocado por `echo claude`. O setup do teste falha no
+meio de proposito, e as marcas de saida sao montadas pelo shell (`SETUP%ORQ_PORTA:~0,0%-OK`) para
+nao casarem com o eco da propria linha digitada. **A medir, numa sessao real**: se a saida do setup
+atrapalha o primeiro desenho da TUI do Claude.
 
 ## O mapa
 

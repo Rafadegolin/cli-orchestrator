@@ -60,8 +60,19 @@ async function blocoLivre(inicio, fim, usadas) {
 // `faixa` e o par [inicio, fim] do projeto dono da pasta; sem ela vale a faixa
 // padrao. `emUso()` continua GLOBAL, entao duas faixas que se sobreponham por
 // engano ainda nao entregam a mesma porta duas vezes.
-async function reservar(id, faixa) {
+//
+// `herdarDe` e o painel de `run` (Fase 10.2): ele grava o MESMO bloco da sessao,
+// senao o dev server subiria numa porta e o Claude procuraria noutra. Nao precisa
+// de contador -- `emUso()` varre todos os valores, entao o bloco continua ocupado
+// enquanto qualquer um dos dois viver.
+async function reservar(id, faixa, { herdarDe } = {}) {
   if (reservadas.has(id)) return reservadas.get(id);
+
+  const herdado = herdarDe ? reservadas.get(herdarDe) : null;
+  if (herdado && herdado.length) {
+    reservadas.set(id, herdado);
+    return herdado;
+  }
 
   const [inicio, fim] = Array.isArray(faixa) && faixa.length === 2 ? faixa : [BASE, TETO];
 

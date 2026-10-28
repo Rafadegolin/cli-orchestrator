@@ -33,9 +33,25 @@ function atualizarVazio() {
   window.OrqLateral?.atualizarRetomarTodas?.();
 }
 
+// Painel de TERMINAL na mesma pasta de uma sessao viva usa as portas DELA
+// (Fase 10.2): e assim que o `run` sobe o dev server na `PORT` que o Claude
+// daquela sessao conhece. Resolvido pela PASTA a cada abertura, e nunca guardado:
+// id de painel muda a cada vez que o app abre.
+function portasDeQuem(painel) {
+  if (painel.tipoPainel !== 'terminal') return undefined;
+  const normalizar = window.OrqLigacoes?.normalizar;
+  if (!normalizar) return undefined;
+  const alvo = normalizar(painel.cwd);
+  for (const p of porId.values()) {
+    if (p === painel || p.tipoPainel !== 'sessao' || p.dormindo) continue;
+    if (normalizar(p.cwd) === alvo) return p.id;
+  }
+  return undefined;
+}
+
 async function criarPainel({
   cwd, feature, comandoInicial, tipoPainel, dormindo, indisponivel, ligacoes, ligacoesPendentes,
-  issue, branch, promptInicial, x, y, w, h,
+  issue, branch, promptInicial, setupInicial, x, y, w, h,
 }) {
   const id = novoId();
 
@@ -129,9 +145,23 @@ async function criarPainel({
     //
     // A assimetria com o `--add-dir` -- que E reaplicado no despertar -- e o
     // ponto: ligacao e estado duravel, pedido e evento.
-    const comando = window.OrqProjetos
-      ? window.OrqProjetos.comPrefill(base, promptInicial)
+    //
+    // O `setup` do projeto (Fase 10.2) e do mesmo tipo: so roda quando a worktree
+    // acabou de nascer, e por isso entra na LINHA e nunca no `comandoInicial`.
+    let setup = String(setupInicial || '').trim();
+    let comando = window.OrqProjetos
+      ? window.OrqProjetos.comPrefill(base, promptInicial, { setup })
       : base;
+    if (setup && window.OrqProjetos) {
+      if (window.OrqProjetos.setupCabe(comando, setup)) {
+        comando = window.OrqProjetos.comSetup(comando, setup);
+      } else {
+        // Perder o setup e melhor que o cmd.exe descartar a linha inteira e o
+        // Claude nunca subir (MAX_LINHA).
+        setup = '';
+        window.OrqToast?.mostrar('O setup do projeto não coube na linha de comando e não rodou.');
+      }
+    }
     painel.aoPrimeiroDado(() => {
       const enviar = () => window.orq.escrever(id, `${comando}\r`);
       if (window.OrqFila) window.OrqFila.pedirVaga(id, enviar);
@@ -147,6 +177,7 @@ async function criarPainel({
       feature: painel.feature,
       cols: painel.term.cols,
       rows: painel.term.rows,
+      herdarPortasDe: portasDeQuem(painel),
     });
     painel.definirPortas(aberto?.portas);
     painel.definirStatus('rodando', 'shell aberto');
@@ -236,6 +267,7 @@ async function despertar(id) {
       feature: painel.feature,
       cols: painel.term.cols,
       rows: painel.term.rows,
+      herdarPortasDe: portasDeQuem(painel),
     });
     painel.definirPortas(aberto?.portas);
     painel.definirStatus('rodando', 'shell aberto');

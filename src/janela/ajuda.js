@@ -239,6 +239,31 @@ const TODAS_SECOES = [
     ],
   },
   {
+    id: 'scripts',
+    titulo: 'Scripts do projeto: setup, run e arquivar',
+    blocos: [
+      p('Cada projeto pode ter três comandos de uma linha, configurados em <b>scripts…</b> no card '
+        + 'expandido do projeto ou pela paleta. Eles ficam só nesta máquina: um repositório clonado '
+        + 'nunca executa comando sozinho.'),
+      lista([
+        '<b>setup</b> roda no painel, antes do Claude, quando a worktree <b>acabou de ser criada</b> '
+          + '(nova sessão com nome, implementação dupla, pedido do Pronix Flow). Reabrir ou retomar '
+          + 'uma worktree que já existe não roda de novo.',
+        '<b>run</b> vira o botão <b>▶</b> no cabeçalho: abre um terminal na mesma pasta com as '
+          + '<b>mesmas portas</b> da sessão, então o dev server sobe no <code>PORT</code> que o '
+          + 'Claude daquela sessão conhece.',
+        '<b>arquivar</b> roda antes de apagar a worktree. Se ele falhar ou passar de um minuto, '
+          + 'nada é apagado.',
+      ]),
+      p('Os scripts recebem <code>ORQ_RAIZ</code> (a pasta do projeto, para copiar o que não está '
+        + 'no git), <code>ORQ_WORKTREE</code> e as portas (<code>PORT</code>, <code>ORQ_PORTAS</code>).'),
+      aviso('Se o setup falhar, o Claude sobe assim mesmo e o erro fica na tela. Com setup '
+        + 'configurado, quem cria a worktree da nova sessão passa a ser o app, e não o '
+        + '<code>claude -w</code>. Na implementação dupla roda só o setup do repositório onde o '
+        + 'painel abre; o do outro lado é avisado para você rodar.'),
+    ],
+  },
+  {
     id: 'env',
     titulo: 'Arquivos que o worktree não leva',
     blocos: [

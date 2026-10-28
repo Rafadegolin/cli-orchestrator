@@ -366,7 +366,7 @@ ipcMain.handle('app:escolherPasta', async () => {
 
 ipcMain.handle('app:pastaPadrao', () => os.homedir());
 
-ipcMain.handle('terminal:abrir', async (_e, { id, cwd, cols, rows, comando, args, env, feature }) => {
+ipcMain.handle('terminal:abrir', async (_e, { id, cwd, cols, rows, comando, args, env, feature, herdarPortasDe }) => {
   const pasta = cwd || os.homedir();
   estado.registrar(id, { feature: feature || id, cwd: pasta });
 
@@ -376,7 +376,7 @@ ipcMain.handle('terminal:abrir', async (_e, { id, cwd, cols, rows, comando, args
   // A faixa sai do projeto dono da pasta, resolvida AQUI e nao na janela: assim
   // vale igual para painel de projeto, de worktree e avulso, sem cada chamador
   // ter de lembrar de passar.
-  const bloco = await portas.reservar(id, projetos.faixaDe(pasta));
+  const bloco = await portas.reservar(id, projetos.faixaDe(pasta), { herdarDe: herdarPortasDe });
 
   const r = terminais.abrir({
     id,
@@ -385,13 +385,24 @@ ipcMain.handle('terminal:abrir', async (_e, { id, cwd, cols, rows, comando, args
     args: args || ARGS_PADRAO,
     cols,
     rows,
-    env: { ...portas.comoEnv(bloco), ...env },
+    env: { ...portas.comoEnv(bloco), ...envDoProjeto(pasta), ...env },
   });
   estado.definirStatus(id, 'rodando', 'shell aberto');
   return { ...r, portas: bloco };
 });
 
-ipcMain.on('terminal:escrever', (_e, { id, texto }) => terminais.escrever(id, texto));
+// `ORQ_RAIZ` e `ORQ_WORKTREE` (Fase 10.2), para os scripts do projeto copiarem
+// ou linkarem da raiz o que nao esta no git. Resolvido aqui, como a faixa de
+// portas: assim painel de projeto, de worktree e de `run` recebem igual.
+function envDoProjeto(pasta) {
+  const dono = projetos.donoDe(pasta);
+  if (!dono) return {};
+  const env = { ORQ_RAIZ: dono.caminho };
+  if (worktrees.dentroDe(path.join(dono.caminho, '.claude', 'worktrees'), pasta)) env.ORQ_WORKTREE = pasta;
+  return env;
+}
+
+ipcMain.on('terminal:escrever',(_e, { id, texto }) => terminais.escrever(id, texto));
 ipcMain.on('terminal:redimensionar', (_e, { id, cols, rows }) => terminais.redimensionar(id, cols, rows));
 ipcMain.on('terminal:fechar', (_e, { id }) => {
   terminais.fechar(id);
@@ -448,7 +459,12 @@ ipcMain.handle('projetos:definirCor', (_e, { id, cor }) => ({
   projetos: projetos.listar(),
 }));
 
-ipcMain.handle('projetos:adicionarVarios', (_e, caminhos) => {
+ipcMain.handle('projetos:definirScripts', (_e, { id, scripts }) => ({
+  ...projetos.definirScripts(id, scripts),
+  projetos: projetos.listar(),
+}));
+
+ipcMain.handle('projetos:adicionarVarios',(_e, caminhos) => {
   const r = projetos.adicionarVarios(caminhos);
   return { ...r, projetos: projetos.listar() };
 });
@@ -626,6 +642,8 @@ ipcMain.handle('worktrees:arquivarVarias', async (evento, { projeto, caminhos, c
 
   if (!aptas.length) return { ok: false, arquivadas: [], recusadas };
 
+  const script = projetos.scriptDe(projeto, 'arquivar');
+
   if (confirmar) {
     const linhas = aptas.map((w) => {
       const extra = w.ignorados?.length ? `  (+ ${w.ignorados.join(', ')})` : '';
@@ -651,6 +669,7 @@ ipcMain.handle('worktrees:arquivarVarias', async (evento, { projeto, caminhos, c
         (comIgnorados
           ? `Os itens entre parenteses sao arquivos que o git ignora e que nenhum commit guarda.\n\n`
           : '') +
+        linhaScript(script) +
         'Conferido agora: nenhuma tem sessao aberta, alteracao sem commit ou commit fora da ' +
         'base. Ainda assim, isto nao tem desfazer.',
     });
@@ -662,6 +681,7 @@ ipcMain.handle('worktrees:arquivarVarias', async (evento, { projeto, caminhos, c
   // e o modulo; aqui so se repassa para a janela que pediu.
   const r = await worktrees.arquivarVarias(projeto, aptas.map((w) => w.caminho), {
     aoProgresso: (p) => { if (vivo()) dono.webContents.send('worktrees:progresso', p); },
+    script,
   });
   for (const a of r.arquivadas) anotarIntegrada(projeto, a.nome);
   // As recusas da triagem e as da execucao contam a mesma historia para quem
@@ -693,6 +713,8 @@ ipcMain.handle('worktrees:arquivar', async (_e, { projeto, caminho, confirmar = 
   const veredito = worktrees.podeArquivar(alvo);
   if (!veredito.pode) return { ok: false, ...veredito };
 
+  const script = projetos.scriptDe(projeto, 'arquivar');
+
   if (confirmar) {
     const { response } = await dialog.showMessageBox(janela, {
       type: 'warning',
@@ -712,16 +734,26 @@ ipcMain.handle('worktrees:arquivar', async (_e, { projeto, caminho, confirmar = 
             ? 'arquivo que o git ignora' : 'arquivos que o git ignora'}, `
             + `e que nenhum commit guarda:\n${alvo.ignorados.join(', ')}\n\n`
           : '') +
+        linhaScript(script) +
         'Conferido agora: nao ha sessao aberta, nao ha alteracao sem commit e nao ha commit ' +
         'fora da base. Ainda assim, isto nao tem desfazer.',
     });
     if (response !== 0) return { ok: false, motivo: 'cancelado', texto: '' };
   }
 
-  const r = await worktrees.arquivar(projeto, caminho);
+  const r = await worktrees.arquivar(projeto, caminho, { script });
   if (r.ok) anotarIntegrada(projeto, r.nome);
   return r;
 });
+
+// O script de arquivar do projeto (Fase 10.2) aparece no dialogo: e um comando
+// que vai rodar com um clique em "Arquivar", e quem clica tem de ver qual.
+function linhaScript(script) {
+  return script ? `Antes de apagar, roda: ${script}
+Se ele falhar, nada e apagado.
+
+` : '';
+}
 
 // Arquivar com sucesso e o "integrado" das metricas do historico: o portao do
 // `podeArquivar` ja exigiu zero commits fora da base. O nome do projeto sai do

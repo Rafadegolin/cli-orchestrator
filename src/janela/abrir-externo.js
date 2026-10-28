@@ -90,6 +90,10 @@
     // Mesmo caminho da implementacao dupla.
     const comandoInicial = window.OrqProjetos.montarComando(slug, true, { worktree: false });
 
+    // O `setup` do projeto (Fase 10.2), so quando a worktree nasceu agora: um
+    // pedido repetido para a mesma issue reaproveita a pasta e nao reinstala.
+    const setup = r.criada ? (projeto.scripts?.setup || '') : '';
+
     // A sonda vive no processo principal e e memoizada por execucao. Sem a flag,
     // a sessao abre igual e o prompt vai para a area de transferencia -- o que
     // nao pode acontecer e mandar `--prefill-b64` para um CLI que responderia
@@ -100,7 +104,7 @@
     // E cabe na linha? O cmd.exe descarta MUDO qualquer comando acima de 8191
     // caracteres, e ali o Claude nem chegaria a subir -- ver o MAX_LINHA. Melhor
     // abrir a sessao sem o contexto e copiar para a area de transferencia.
-    if (podePrefill && !window.OrqProjetos.prefillCabe(comandoInicial, p.prompt)) {
+    if (podePrefill && !window.OrqProjetos.prefillCabe(comandoInicial, p.prompt, { setup })) {
       podePrefill = false;
     }
 
@@ -116,6 +120,7 @@
       issue: p.issue,
       comandoInicial,
       promptInicial,
+      setupInicial: setup,
     });
 
     if (p.prompt && !podePrefill) {

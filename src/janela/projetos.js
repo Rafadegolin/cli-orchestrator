@@ -209,7 +209,10 @@ function promptCabe(prompt) {
 // `\bclaude\b`, e o base64url pode conter a palavra `claude` com fronteira de
 // palavra dos dois lados (`-claude-`). Com esta ordem, a palavra de comando e
 // sempre a primeira da string e nenhum dos dois tem como errar o alvo.
-function comPrefill(comando, prompt) {
+//
+// `setup` e o script do projeto que ainda vai entrar na linha (`comSetup`): o
+// teto e conferido sobre a linha FINAL, entao o espaco dele sai da conta aqui.
+function comPrefill(comando, prompt, { setup = '' } = {}) {
   const t = String(prompt || '').replace(/\r\n?/g, '\n');
   if (!comando || !t.trim() || !promptCabe(t)) return comando;
   if (!/\bclaude\b/.test(comando)) return comando;
@@ -219,15 +222,45 @@ function comPrefill(comando, prompt) {
   // quem chama copia o contexto para a area de transferencia; o que nao pode
   // acontecer e a linha inteira ser descartada pelo cmd.exe e o Claude nunca
   // subir. Ver o MAX_LINHA.
-  if (candidato.length > MAX_LINHA) return comando;
+  if (comSetup(candidato, setup).length > MAX_LINHA) return comando;
   return candidato;
 }
 
 // O prefill cabe nesta linha? Definida em termos do `comPrefill` de proposito:
 // uma conta propria aqui seria uma segunda fonte da verdade, e ela erraria no
 // dia em que o formato da flag mudasse.
-function prefillCabe(comando, prompt) {
-  return comPrefill(comando, prompt) !== comando;
+function prefillCabe(comando, prompt, opcoes) {
+  return comPrefill(comando, prompt, opcoes) !== comando;
+}
+
+// O `setup` do projeto (Fase 10.2) entra na linha logo depois do `cls &&`, com
+// separador INCONDICIONAL antes do resto: `cls && npm ci & claude --name x`.
+//
+// Tres decisoes, cada uma com um defeito do outro lado:
+//  - `&`/`;` e nao `&&`: setup que falha nao pode impedir o Claude de subir --
+//    o painel ficaria `rodando` num shell parado, bolinha verde para sempre. A
+//    falha fica na tela, que e onde ela deve ficar.
+//  - entra por ULTIMO, depois do `comAddDir` e do `comPrefill`: os dois trocam o
+//    primeiro `\bclaude\b`, e um setup como `node scripts/claude.js` seria o alvo.
+//  - sem parenteses em volta: um `)` dentro do proprio setup fecharia o grupo e
+//    o `cmd` quebraria a linha num ponto que ninguem escreveu.
+//
+// Nao fica no `painel.comandoInicial`: o `despertar()` repete aquele campo, e
+// reinstalar dependencias a cada retomada seria errado.
+function comSetup(comando, setup) {
+  const s = String(setup || '').trim();
+  if (!comando || !s) return comando;
+  const prefixo = `${window.OrqShell.limpar()} && `;
+  const meio = `${s} ${window.OrqShell.depois()} `;
+  return comando.startsWith(prefixo)
+    ? `${prefixo}${meio}${comando.slice(prefixo.length)}`
+    : `${meio}${comando}`;
+}
+
+// A linha inteira cabe no `cmd.exe`? Quando nem o setup cabe, quem chama o larga
+// e avisa -- perder o setup e melhor que perder a linha inteira (ver MAX_LINHA).
+function setupCabe(comando, setup) {
+  return comSetup(comando, setup).length <= MAX_LINHA;
 }
 
 // Caminho comparavel: separador unico, sem barra no fim, minusculo.
@@ -257,6 +290,7 @@ function projetoDe(caminho) {
         nome: p.nome,
         caminho: p.caminho,
         tinta: tintaDoProjeto(p),
+        scripts: p.scripts || {},
         // `dentro` distingue a raiz do projeto de uma pasta abaixo dela --
         // worktree, quase sempre. A informacao ja estava aqui e ninguem usava.
         dentro: alvo !== base,
@@ -432,6 +466,26 @@ function desenharDetalhe(p) {
     frag.append(carregando);
     return frag;
   }
+
+  // Os scripts do projeto (Fase 10.2), no topo do card: e o card que trata de
+  // worktree, e e quando uma worktree nasce que o `setup` faz falta.
+  const scripts = Object.keys(p.scripts || {});
+  const linhaScripts = document.createElement('div');
+  linhaScripts.className = 'wt-resumo wt-scripts';
+  const quais = document.createElement('span');
+  quais.textContent = scripts.length ? `scripts: ${scripts.join(', ')}` : 'sem scripts';
+  quais.title = 'setup roda na worktree nova antes do Claude; run abre no botão ▶ do painel; '
+    + 'arquivar roda antes de apagar a worktree.';
+  const btnScripts = document.createElement('button');
+  btnScripts.className = 'wt-limpar';
+  btnScripts.textContent = 'scripts…';
+  btnScripts.title = 'Configurar setup, run e arquivar deste projeto';
+  btnScripts.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    window.OrqScriptsProjeto?.abrir(p.id);
+  });
+  linhaScripts.append(quais, btnScripts);
+  frag.append(linhaScripts);
 
   // Aviso do .worktreeinclude: sem ele o worktree nasce sem .env e a aplicacao
   // nao sobe la dentro.
@@ -747,12 +801,55 @@ async function abrirProjeto(id, { comandoInicial, terminal = false } = {}) {
   window.OrqCasca?.atualizarDica();
   ultimoProjetoId = p.id;
 
+  // Projeto com `setup` (Fase 10.2): quem cria a worktree passa a ser o APP, e
+  // nao o `claude -w`. Com o `-w` a worktree nasce dentro do CLI, depois que a
+  // linha ja foi digitada -- nao ha "antes do claude" onde o setup caiba. E o
+  // mesmo caminho da dupla e do Flow, com o mesmo preco: sem a trava com PID.
+  // Sem setup, nada muda: continua `claude -w`.
+  const slug = slugFeature(feature);
+  if (!terminal && !comandoInicial && slug && p.git && p.scripts?.setup) {
+    return abrirEmWorktreeNova(p, slug);
+  }
+
   return window.OrqGrade.criarPainel({
     cwd: p.caminho,
     feature: slugFeature(feature) || p.nome,
     comandoInicial: terminal ? '' : (comandoInicial || montarComando(feature, p.git)),
     tipoPainel: terminal ? 'terminal' : 'sessao',
   });
+}
+
+// A worktree criada pelo app, no molde do `abrir-externo.js`: sem `branch`, o
+// `worktrees.criar` usa `worktree-<slug>`, o MESMO nome do `-w` -- e por isso a
+// dica do campo no `casca.js` continua dizendo a verdade.
+//
+// O setup so roda quando a worktree NASCEU agora (`criada`). Reabrir o mesmo
+// nome amanha reaproveita a pasta, e reinstalar tudo a cada vez seria errado.
+async function abrirEmWorktreeNova(p, slug) {
+  const r = await window.orq.worktreesCriar(p.caminho, slug);
+  if (!r || !r.ok) {
+    window.OrqToast?.mostrar((r && r.texto) || 'Não consegui criar a worktree.');
+    return null;
+  }
+
+  const jaAberto = window.OrqLigacoes?.painelEm?.(r.caminho);
+  if (jaAberto) {
+    window.OrqGrade.focarPainel(jaAberto.id);
+    return jaAberto;
+  }
+
+  const painel = await window.OrqGrade.criarPainel({
+    cwd: r.caminho,
+    feature: slug,
+    branch: r.branch,
+    // Sem `-w`: a worktree ja existe, e ele criaria uma SEGUNDA dentro dela.
+    // Pelo namespace, como o `abrir-externo.js`: e o que deixa o teste trocar o
+    // comando por um `echo` sem invocar o Claude.
+    comandoInicial: window.OrqProjetos.montarComando(slug, true, { worktree: false }),
+    setupInicial: r.criada ? p.scripts.setup : '',
+  });
+  for (const aviso of r.avisos || []) window.OrqToast?.mostrar(aviso);
+  return painel;
 }
 
 // O botao "Nova sessao" da barra: usa o ultimo projeto aberto, senao o unico,
@@ -785,6 +882,8 @@ window.OrqProjetos = {
   montarComando,
   comPrefill,
   prefillCabe,
+  comSetup,
+  setupCabe,
   promptCabe,
   MAX_PROMPT,
   MAX_LINHA,

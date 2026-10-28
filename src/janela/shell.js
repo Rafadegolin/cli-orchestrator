@@ -19,6 +19,13 @@
   // de "command not found". O `&&` em si funciona nos dois shells.
   const limpar = () => (EH_WIN ? 'cls' : 'clear');
 
+  // Separador INCONDICIONAL: o comando seguinte roda mesmo se o anterior falhar.
+  // `&` no cmd.exe, `;` em bash/zsh -- e nos dois e o de MENOR precedencia, entao
+  // `cls && setup & claude` e `(cls && setup) & claude`. E o que separa o
+  // `setup` do projeto (Fase 10.2) do `claude`: com `&&`, um setup que falha
+  // cortaria o Claude e deixaria a bolinha verde para sempre num shell parado.
+  const depois = () => (EH_WIN ? '&' : ';');
+
   // Caminho como argumento de linha de comando. As aspas valem nos dois lados
   // ("C:\Program Files\..." ou "/Users/eu/Meus Projetos/..." sem elas viram
   // dois argumentos); a troca de barra e SO do Windows -- aplicada no macOS ela
@@ -29,5 +36,5 @@
   const MOD = EH_MAC ? '⌘' : 'Ctrl';
   const ALT = EH_MAC ? '⌥' : 'Alt';
 
-  window.OrqShell = { PLATAFORMA, EH_WIN, EH_MAC, MOD, ALT, limpar, citar };
+  window.OrqShell = { PLATAFORMA, EH_WIN, EH_MAC, MOD, ALT, limpar, depois, citar };
 })();

@@ -387,6 +387,34 @@
     </div>
   </div>
 
+  <!-- Os scripts do projeto (Fase 10.2). Ficam so no projetos.json desta
+       maquina: um repositorio clonado nao executa comando sozinho. -->
+  <div id="scripts-projeto" class="overlay" hidden>
+    <div class="modal-caixa">
+      <h2 id="scripts-titulo">Scripts do projeto</h2>
+      <p class="modal-explica">Comandos de uma linha, rodados no shell do painel. Eles recebem
+        <code>ORQ_RAIZ</code> (a pasta do projeto), <code>ORQ_WORKTREE</code> e as portas da
+        sessão (<code>PORT</code>, <code>ORQ_PORTAS</code>).</p>
+
+      <div class="modal-rotulo">Setup <span class="scripts-quando">worktree nova, antes do Claude</span></div>
+      <input id="scripts-setup" class="scripts-campo" type="text" spellcheck="false" placeholder="npm ci" />
+
+      <div class="modal-rotulo">Run <span class="scripts-quando">botão ▶ no painel, com as portas da sessão</span></div>
+      <input id="scripts-run" class="scripts-campo" type="text" spellcheck="false" placeholder="npm run dev" />
+
+      <div class="modal-rotulo">Arquivar <span class="scripts-quando">antes de apagar a worktree; se falhar, não apaga</span></div>
+      <input id="scripts-arquivar" class="scripts-campo" type="text" spellcheck="false" placeholder="docker compose down" />
+
+      <p class="modal-erro" id="scripts-erro" hidden></p>
+
+      <div class="modal-acoes">
+        <button id="scripts-salvar" class="primario">Salvar</button>
+        <!-- `scripts-cancelar`, e nao `-fechar`: ver o comentario do cor-projeto. -->
+        <button id="scripts-cancelar">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- A cor de destaque do app. Os presets e a cor livre sao a BASE: o
        acento.js ajusta a luminosidade por tema ate passar AA. -->
   <div id="acento" class="overlay" hidden>
@@ -515,5 +543,6 @@
 <script src="abrir-externo.js"></script>
 <script src="navegar.js"></script>
 <script src="cor-projeto.js"></script>
+<script src="scripts-projeto.js"></script>
 <script src="acento.js"></script>
 <script src="paleta.js"></script>

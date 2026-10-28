@@ -14,9 +14,11 @@
 // sessao que morreu" -- a primeira nunca pode ser arquivada, a segunda e
 // exatamente o lixo que se quer limpar.
 
-const { execFile, execFileSync } = require('child_process');
+const { exec, execFile, execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+
+const plataforma = require('./plataforma');
 
 // Arquivos que tipicamente guardam configuracao local e ficam fora do git. So
 // entram na sugestao se existirem E estiverem ignorados de verdade.
@@ -94,6 +96,63 @@ function gitLento(cwd, args, { ms = MS_GIT } = {}) {
       if (err) resolve({ ok: false, saida: '', erro: motivoDoErro(err, ms) });
       else resolve({ ok: true, saida: String(saida) });
     });
+  });
+}
+
+// O script de `arquivar` do projeto (Fase 10.2). Este e o unico lugar do modulo
+// que roda linha de SHELL, e de proposito: o texto foi escrito pelo usuario no
+// cadastro do projeto, e e um comando de shell por definicao (`npm run x && y`).
+// Os caminhos continuam fora da linha -- vao por `cwd` e pelo ambiente.
+//
+// Assincrono e com prazo pelo mesmo motivo do `gitLento`: um script preso nao
+// pode congelar o processo principal que hospeda as sessoes.
+const MS_SCRIPT_ARQUIVAR = 60_000;
+
+//
+// O prazo e NOSSO, e nao o `timeout` do `exec`: aquele mata so o shell, e o
+// processo que o script lancou fica vivo com o `cwd` DENTRO da worktree -- no
+// Windows isso trava a pasta, e o arquivar seguinte morre com "Permission
+// denied". Foi o teste que pegou. Aqui o estouro derruba a ARVORE e so entao
+// responde.
+function matarArvore(filho) {
+  return new Promise((resolve) => {
+    if (!filho.pid) return resolve();
+    if (process.platform !== 'win32') {
+      try { process.kill(-filho.pid, 'SIGKILL'); } catch { /* ja morreu */ }
+      return resolve();
+    }
+    execFile('taskkill', ['/pid', String(filho.pid), '/T', '/F'], { windowsHide: true }, () => resolve());
+  });
+}
+
+function rodarScript(linha, { cwd, raiz, ms = MS_SCRIPT_ARQUIVAR }) {
+  return new Promise((resolve) => {
+    let estourou = false;
+    const filho = exec(linha, {
+      cwd,
+      env: { ...process.env, ORQ_RAIZ: raiz, ORQ_WORKTREE: cwd },
+      shell: plataforma.shellPadrao(),
+      encoding: 'utf8',
+      windowsHide: true,
+      maxBuffer: 8 * 1024 * 1024,
+      // Grupo de processos proprio fora do Windows, para o `kill(-pid)` alcancar
+      // os netos. No Windows o `taskkill /T` anda pela arvore sozinho.
+      detached: process.platform !== 'win32',
+    }, (err, saida, erro) => {
+      clearTimeout(relogio);
+      if (estourou) return;
+      if (!err) return resolve({ ok: true });
+      // A ULTIMA linha que o script disse: e quase sempre a do erro, e a
+      // recusa cabe num title e num toast.
+      const ultimaDe = (t) => String(t || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean).pop() || '';
+      const ultima = ultimaDe(erro) || ultimaDe(saida);
+      resolve({ ok: false, erro: `saiu com codigo ${err.code}${ultima ? ` (${ultima})` : ''}` });
+    });
+    const relogio = setTimeout(async () => {
+      estourou = true;
+      await matarArvore(filho);
+      resolve({ ok: false, erro: `nao terminou em ${Math.ceil(ms / 1000)} segundos` });
+    }, ms);
   });
 }
 
@@ -511,10 +570,20 @@ function podeArquivar(wt) {
 //
 // `prune` NAO roda aqui quando ha lote: e limpeza de metadado GLOBAL, entao
 // `arquivarVarias` a faz uma vez no fim, em vez de N vezes.
-async function arquivar(projeto, caminho, { podar = true } = {}) {
+//
+// `script` e o `arquivar` do projeto (Fase 10.2): roda DEPOIS dos portoes e
+// ANTES de qualquer coisa ser apagada. Falhou, recusa -- e nada mudou no disco,
+// que e a regra do modulo. Se ele sujar a arvore, o `worktree remove` sem force
+// recusa adiante e o worktree e retrancado como em qualquer outra falha.
+async function arquivar(projeto, caminho, { podar = true, script = '', msScript = MS_SCRIPT_ARQUIVAR } = {}) {
   const alvo = lerUma(projeto, caminho);
   const veredito = podeArquivar(alvo);
   if (!veredito.pode) return { ok: false, ...veredito };
+
+  if (script) {
+    const sc = await rodarScript(script, { cwd: alvo.caminho, raiz: projeto, ms: msScript });
+    if (!sc.ok) return { ok: false, motivo: 'script', texto: `O script de arquivar falhou: ${sc.erro}` };
+  }
 
   // Trancado pelo Claude: destrancar so aqui, depois de comprovado que o lock
   // e orfao (sessaoViva ja foi checado acima).
@@ -596,7 +665,7 @@ function triarLote(projeto, caminhos, { bloqueados = [] } = {}) {
 // `aoProgresso` fica no MODULO, e nao no handler de IPC: handler nao se testa em
 // Node puro, e e por isso que `triarLote` e `arquivarVarias` moram aqui desde o
 // comeco. Quem avisa a janela e o `index.js`.
-async function arquivarVarias(projeto, caminhos, { aoProgresso = null } = {}) {
+async function arquivarVarias(projeto, caminhos, { aoProgresso = null, script = '' } = {}) {
   const lista = Array.isArray(caminhos) ? caminhos : [];
   const arquivadas = [];
   const recusadas = [];
@@ -609,7 +678,7 @@ async function arquivarVarias(projeto, caminhos, { aoProgresso = null } = {}) {
 
     // `podar: false`: o `worktree prune` limpa metadado do repositorio inteiro,
     // entao roda UMA vez no fim em vez de uma por item.
-    const r = await arquivar(projeto, caminho, { podar: false });
+    const r = await arquivar(projeto, caminho, { podar: false, script });
     if (r.ok) {
       arquivadas.push({ nome: r.nome, branch: r.branch, branchRemovido: r.branchRemovido });
       if (r.avisoBranch) avisos.push(r.avisoBranch);
@@ -1109,6 +1178,7 @@ module.exports = {
   MS_TAMANHO,
   MS_GIT,
   MS_GIT_REMOVER,
+  MS_SCRIPT_ARQUIVAR,
   ignorados,
   situacaoRemoto,
   buscar,

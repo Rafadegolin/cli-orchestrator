@@ -78,6 +78,15 @@
       });
     }
 
+    for (const p of window.OrqProjetos?.lista?.() || []) {
+      lista.push({
+        tag: 'projeto',
+        rotulo: `Scripts de ${p.nome}…`,
+        dica: Object.keys(p.scripts || {}).join(', ') || 'setup, run, arquivar',
+        correr: () => window.OrqScriptsProjeto?.abrir(p.id),
+      });
+    }
+
     // Copiar e colar no painel focado. So chamam OrqCopia, que e a regra deste
     // arquivo: comando de paleta nao tem logica propria. Ficam de fora quando
     // nao ha painel focado -- oferecer o que so sabe falhar e pior que nao
