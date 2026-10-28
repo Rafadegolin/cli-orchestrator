@@ -566,6 +566,35 @@ button:focus-visible, input:focus-visible {
   color: var(--warn);
 }
 
+/* "Pronto para revisar" (Fase 10.3): o mesmo cartao da fila, sem a cor de
+   atencao -- ninguem esta bloqueado aqui. */
+#revisar-lista li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+#revisar-lista li:hover { border-color: var(--line2); }
+#revisar-lista .bolinha { width: 6px; height: 6px; flex: 0 0 6px; }
+
+.revisar-branch {
+  margin-left: auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--fg2);
+}
+
 #fila-dica {
   width: 100%;
   text-align: left;
@@ -1326,13 +1355,22 @@ button.primario:hover {
 /* A ORDEM DA COMPRESSAO ESTA NOS flex-shrink, e nao em media query.
    O flexbox encolhe cada item em proporcao a `flex-shrink x tamanho base`, e
    distribui tudo numa passada so -- nao ha prioridade estrita. Por isso os
-   pesos sao 1000 / 200 / 1 e nao 3 / 2 / 1: com numeros proximos o nome ainda
+   pesos sao 100000 / 20000 / 1 e nao 3 / 2 / 1: com numeros proximos o nome ainda
    perderia alguns pixels (medido: 4px em 924px) enquanto a pill do projeto
    ainda tinha espaco para ceder. Com esta distancia, o nome so comeca a ceder
    quando os outros dois ja estao praticamente em zero.
    Na pratica o nome nunca encolhe -- mas PODE, e e isso que impede o
    cabecalho de estourar e levar o botao de fechar para fora da tela quando
-   alguem cria uma feature de 40 caracteres. */
+   alguem cria uma feature de 40 caracteres.
+
+   Os pesos ja foram 1000 / 200 / 1, e a escala subiu 100x por SUBPIXEL. Com o
+   chip de branch (Fase 10.3) o deficit tipico passou a ~90px, e a fatia do nome
+   virou uma FRACAO de pixel -- que basta: `text-overflow` poe reticencias com
+   qualquer transbordo, e saia `auth-refre…` com o texto inteiro cabendo. Com
+   100x a fatia fica abaixo da unidade de layout (1/64px) e e zerada.
+   O nome NAO pode ir para baixo de 1 em vez disso: com soma de pesos < 1 o
+   flexbox so distribui essa fracao do deficit, e um nome absurdo estoura o
+   cabecalho e leva o fechar junto -- o `teste:ui` pegou exatamente isso. */
 .painel-feature {
   flex: 0 1 auto;
   min-width: 0;
@@ -1345,7 +1383,7 @@ button.primario:hover {
 }
 
 .painel-local {
-  flex: 0 200 auto;
+  flex: 0 20000 auto;
   min-width: 0;
   font-family: var(--mono);
   font-size: 10px;
@@ -1359,7 +1397,7 @@ button.primario:hover {
 }
 
 .painel-status {
-  flex: 0 1000 auto;
+  flex: 0 100000 auto;
   min-width: 0;
   font-family: var(--mono);
   font-size: 10px;
@@ -1501,13 +1539,13 @@ button.primario:hover {
    Reusa a paleta da `.painel-porta` de proposito: nenhum par de cor novo entra
    na conta de contraste AA que o `teste:ui` calcula.
 
-   O `flex: 0 50 auto` o poe na escada de compressao entre a pill do projeto
-   (200) e o nome (1), entao o deficit de largura e absorvido na ordem
+   O `flex: 0 5000 auto` o poe na escada de compressao entre a pill do projeto
+   (20000) e o nome (1), entao o deficit de largura e absorvido na ordem
    status -> pill -> issue -> nome. Na pratica `TECH-1120` tem ~60px e nunca
    encolhe; o peso existe para o cabecalho nao estourar com um identificador
    longo. */
 .painel-issue {
-  flex: 0 50 auto;
+  flex: 0 5000 auto;
   min-width: 0;
   font-family: var(--mono);
   font-size: 10px;
@@ -1522,6 +1560,38 @@ button.primario:hover {
 }
 
 .painel-issue:hover:not(:disabled) { border-color: var(--info); }
+
+/* Branch, PR e CI (Fase 10.3). Mesma familia da issue, mas com peso de
+   compressao BAIXO (500, contra 5000 da issue): mais alto ele perdia 3px antes
+   de a pill e o status cederem, e `· push` virava `· pu…` -- justamente a
+   parte que pede acao. O
+   texto neutro e o --fg2; o tom so muda com veredito de CI, e o vermelho e o
+   --danger, que entrou na conta AA do `teste:ui`. */
+.painel-branch {
+  flex: 0 500 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg2);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.painel-branch:hover { border-color: var(--line2); }
+.painel-branch.ci-ok { color: var(--acc); }
+.painel-branch.ci-falha { color: var(--danger); border-color: var(--danger); }
+
+/* Sai antes da pill (260) e depois do Revisao/▶ (340): numa grade apertada o
+   nome do projeto ainda vale mais que o estado da branch, que tem a secao
+   "Pronto para revisar" na lateral como segundo caminho. */
+@container (max-width: 280px) {
+  .painel-branch { display: none; }
+}
 
 /* Painel muito estreito: encolher texto ate sumir nao ajuda ninguem. Aqui a
    escolha e por PRIORIDADE, do menos util para o mais util -- primeiro sai a

@@ -103,6 +103,14 @@ contextBridge.exposeInMainWorld('orq', {
   // Push, no molde do `aoMudarUso`: o relogio da busca vive no processo
   // principal, entao quem sabe que a base ficou para tras e ele.
   aoMudarGit: (fn) => ipcRenderer.on('git:estado', (_e, lista) => fn(lista)),
+
+  // Branch, PR e CI de cada painel (Fase 10.3). O token do GitHub nunca passa
+  // por aqui: ele nasce e morre no processo principal.
+  branchEstado: () => ipcRenderer.invoke('branch:estado'),
+  aoMudarBranch: (fn) => ipcRenderer.on('branch:estado', (_e, carga) => fn(carga)),
+  branchAtualizar: (id) => ipcRenderer.invoke('branch:atualizar', id),
+  branchPush: (id, confirmar = true) => ipcRenderer.invoke('branch:push', { id, confirmar }),
+  branchAbrirPr: (id) => ipcRenderer.invoke('branch:abrirPr', id),
   gitAtualizar: (projeto) => ipcRenderer.invoke('git:atualizar', projeto),
   includeCriar: (projeto, linhas, confirmar = true) =>
     ipcRenderer.invoke('worktrees:criarInclude', { projeto, linhas, confirmar }),

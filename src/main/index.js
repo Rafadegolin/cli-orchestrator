@@ -22,6 +22,8 @@ const layouts = require('./layouts');
 const atalho = require('./atalho');
 const uso = require('./uso');
 const remoto = require('./remoto');
+const branches = require('./branches');
+const github = require('./github');
 const avisos = require('./avisos');
 const registro = require('./registro');
 const externo = require('./externo');
@@ -248,6 +250,7 @@ function criarJanela() {
     metricas.parar();
     uso.parar();
     remoto.parar();
+    branches.parar();
     registro.parar();
     janela = null;
   });
@@ -259,6 +262,7 @@ function criarJanela() {
   metricas.iniciar(janela);
   uso.iniciar(janela);
   remoto.iniciar(janela);
+  branches.iniciar(janela);
   registro.iniciar(janela);
   externo.definirJanela(janela);
   janela.loadFile(path.join(__dirname, '..', 'janela', 'index.html'));
@@ -301,7 +305,15 @@ app.whenReady().then(async () => {
   criarJanela();
 
   try {
-    await eventos.iniciar({ aoAbrir: externo.atender, versao: app.getVersion() });
+    await eventos.iniciar({
+      aoAbrir: externo.atender,
+      versao: app.getVersion(),
+      // O `Stop` e quando o agente acabou -- e quase sempre acabou de commitar.
+      // E o gatilho do chip de branch (Fase 10.3), no lugar de um relogio.
+      aoEvento: ({ evento, resultado }) => {
+        if (evento === 'Stop' && resultado && resultado.id) branches.aoTerminar(resultado.id);
+      },
+    });
   } catch (err) {
     // Porta ocupada nao pode derrubar o app: os terminais continuam servindo,
     // so as bolinhas param de mudar sozinhas.
@@ -338,6 +350,7 @@ app.on('before-quit', () => {
   metricas.parar();
   uso.parar();
   remoto.parar();
+  branches.parar();
   registro.parar();
 });
 
@@ -388,6 +401,9 @@ ipcMain.handle('terminal:abrir', async (_e, { id, cwd, cols, rows, comando, args
     env: { ...portas.comoEnv(bloco), ...envDoProjeto(pasta), ...env },
   });
   estado.definirStatus(id, 'rodando', 'shell aberto');
+  // So a parte LOCAL ao nascer: abrir seis painéis restaurados nao pode virar
+  // doze consultas ao GitHub. O `Stop` e a volta da janela trazem o resto.
+  branches.atualizar(id, { github: false }).catch(() => {});
   return { ...r, portas: bloco };
 });
 
@@ -408,6 +424,62 @@ ipcMain.on('terminal:fechar', (_e, { id }) => {
   terminais.fechar(id);
   estado.remover(id);
   portas.liberar(id);
+  branches.remover(id);
+});
+
+// ------------------------------------------------- branch, PR e CI (10.3)
+
+ipcMain.handle('branch:estado', () => branches.agora());
+ipcMain.handle('branch:atualizar', (_e, id) => branches.atualizar(id, { forcar: true }));
+
+// Push por clique, sempre com dialogo dizendo o que vai acontecer. O estado e
+// relido AGORA: o chip e rotulo, e o que estava nele pode ter um minuto.
+ipcMain.handle('branch:push', async (_e, { id, confirmar = true } = {}) => {
+  const alvo = await branches.paraAcao(id);
+  if (!alvo || !alvo.local.ok || !alvo.local.branch) {
+    return { ok: false, texto: 'Nao ha branch para enviar neste painel.' };
+  }
+  const e = alvo.local;
+  if (e.upstream && !e.semPush) return { ok: false, texto: 'Nada para enviar: o remoto ja tem tudo.' };
+
+  if (confirmar) {
+    const n = e.semPush;
+    const { response } = await dialog.showMessageBox(janela, {
+      type: 'question',
+      buttons: ['Enviar', 'Cancelar'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Enviar branch',
+      message: `Enviar ${e.branch}?`,
+      detail: (e.upstream
+        ? `${n} ${n === 1 ? 'commit vai' : 'commits vao'} para ${e.upstream}.`
+        : `A branch ainda nao existe no remoto: ela sera criada${n ? ` com ${n} ${n === 1 ? 'commit' : 'commits'}` : ''} `
+          + 'e passa a ser rastreada.')
+        + '\n\nSem --force: se o remoto tiver algo que esta branch nao tem, o push e recusado.',
+    });
+    if (response !== 0) return { ok: false, cancelado: true, texto: '' };
+  }
+
+  const r = await worktrees.push(alvo.pasta);
+  if (r.ok) branches.atualizar(id, { forcar: true }).catch(() => {});
+  return r;
+});
+
+// O PR existente, ou a pagina de "criar PR" do proprio GitHub -- sem token
+// nenhum. Mesmo portao do `abrir:externo`: so https sai daqui.
+ipcMain.handle('branch:abrirPr', async (_e, id) => {
+  const alvo = await branches.paraAcao(id);
+  if (!alvo || !alvo.local.ok || !alvo.local.branch) return { ok: false, texto: 'Nao ha branch neste painel.' };
+  const e = alvo.local;
+  if (!e.upstream) return { ok: false, texto: 'A branch ainda nao esta no remoto: envie (push) antes de abrir o PR.' };
+  if (!alvo.repo) return { ok: false, texto: 'O remoto desta branch nao e do GitHub.' };
+
+  const pr = branches.agora().find((x) => x.id === id)?.pr;
+  const destino = pr && pr.estado === 'aberto' && /^https:\/\//.test(pr.url)
+    ? pr.url
+    : github.urlNovoPr(alvo.repo.dono, alvo.repo.repo, e.base, e.upstream.slice(e.remoto.length + 1));
+  shell.openExternal(destino);
+  return { ok: true, url: destino };
 });
 
 // Area de transferencia pelo MAIN, e nao pelo `navigator.clipboard` da janela.

@@ -9,6 +9,9 @@ const elFilaBloco = document.getElementById('bloco-fila');
 const elFilaLista = document.getElementById('fila-lista');
 const elFilaContagem = document.getElementById('fila-contagem');
 const btnFilaDica = document.getElementById('fila-dica');
+const elRevisarBloco = document.getElementById('bloco-revisar');
+const elRevisarLista = document.getElementById('revisar-lista');
+const elRevisarContagem = document.getElementById('revisar-contagem');
 const btnHooks = document.getElementById('btn-hooks');
 const elHooksRotulo = document.getElementById('hooks-rotulo');
 const btnAvisos = document.getElementById('btn-avisos');
@@ -287,6 +290,7 @@ function redesenhar() {
   }));
 
   redesenharFila();
+  redesenharRevisar();
   // A grade acompanha a mesma ordem, sem mover nenhum no do DOM.
   window.OrqGrade?.ordenarGrade?.(lista);
 }
@@ -320,6 +324,49 @@ function redesenharFila() {
     tempo.textContent = textoEspera(Date.now() - c.desde);
 
     li.append(bolinha, nome, tempo);
+    li.addEventListener('click', () => window.OrqGrade.focarPainel(c.id));
+    return li;
+  }));
+}
+
+// "Pronto para revisar" (Fase 10.3): sessao em `terminou` com commits na branch
+// que ainda nao foram integrados. E o card que se procura no fim do dia, e que
+// antes se parecia com qualquer sessao parada.
+//
+// FORA da `filaAtencao()` de proposito, e sem cor de atencao: o amarelo e o
+// Ctrl+Enter continuam significando uma coisa so -- tem pergunta te bloqueando.
+// Quem diz se ha commit e o `OrqBranch`, que so desenha o que o main mandou.
+function prontasParaRevisar() {
+  return [...cards.values()]
+    .filter((c) => c.status === 'terminou' && c.tipoPainel !== 'terminal' && !estaDormindo(c.id))
+    .filter((c) => window.OrqBranch?.prontoParaRevisar(c.id))
+    .sort((a, b) => a.desde - b.desde);
+}
+
+function redesenharRevisar() {
+  if (!elRevisarBloco) return;
+  const prontas = prontasParaRevisar();
+  elRevisarBloco.hidden = prontas.length === 0;
+  elRevisarContagem.textContent = String(prontas.length);
+  elRevisarLista.replaceChildren(...prontas.map((c) => {
+    const li = document.createElement('li');
+    li.dataset.id = c.id;
+    const e = window.OrqBranch.de(c.id);
+    const { texto } = window.OrqBranch.rotulo(e);
+    li.title = window.OrqBranch.titulo(e);
+
+    const bolinha = document.createElement('span');
+    bolinha.className = 'bolinha bolinha-terminou';
+
+    const nome = document.createElement('span');
+    nome.className = 'fila-nome';
+    nome.textContent = c.feature;
+
+    const estadoBranch = document.createElement('span');
+    estadoBranch.className = 'revisar-branch';
+    estadoBranch.textContent = texto;
+
+    li.append(bolinha, nome, estadoBranch);
     li.addEventListener('click', () => window.OrqGrade.focarPainel(c.id));
     return li;
   }));

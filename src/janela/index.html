@@ -99,6 +99,16 @@
           <button id="fila-dica" class="mono">ctrl+enter &rsaquo; ir para a mais antiga</button>
         </section>
 
+        <!-- Fase 10.3: o agente terminou e ha commits na branch. NAO e fila de
+             atencao: ninguem esta bloqueado, e o Ctrl+Enter nao passa por aqui. -->
+        <section id="bloco-revisar" hidden>
+          <div class="secao-topo">
+            <h1 class="secao-titulo">Pronto para revisar</h1>
+            <span id="revisar-contagem" class="mono">0</span>
+          </div>
+          <ol id="revisar-lista"></ol>
+        </section>
+
         <section id="bloco-projetos">
           <div class="secao-topo">
             <h1 class="secao-titulo">Projetos</h1>
@@ -520,6 +530,7 @@
 <script src="casca.js"></script>
 <script src="copiar.js"></script>
 <script src="painel.js"></script>
+<script src="branch.js"></script>
 <script src="fila.js"></script>
 <script src="ligacoes.js"></script>
 <script src="aprovacao.js"></script>

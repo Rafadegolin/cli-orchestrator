@@ -153,6 +153,18 @@ class Painel {
       if (this.issue?.url) window.orq.abrirExterno(this.issue.url);
     });
 
+    // Branch, PR e CI (Fase 10.3). Texto, tom e menu sao do `OrqBranch`; aqui so
+    // nasce o elemento. Mesmo grupo da issue, e pela mesma razao: e IDENTIDADE
+    // do trabalho, e a saida (o fechar) nao pode disputar espaco com ele.
+    this.elBranch = document.createElement('button');
+    this.elBranch.className = 'painel-branch';
+    this.elBranch.hidden = true;
+    this.elBranch.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const r = this.elBranch.getBoundingClientRect();
+      window.OrqBranch?.abrirMenu(this.id, r.left, r.bottom + 4);
+    });
+
     // Cor sozinha nao carrega significado: toda bolinha vem com texto ao lado.
     // Some na densidade 3 (regra do CSS), onde o espaco vale mais que a
     // redundancia e a bolinha assume.
@@ -220,7 +232,7 @@ class Painel {
     acoes.className = 'painel-acoes';
     acoes.append(this.elPorta, this.elFila, this.elLigacoes, this.elRender, btnFechar);
 
-    cab.append(this.elBolinha, elFeature, this.elIssue, this.elLocal, this.elStatus, this.elRevisao, this.elRun, acoes);
+    cab.append(this.elBolinha, elFeature, this.elIssue, this.elBranch, this.elLocal, this.elStatus, this.elRevisao, this.elRun, acoes);
 
     this.elTerm = document.createElement('div');
     this.elTerm.className = 'painel-term';
@@ -781,6 +793,8 @@ class Painel {
     this.elRevisao.hidden = this.tipoPainel === 'terminal';
     this.elRevisao.title = `Cola na caixa do Claude, sem enviar:\n\n${this.textoRevisao()}`;
     this.mostrarRun();
+    // Roda depois que o `grade.js` define o `tipoPainel`: terminal nao tem chip.
+    window.OrqBranch?.desenhar(this);
   }
 
   // O `run` sai do projeto dono da pasta, relido a cada desenho: editar os

@@ -504,6 +504,86 @@ function atualizar(projeto) {
   return { ok: true, avancou: s.atras, ...situacaoRemoto(projeto) };
 }
 
+// ------------------------------------------------- a branch de uma sessao
+
+// O estado da branch de uma pasta qualquer -- worktree ou checkout principal --
+// para o chip do cabecalho (Fase 10.3). E ROTULO, nunca portao: quem decide
+// arquivar continua perguntando ao git na hora.
+//
+// ASSINCRONA, so com `gitLento`: e chamada a cada `Stop` de cada sessao, e o
+// `listar()` sincrono ja tem a historia de como spawn por ciclo travou o main.
+//
+// `base` e o branch do checkout PRINCIPAL, a mesma regra do `baseBranch` do
+// `listar()`: o `--git-common-dir` de uma worktree aponta para o `.git` da raiz.
+async function estadoBranch(dir) {
+  const r = (args) => gitLento(dir, args).then((x) => (x.ok ? x.saida.trim() : null));
+
+  const branch = await r(['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (branch === null) return { ok: false };
+  const sha = await r(['rev-parse', 'HEAD']);
+
+  const comum = await r(['rev-parse', '--path-format=absolute', '--git-common-dir']);
+  const raiz = comum ? path.dirname(comum) : dir;
+  const base = (await gitLento(raiz, ['rev-parse', '--abbrev-ref', 'HEAD'])).saida.trim();
+
+  // `HEAD` destacado: sem branch nao ha o que empurrar nem PR a procurar.
+  const nome = branch === 'HEAD' ? '' : branch;
+  let frente = 0;
+  if (nome && base && nome !== base) {
+    frente = Number(await r(['rev-list', '--count', `${base}..HEAD`])) || 0;
+  }
+
+  const upstream = nome ? (await r(['rev-parse', '--abbrev-ref', '@{u}'])) || '' : '';
+  const remoto = upstream ? ((await r(['config', `branch.${nome}.remote`])) || upstream.split('/')[0]) : '';
+  const semPush = upstream ? Number(await r(['rev-list', '--count', '@{u}..HEAD'])) || 0 : frente;
+  // A URL do remoto e o que diz se ha GitHub do outro lado. So com upstream:
+  // branch que nunca subiu nao tem PR nem CI a consultar.
+  const urlRemoto = remoto ? (await r(['config', `remote.${remoto}.url`])) || '' : '';
+
+  return { ok: true, branch: nome, base, frente, upstream, remoto, urlRemoto, semPush, sha: sha || '' };
+}
+
+// Para onde vai um push de branch SEM upstream: `origin`, ou o unico remoto que
+// existir. Com varios e nenhum `origin`, adivinhar seria mandar codigo para o
+// lugar errado -- recusa e diz por que.
+async function remotoDoPush(dir) {
+  const r = await gitLento(dir, ['remote']);
+  const nomes = r.ok ? r.saida.split(/\r?\n/).map((l) => l.trim()).filter(Boolean) : [];
+  if (nomes.includes('origin')) return { ok: true, remoto: 'origin' };
+  if (nomes.length === 1) return { ok: true, remoto: nomes[0] };
+  if (!nomes.length) return { ok: false, texto: 'Este repositorio nao tem remoto configurado.' };
+  return { ok: false, texto: `Ha ${nomes.length} remotos e nenhum se chama origin: faca o primeiro push no terminal.` };
+}
+
+// Push da branch atual, por clique e com dialogo (quem pergunta e o index.js).
+//
+// NUNCA `--force`: branch divergida e recusada pelo git e a recusa vira uma
+// linha, como no `atualizar`. Pelo `gitDeRede`: e rede, e o Git Credential
+// Manager nao pode abrir janela do nada.
+async function push(dir) {
+  const e = await estadoBranch(dir);
+  if (!e.ok || !e.branch) return { ok: false, texto: 'Nao ha branch para enviar aqui (HEAD destacado?).' };
+
+  let args;
+  let remoto = e.remoto;
+  if (e.upstream) {
+    args = ['push', remoto, `HEAD:${e.upstream.slice(remoto.length + 1)}`];
+  } else {
+    const alvo = await remotoDoPush(dir);
+    if (!alvo.ok) return alvo;
+    remoto = alvo.remoto;
+    args = ['push', '-u', remoto, e.branch];
+  }
+
+  const r = await gitDeRede(dir, args);
+  if (!r.ok) {
+    const linhas = String(r.erro).split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const motivo = linhas.find((l) => /^(fatal|error|!)/i.test(l)) || linhas[0] || '';
+    return { ok: false, texto: `O push foi recusado: ${motivo.replace(/^(fatal|error):\s*/i, '')}` };
+  }
+  return { ok: true, remoto, branch: e.branch, enviados: e.semPush };
+}
+
 // Arquivos que o git IGNORA dentro do worktree -- e que o arquivamento apaga
 // sem dizer nada.
 //
@@ -1179,6 +1259,8 @@ module.exports = {
   MS_GIT,
   MS_GIT_REMOVER,
   MS_SCRIPT_ARQUIVAR,
+  estadoBranch,
+  push,
   ignorados,
   situacaoRemoto,
   buscar,

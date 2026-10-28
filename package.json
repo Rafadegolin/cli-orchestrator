@@ -27,6 +27,8 @@
     "teste:revisao": "node testes/revisao.js",
     "teste:diff-comentar": "node testes/diff-comentar.js",
     "teste:scripts": "node testes/scripts.js",
+    "teste:branch": "node testes/branch.js",
+    "teste:github-real": "node testes/github-real.js",
     "teste:dupla": "node testes/dupla.js",
     "teste:dupla-reais": "node testes/dupla-reais.js",
     "teste:projetos": "node testes/projetos.js",

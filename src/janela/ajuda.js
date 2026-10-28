@@ -264,6 +264,33 @@ const TODAS_SECOES = [
     ],
   },
   {
+    id: 'branch',
+    titulo: 'Branch, PR e CI no painel',
+    blocos: [
+      p('Um chip no cabeçalho do painel diz em que pé está a branch da sessão: '
+        + '<code>3 à frente · push</code> (commits que a base não tem, e que ainda não subiram), '
+        + '<code>PR #12 · CI ✓</code> ou <code>PR #12 · CI ✗ 2</code>. Ele some no branch base e '
+        + 'em painel de terminal.'),
+      lista([
+        'Clicar no chip abre <b>Enviar (push)</b>, <b>Criar PR</b> (ou abrir o PR que já existe) e '
+          + '<b>Atualizar</b>. O push pergunta antes e nunca usa <code>--force</code>: se o remoto tem '
+          + 'algo que a branch não tem, ele é recusado.',
+        'Criar PR abre a página de comparação do GitHub no navegador, já com o formulário — sem '
+          + 'token nenhum. A branch precisa estar no remoto antes.',
+        'PR e CI vêm do GitHub com o login que o git desta máquina já tem, lido na hora e '
+          + 'descartado. Nada é guardado, e nenhuma janela de senha abre. Sem login, repositório '
+          + 'público ainda responde; privado mostra só o que é local.',
+        'O chip é atualizado quando a sessão termina, quando você volta para a janela e pelo '
+          + '<b>Atualizar</b>. Não há consulta periódica.',
+      ]),
+      p('Na lateral, <b>Pronto para revisar</b> junta as sessões que terminaram com commits na '
+        + 'branch ainda não integrados. É o que procurar no fim do dia.'),
+      aviso('CI vermelho não deixa a sessão amarela, e "pronto para revisar" não entra na fila de '
+        + 'atenção nem no {mod}+Enter: o amarelo continua querendo dizer só uma coisa — tem '
+        + 'pergunta te bloqueando.'),
+    ],
+  },
+  {
     id: 'env',
     titulo: 'Arquivos que o worktree não leva',
     blocos: [

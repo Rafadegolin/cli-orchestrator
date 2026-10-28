@@ -147,6 +147,11 @@ de novo. `projetos.js` normaliza o campo novo, que entra na lista branca dele.
 
 ## 10.3 Git, PR e CI no cabeçalho do painel
 
+> **Feito.** Credencial pelo `git credential fill` com o GCM proibido de abrir janela (medido: ~0,3s
+> com login, ~0,4s de recusa sem), lida na hora e descartada. Ações: push e abrir/criar PR; o commit
+> ficou com o agente. Gatilhos sem relógio: `Stop`, volta da janela, nascimento (só local) e o menu
+> do chip. Detalhes no CLAUDE.md, "Branch, PR e CI no painel".
+
 Hoje "o agente terminou" vira, para fechar o trabalho, terminal externo + navegador. A informação
 existe toda no git e no GitHub; falta trazê-la ao painel.
 
@@ -348,7 +353,7 @@ mentir para cima.
 |---|---|
 | ~~10.2~~ | **decidido:** só `projetos.json` por enquanto; o repo com hash fica para depois |
 | 10.2 | separador incondicional **feito** (`&`/`;`); o efeito no primeiro desenho da TUI ainda **a medir** numa sessão real |
-| 10.3 | fonte da credencial do GitHub (token + `safeStorage` ou `git credential fill`) |
+| ~~10.3~~ | **decidido:** `git credential fill`, sem janela, lido na hora e descartado |
 | 10.4 | endpoint e autenticação do lado do Flow |
 | 10.5 | versão do `addon-serialize` compatível com o xterm 5.5 |
 | 10.6 | teto do long-poll frente ao timeout do Bash do CLI |

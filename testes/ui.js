@@ -970,6 +970,8 @@ async function arrastarAlca(cdp, id, dx, dy) {
         ['acc/bg1', tok('--acc'), tok('--bg1')],
         ['warn/bg1', tok('--warn'), tok('--bg1')],
         ['info/bg1', tok('--info'), tok('--bg1')],
+        // O CI com falha no chip de branch (Fase 10.3).
+        ['danger/bg1', tok('--danger'), tok('--bg1')],
         ['acc-texto/acc', tok('--acc-texto'), tok('--acc')],
         ['termfg/term', tok('--termfg'), tok('--term')],
       ];

@@ -26,8 +26,8 @@ Ali ja esta levantado o que o CLI oferece para isso: `--add-dir` como flag **e**
 comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma delas.
 
 **Em andamento: a Fase 10** (`docs/fase-10-proximos-passos.md`). O 10.7 (metricas), o 10.1
-(comentar o diff) e o 10.2 (scripts) estao feitos; o proximo e o 10.3. Ver a secao "Proximos
-passos" logo abaixo.
+(comentar o diff), o 10.2 (scripts) e o 10.3 (branch, PR e CI) estao feitos; o proximo e o 10.5.
+Ver a secao "Proximos passos" logo abaixo.
 
 ## Proximos passos: Fase 10
 
@@ -41,9 +41,7 @@ Ordem combinada:
    base por dia", na secao do historico).
 2. ~~**10.1 Comentario por linha no diff**~~ **feito**: ver "Comentar o diff para o agente".
 3. ~~**10.2 Scripts `setup`/`run`/`arquivar` por projeto**~~ **feito**: ver "Scripts do projeto".
-4. **10.3 Git, PR e CI no cabecalho**, e o estado "pronto para revisar". CI vermelho **nao** e
-   `esperando`: o amarelo continua significando so "pergunta te bloqueando". Sem relogio novo, sem
-   `gh`, e abrir PR pela URL `compare/...?expand=1`, que dispensa token.
+4. ~~**10.3 Git, PR e CI no cabecalho**~~ **feito**: ver "Branch, PR e CI no painel".
 5. **10.5 Scrollback persistente** (ultimas ~500 linhas, `@xterm/addon-serialize` pinado sem `^` --
    a mesma armadilha de versao do `addon-webgl`).
 6. **10.4 Inbox de issues do Flow**, abrindo pelo MESMO caminho do `/abrir`. Bloqueado por endpoint e
@@ -71,6 +69,8 @@ npm run teste:copiar      # copiar/colar, o Ctrl+C que ainda interrompe, e colar
 npm run teste:revisao     # o botao Revisao: cola sem enviar, singular/plural, recusa em esperando
 npm run teste:diff-comentar # comentar linhas do diff e colar no agente, sem invocar o Claude
 npm run teste:scripts     # setup/run do projeto e a heranca de portas, sem invocar o Claude
+npm run teste:branch      # chip de branch, push, PR/CI com fetch falso, "pronto para revisar"
+npm run teste:github-real # o spike: API do GitHub e git credential fill de verdade (sem token do Claude)
 npm run teste:dupla       # implementacao dupla: duas worktrees, um painel so
 npm run teste:dupla-reais # com Claude de verdade: ~4min e consome tokens
 npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
@@ -591,8 +591,15 @@ Declaracao de funcao nao estoura como `const`: a ultima vence **em silencio**.
 
 O doc 03 manda a compressao ser absorvida por rotulo de status -> pill do projeto -> nome. Isso
 **nao** e media query: o flexbox distribui o deficit em uma passada so, proporcional a
-`flex-shrink x tamanho base`. Por isso os pesos sao **1000 / 200 / 1** e nao 3 / 2 / 1 — com numeros
-proximos o nome ainda perdia 4px em 924px enquanto a pill tinha espaco de sobra para ceder.
+`flex-shrink x tamanho base`. Por isso os pesos sao **100000 / 20000 / 1** e nao 3 / 2 / 1 — com
+numeros proximos o nome ainda perdia 4px em 924px enquanto a pill tinha espaco de sobra para ceder.
+
+**A escala ja foi 1000 / 200 / 1 e subiu 100x por SUBPIXEL.** Com o chip de branch (10.3) o deficit
+tipico chegou a ~90px, e a fatia do nome virou uma fracao de pixel -- que basta: `text-overflow` poe
+reticencias com qualquer transbordo, e saia `auth-refre…` com o texto inteiro cabendo. Baixar o peso
+do NOME para menos de 1 em vez disso foi tentado e e errado: com soma de pesos < 1 o flexbox so
+distribui essa fracao do deficit, e um nome absurdo estoura o cabecalho levando o fechar junto (o
+`teste:ui` pegou). Issue 5000, chip de branch 500.
 
 Para o painel muito estreito (densidade 3 em 924px da painéis de **200px**) nenhum peso resolve: nao
 cabem nome e tres chips. Ali entra `container-type: inline-size` no `.painel` e `@container` que
@@ -749,6 +756,60 @@ repositorio descartavel, com o `montarComando` trocado por `echo claude`. O setu
 meio de proposito, e as marcas de saida sao montadas pelo shell (`SETUP%ORQ_PORTA:~0,0%-OK`) para
 nao casarem com o eco da propria linha digitada. **A medir, numa sessao real**: se a saida do setup
 atrapalha o primeiro desenho da TUI do Claude.
+
+## Branch, PR e CI no painel (Fase 10.3)
+
+Um chip no cabecalho (`.painel-branch`, logo depois da issue) diz o estado da branch da sessao --
+`3 à frente · push`, `PR #12 · CI ✓`, `PR #12 · CI ✗ 2` -- e a lateral ganhou **"Pronto para
+revisar"**: sessao em `terminou` com commits na branch que ainda nao foram integrados.
+
+Quem le e o main: `worktrees.estadoBranch` (local, so `gitLento`), `github.js` (API REST) e
+`branches.js` (quem consulta, quando, e o push `branch:estado`). A janela so desenha
+(`src/janela/branch.js`, `OrqBranch`).
+
+- **Nenhum relogio.** Os gatilhos sao o `Stop` da sessao (o `aoEvento` do `eventos.iniciar`, que
+  existia sem uso), a janela voltando (piso de 2min), o painel nascendo (so a parte LOCAL: seis
+  painéis restaurados nao podem virar doze consultas ao GitHub) e o "Atualizar"/push do menu. O
+  `teste:fase2` seguiu em 1,2%.
+- **A pasta e a da SESSAO** (`cwdSessao` do `estado.js`), nao a do painel: o `claude -w` nasce na raiz
+  e migra para a worktree, e os hooks ja contam para onde.
+- **`base` e o branch do checkout principal**, lido pelo `--git-common-dir` -- a mesma regra do
+  `baseBranch` do `listar()`. `semPush` sem upstream e igual a `frente`.
+- **O GitHub so e consultado com upstream** (branch que nunca subiu nao tem PR nem CI), com piso de
+  60s por pasta. `repoGithub` le o HOST da URL do remoto -- o `normalizarRepo` nao serve, ele descarta
+  o host e um GitLab com o mesmo `owner/repo` viraria consulta sobre outro projeto.
+
+### A credencial e a do git da maquina, e morre na chamada
+
+`github.credencial()` roda `git credential fill` com `GCM_INTERACTIVE=never`,
+`GIT_TERMINAL_PROMPT=0` e `GIT_ASKPASS=''`. **Medido aqui** (`npm run teste:github-real`, git 2.55):
+com login guardado responde em ~0,3s, sem janela; sem credencial para o host, falha em ~0,4s com
+"terminal prompts disabled". Nada a colar, nada guardado -- a regra do token do medidor de uso:
+nao vai para arquivo, janela nem log, e o `teste:branch` confere com `fetch` falso que ele nao
+aparece no retorno nem no erro. **401 com token tenta uma vez sem**: repositorio publico responde a
+60 consultas/hora. 404/403 viram `acesso: false` e o chip fica so no local. Erro nunca vira dialogo.
+
+### Push e PR, e o que fica de fora
+
+- **Push**: sempre com dialogo dizendo branch, remoto e quantos commits; **nunca `--force`**, e a
+  recusa de branch divergida vira uma linha. Sem upstream vai `push -u` para o `origin`, ou o unico
+  remoto -- com varios e nenhum `origin` **recusa** em vez de adivinhar.
+- **PR**: o aberto, se houver; senao a pagina `compare/<base>...<branch>?expand=1` do proprio GitHub,
+  que dispensa token. A `/` do branch fica literal (`feature%2FX` o GitHub nao acha). Sai pelo
+  `shell.openExternal` do main, so https.
+- **Commit fica com o agente** (decisao): o botao Revisao ja pede isso, e um commit por clique
+  duplicaria o que a sessao faz.
+- **CI vermelho NAO e `esperando`**, e "pronto para revisar" fica fora da `filaAtencao()` e do
+  Ctrl+Enter, sem a cor de atencao: o amarelo continua querendo dizer uma coisa so.
+- O chip e **rotulo, nunca portao** -- quem decide arquivar continua perguntando ao git na hora. Push
+  e PR releem o estado no clique, e nao confiam no que o chip mostrava.
+
+O chip encolhe com peso **500** (abaixo da issue) e sai no `@container` de **280px**, entre o
+Revisao/▶ (340) e a pill (260). O menu reusa o `.menu-ctx` do `copiar.js`. O `--danger` do CI com
+falha entrou na conta AA do `teste:ui`.
+
+`npm run teste:branch`: metade em Node puro (remoto **bare** local para push e divergencia, `fetch`
+falso para PR/CI), metade pelo CDP com o `Stop` falso pelo HTTP com `X-Orq-Id`.
 
 ## O mapa
 
