@@ -24,6 +24,7 @@
     "teste:fase45": "node testes/fase45.js",
     "teste:terminal": "node testes/terminal-projeto.js",
     "teste:copiar": "node testes/copiar.js",
+    "teste:revisao": "node testes/revisao.js",
     "teste:dupla": "node testes/dupla.js",
     "teste:dupla-reais": "node testes/dupla-reais.js",
     "teste:projetos": "node testes/projetos.js",

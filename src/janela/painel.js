@@ -159,6 +159,17 @@ class Painel {
     this.elStatus = document.createElement('span');
     this.elStatus.className = 'painel-status';
 
+    // Pedido de revisao pronto, colado na caixa do Claude SEM Enter: o envio
+    // continua sendo de quem le. O texto (singular ou plural) e o title saem de
+    // `mostrarLigacoes()`, porque e a ligacao que diz se a sessao e dupla.
+    this.elRevisao = document.createElement('button');
+    this.elRevisao.className = 'painel-revisao';
+    this.elRevisao.textContent = 'Revisão';
+    this.elRevisao.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      this.colarRevisao();
+    });
+
     // Ligacoes com outros repositorios. Clicar abre o seletor.
     this.elLigacoes = document.createElement('button');
     this.elLigacoes.className = 'painel-ligacoes';
@@ -198,7 +209,7 @@ class Painel {
     acoes.className = 'painel-acoes';
     acoes.append(this.elPorta, this.elFila, this.elLigacoes, this.elRender, btnFechar);
 
-    cab.append(this.elBolinha, elFeature, this.elIssue, this.elLocal, this.elStatus, acoes);
+    cab.append(this.elBolinha, elFeature, this.elIssue, this.elLocal, this.elStatus, this.elRevisao, acoes);
 
     this.elTerm = document.createElement('div');
     this.elTerm.className = 'painel-term';
@@ -740,6 +751,41 @@ class Painel {
     this.elLigacoes.title = n
       ? `Esta sessão enxerga o código de:\n${(this.ligacoes || []).map(rotuloDeLigacao).join('\n')}\n\nClique para gerenciar.`
       : 'Dar a esta sessão acesso ao código de outro repositório';
+    this.mostrarRevisao();
+  }
+
+  // Sessao com ligacao e a implementacao dupla (`dupla.js` abre o painel com
+  // `ligacoes: [outro]`), e entao sao DUAS branches. Sem campo novo de
+  // proposito: `ligacoes` ja persiste e ja volta na dupla restaurada.
+  textoRevisao() {
+    const dupla = (this.ligacoes || []).length > 0;
+    return 'Como foi uma implementação grande e sensível revise tudo que foi feito para evitar '
+      + 'erros e gaps, depois pode commitar e dar push '
+      + (dupla ? 'nas respectivas branchs' : 'na respectiva branch');
+  }
+
+  // Painel de terminal nao tem Claude para receber o pedido.
+  mostrarRevisao() {
+    if (!this.elRevisao) return;
+    this.elRevisao.hidden = this.tipoPainel === 'terminal';
+    this.elRevisao.title = `Cola na caixa do Claude, sem enviar:\n\n${this.textoRevisao()}`;
+  }
+
+  // `term.paste`, como o Ctrl+Shift+V: bracketed paste faz a TUI receber TEXTO,
+  // e nada de Enter -- o pior caso e texto parado na caixa, editavel.
+  colarRevisao() {
+    if (this.encerrado || this.dormindo || !this.term || this.status === 'encerrada') {
+      window.OrqToast?.mostrar('A sessão não está ativa: retome-a antes de pedir a revisão.');
+      return;
+    }
+    // Mesma recusa do `ligacoes.js`: com um pedido na tela, o texto cairia dentro
+    // do seletor de permissao, que responde a digitos.
+    if (this.status === 'esperando') {
+      window.OrqToast?.mostrar('A sessão está esperando uma resposta: responda antes de colar a revisão.');
+      return;
+    }
+    this.term.paste(this.textoRevisao());
+    this.focar();
   }
 
   // O chip so aparece quando ha issue. `hidden` funciona aqui por causa do

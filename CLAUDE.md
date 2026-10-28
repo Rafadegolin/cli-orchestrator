@@ -36,6 +36,7 @@ npm run teste:fase45      # hooks -> bolinha -> lateral ordenada
 npm run teste:projetos    # cadastro, dedupe, comando inicial, sanitizacao
 npm run teste:terminal    # o botao "Abrir terminal" do dialogo: shell puro, sem Claude
 npm run teste:copiar      # copiar/colar, o Ctrl+C que ainda interrompe, e colar UMA vez
+npm run teste:revisao     # o botao Revisao: cola sem enviar, singular/plural, recusa em esperando
 npm run teste:dupla       # implementacao dupla: duas worktrees, um painel so
 npm run teste:dupla-reais # com Claude de verdade: ~4min e consome tokens
 npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
@@ -593,6 +594,21 @@ precisa do Enter separado do texto.
 - **Sessao em `rodando` vem marcada.** O texto entra na fila do stdin e atrapalha o que ela esta
   fazendo. Nao e proibido; so nao acontece sem voce ver.
 - Dormindo e encerrada ficam de fora: nao ha para onde escrever.
+
+## O botao Revisao do cabecalho
+
+`Painel.colarRevisao()` em `painel.js`. Cola na caixa do Claude o pedido de revisar, commitar e dar
+push — **sem Enter**, pelo `term.paste()` (bracketed paste, o mesmo do Ctrl+Shift+V).
+
+- **Dupla e `ligacoes` nao vazias**, sem campo novo: e assim que o `dupla.js` abre o painel, e
+  `ligacoes` ja passa pelas quatro listas brancas. Painel ligado a mao pelo "ligar" tambem recebe o
+  plural ("nas respectivas branchs") — e ele de fato enxerga outro repo.
+- O texto e o `title` sao atualizados em `mostrarLigacoes()`, que ja roda no nascimento e a cada
+  ligar/desligar. Escondido em `tipoPainel: 'terminal'`.
+- **Recusa em `esperando`**, pela mesma razao do `ligacoes.js`: o texto cairia no seletor de
+  permissao. Dormindo/encerrada vira toast.
+- **Sai cedo no `@container` (340px)**, antes de todos os outros degraus: com 58px fixos, na
+  densidade 2 em 924px ele cortava o nome — foi o `teste:ui` que pegou.
 
 ## O mapa
 

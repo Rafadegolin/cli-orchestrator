@@ -286,6 +286,7 @@ const TODAS_SECOES = [
         'Você escolhe em qual dos dois o terminal abre. O outro entra por <code>--add-dir</code>, que dá acesso de <b>ferramenta</b> — o Claude lê <b>e escreve</b> nos dois.',
         'A sessão se chama como o branch do repositório onde o terminal abriu. O do outro lado aparece no chip <b>1 ligado</b> do cabeçalho.',
         'Se o segundo repositório falhar, o primeiro é desfeito: não fica meia dupla no disco.',
+        'O botão <b>Revisão</b> do cabeçalho cola na caixa do Claude o pedido de revisar tudo e dar push — numa sessão ligada, “nas respectivas branchs”; numa sessão só, “na respectiva branch”. Ele <b>não envia</b>: você lê e aperta Enter.',
       ]),
       aviso('As duas worktrees aparecem na lista de cada projeto como qualquer outra, e são arquivadas '
         + 'pelo mesmo caminho. Como não foi o <code>claude -w</code> que as criou, elas não ficam '

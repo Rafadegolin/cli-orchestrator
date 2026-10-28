@@ -1414,6 +1414,29 @@ button.primario:hover {
 
 .painel-ligacoes:hover { border-color: var(--line2); color: var(--fg2); }
 
+/* Vai no grupo da esquerda, depois do status, mas sem encolher: rotulo cortado
+   num botao de uma palavra nao serve. Por isso ele SAI cedo, antes de todos os
+   degraus do @container la embaixo: com 58px fixos, num painel de 304px (densidade
+   2 em 924px) ele empurrava a pill e cortava o nome -- foi o `teste:ui` que pegou.
+   E um atalho; o nome identifica o painel. */
+@container (max-width: 340px) {
+  .painel-revisao { display: none; }
+}
+
+.painel-revisao {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  border-radius: 6px;
+  padding: 2px 7px;
+  white-space: nowrap;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--fg3);
+}
+
+.painel-revisao:hover { border-color: var(--line2); color: var(--fg2); }
+
 .painel-ligacoes.tem-ligacao {
   background: var(--accd);
   border-color: var(--acc);
