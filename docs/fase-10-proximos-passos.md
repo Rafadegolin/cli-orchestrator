@@ -47,6 +47,10 @@ faixas de porta e a aprovação inline. A regra para esta fase: **montar em cima
 
 ## 10.1 Comentário por linha no diff, enviado ao agente
 
+> **Feito.** Seleção por clique e Shift+clique (e não arrasto, que brigaria com a seleção de texto).
+> A peça que não estava prevista aqui: colar texto multilinha exige o bracketed paste ligado, senão
+> num shell cada linha seria executada. Detalhes no CLAUDE.md, "Comentar o diff para o agente".
+
 **O item de maior retorno por linha de código.** Hoje o diff (`src/janela/diff.js`) é só leitura: ver
 um problema exige trocar para o painel e descrever de memória onde está.
 

@@ -771,21 +771,38 @@ class Painel {
     this.elRevisao.title = `Cola na caixa do Claude, sem enviar:\n\n${this.textoRevisao()}`;
   }
 
-  // `term.paste`, como o Ctrl+Shift+V: bracketed paste faz a TUI receber TEXTO,
-  // e nada de Enter -- o pior caso e texto parado na caixa, editavel.
   colarRevisao() {
+    this.colarTexto(this.textoRevisao(), 'a revisão');
+  }
+
+  // `term.paste`, como o Ctrl+Shift+V: bracketed paste faz a TUI receber TEXTO,
+  // e nada de Enter -- o pior caso e texto parado na caixa, editavel. Devolve se
+  // colou, para quem chama (os comentarios do diff) saber se pode limpar o seu.
+  colarTexto(texto, oQue = 'o texto') {
     if (this.encerrado || this.dormindo || !this.term || this.status === 'encerrada') {
-      window.OrqToast?.mostrar('A sessão não está ativa: retome-a antes de pedir a revisão.');
-      return;
+      window.OrqToast?.mostrar(`A sessão não está ativa: retome-a antes de colar ${oQue}.`);
+      return false;
     }
     // Mesma recusa do `ligacoes.js`: com um pedido na tela, o texto cairia dentro
     // do seletor de permissao, que responde a digitos.
     if (this.status === 'esperando') {
-      window.OrqToast?.mostrar('A sessão está esperando uma resposta: responda antes de colar a revisão.');
-      return;
+      window.OrqToast?.mostrar(`A sessão está esperando uma resposta: responda antes de colar ${oQue}.`);
+      return false;
     }
-    this.term.paste(this.textoRevisao());
+    // TEXTO MULTILINHA so vai para quem pediu bracketed paste. Sem esse modo, o
+    // `term.paste` entrega cada quebra como `\r` -- e num shell (o Claude saiu e
+    // o painel voltou ao cmd.exe) cada linha seria EXECUTADA como comando. A TUI
+    // do Claude liga o modo sozinha, entao a recusa so pega quem nao e o Claude.
+    // Uma linha so (o pedido de revisao) nao tem esse risco e nao passa por aqui.
+    if (/[\r\n]/.test(texto)) {
+      if (this.tipoPainel === 'terminal' || this.term.modes?.bracketedPasteMode !== true) {
+        window.OrqToast?.mostrar(`O Claude não está aberto neste painel: não dá para colar ${oQue} aqui.`);
+        return false;
+      }
+    }
+    this.term.paste(texto);
     this.focar();
+    return true;
   }
 
   // O chip so aparece quando ha issue. `hidden` funciona aqui por causa do

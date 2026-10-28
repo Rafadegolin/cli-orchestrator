@@ -2386,6 +2386,71 @@ button.primario:hover {
 .diff-meta { color: #6b7686; }
 .diff-contexto { color: var(--termfg); }
 
+/* Comentar no diff (Fase 10.1). O corpo fica sobre o fundo do TERMINAL nos dois
+   temas, entao a marca e a selecao sao tons sobre ele; a nota e a caixa usam a
+   moldura normal da UI, como um cartao em cima do codigo. Azul, e nao amarelo:
+   amarelo neste app significa uma coisa so -- sessao travada esperando voce. */
+.diff-comentavel { cursor: pointer; }
+.diff-comentavel:hover { box-shadow: inset 3px 0 0 var(--line2); }
+.diff-comentada { box-shadow: inset 3px 0 0 var(--info); }
+.diff-selecionada { background: color-mix(in srgb, var(--info) 22%, transparent); }
+
+.diff-linhas > .diff-nota,
+.diff-linhas > .diff-editor {
+  white-space: normal;
+  margin: 4px 14px 8px 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--line2);
+  border-left: 3px solid var(--info);
+  border-radius: 8px;
+  background: var(--bg1);
+  color: var(--fg);
+  font-family: var(--ui);
+  font-size: 12px;
+  max-width: 720px;
+}
+
+.diff-nota { display: flex; flex-direction: column; gap: 3px; cursor: pointer; }
+.diff-nota:hover { border-color: var(--info); }
+.diff-nota-ref { font-family: var(--mono); font-size: 10.5px; color: var(--fg3); }
+.diff-nota-texto { white-space: pre-wrap; }
+
+.diff-editor-campo {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 56px;
+  padding: 7px 9px;
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  background: var(--bg2);
+  color: var(--fg);
+  font-family: var(--ui);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.diff-editor-campo:focus { outline: 2px solid var(--acc); outline-offset: 1px; }
+
+.diff-editor-acoes { display: flex; gap: 8px; margin-top: 8px; }
+.diff-editor-acoes .primario { padding: 6px 12px; font-size: 12px; }
+
+.diff-editor-acoes button:not(.primario) {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--fg2);
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.diff-editor-acoes button:not(.primario):hover { color: var(--fg); border-color: var(--line2); }
+.diff-editor-acoes .diff-editor-remover { margin-left: auto; }
+.diff-editor-acoes .diff-editor-remover:hover { color: var(--danger); border-color: var(--danger); }
+
+.diff-marca-comentarios { color: var(--info); }
+
 .diff-aviso {
   margin: 0;
   padding: 16px 18px;

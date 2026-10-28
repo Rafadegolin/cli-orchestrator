@@ -25,8 +25,8 @@ worktree — ate entao isso era sempre do `claude -w`.
 Ali ja esta levantado o que o CLI oferece para isso: `--add-dir` como flag **e** `/add-dir` como
 comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma delas.
 
-**Em andamento: a Fase 10** (`docs/fase-10-proximos-passos.md`). O 10.7 (metricas) esta feito; o
-proximo e o 10.1. Ver a secao "Proximos passos" logo abaixo.
+**Em andamento: a Fase 10** (`docs/fase-10-proximos-passos.md`). O 10.7 (metricas) e o 10.1
+(comentar o diff) estao feitos; o proximo e o 10.2. Ver a secao "Proximos passos" logo abaixo.
 
 ## Proximos passos: Fase 10
 
@@ -38,8 +38,7 @@ Ordem combinada:
 
 1. ~~**10.7 Metricas**~~ **feito**: linha de base por dia no overlay do historico (ver "A linha de
    base por dia", na secao do historico).
-2. **10.1 Comentario por linha no diff**, colado no agente sem Enter (`term.paste`, as recusas do
-   botao Revisao; sem painel aberto, `claude -c` com `--prefill-b64`).
+2. ~~**10.1 Comentario por linha no diff**~~ **feito**: ver "Comentar o diff para o agente".
 3. **10.2 Scripts `setup`/`run`/`arquivar` por projeto.** O `setup` vai com separador
    INCONDICIONAL antes do `claude` -- com `&&`, setup que falha deixa a bolinha verde para sempre. O
    painel de `run` tem de herdar o bloco de portas da sessao.
@@ -71,6 +70,7 @@ npm run teste:projetos    # cadastro, dedupe, comando inicial, sanitizacao
 npm run teste:terminal    # o botao "Abrir terminal" do dialogo: shell puro, sem Claude
 npm run teste:copiar      # copiar/colar, o Ctrl+C que ainda interrompe, e colar UMA vez
 npm run teste:revisao     # o botao Revisao: cola sem enviar, singular/plural, recusa em esperando
+npm run teste:diff-comentar # comentar linhas do diff e colar no agente, sem invocar o Claude
 npm run teste:dupla       # implementacao dupla: duas worktrees, um painel so
 npm run teste:dupla-reais # com Claude de verdade: ~4min e consome tokens
 npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
@@ -643,6 +643,44 @@ push — **sem Enter**, pelo `term.paste()` (bracketed paste, o mesmo do Ctrl+Sh
   permissao. Dormindo/encerrada vira toast.
 - **Sai cedo no `@container` (340px)**, antes de todos os outros degraus: com 58px fixos, na
   densidade 2 em 924px ele cortava o nome — foi o `teste:ui` que pegou.
+
+## Comentar o diff para o agente (Fase 10.1)
+
+`src/janela/diff.js`. Clicar numa linha do diff (Shift+clique estende o intervalo) abre uma caixa;
+os comentarios se acumulam num **rascunho por worktree**, e "Colar no agente" monta um prompt so
+(`Revise estes pontos:` + arquivo:linha, trecho citado com `> `, comentario) e cola **sem Enter**.
+
+- **`separar()` numera as linhas** (`numeradas`, lendo `@@ -a,b +c,d @@`): contexto anda os dois
+  lados, `+` so o novo, `-` so o antigo, meta e cabecalho de hunk ficam sem numero e nao sao
+  clicaveis. A referencia usa o lado NOVO; um intervalo so de linhas removidas cai no antigo e o
+  prompt diz "(linha removida; numeracao antiga)".
+- **O trecho e copiado na hora de comentar** (ate 12 linhas, depois `…`), e nao so o numero: o diff
+  envelhece entre comentar e colar, e e o trecho que deixa o Claude se achar com a linha deslocada.
+  As notas sao redesenhadas so no arquivo aberto, casando por numero; se a linha sumiu, a nota vai
+  para o topo em vez de desaparecer.
+- **A trava que torna o caminho seguro e o bracketed paste.** `Painel.colarTexto()` (extraido do
+  `colarRevisao`, que passou a usa-lo) recusa texto MULTILINHA quando
+  `term.modes.bracketedPasteMode !== true` ou em painel de terminal: sem esse modo o `term.paste`
+  entrega cada quebra como `\r`, e num shell (o Claude saiu, o painel voltou ao `cmd.exe`) cada
+  linha seria EXECUTADA — um `> trecho` do prompt viraria redirecionamento e criaria arquivo. A TUI
+  do Claude liga o modo sozinha. Texto de uma linha (o pedido de revisao) nao passa pela trava, e e
+  por isso que o `teste:revisao` continua colando num `cmd.exe`.
+- **Achar a sessao nao e so `painelEm`**: o painel aberto por `claude -w` nasce com o cwd na RAIZ, e
+  e a sessao que migra. `painelDaWorktree` tenta `painelEm(caminho)` e, depois, painel com cwd na
+  raiz e `feature === <nome da pasta>` — a convencao do `-w`, onde o slug e as duas coisas.
+- **Sem painel**, abre um pelo `OrqProjetos.retomar` com `claude -c` + `--prefill-b64` (sonda do CLI
+  e `prefillCabe`, como no `abrir-externo.js`); sem a flag ou sem caber na linha, abre igual e copia
+  o prompt para a area de transferencia. Painel dormindo vira toast: despertar com prefill exigiria
+  mexer no `despertar()`.
+- **O Esc dos overlays e tratado em captura na `window`** (`casca.js`), antes de qualquer ouvinte da
+  textarea. Por isso a distincao mora no callback que o `diff.js` registra no `OrqOverlays`: com a
+  caixa aberta, Esc cancela o comentario e o overlay fica.
+- **O rascunho nao persiste**, e o main sabe do total (`diff:rascunho`, enviado a cada mudanca e
+  zerado quando a janela carrega): o dialogo de fechar passou a perguntar tambem quando so ha
+  comentario nao colado.
+- `npm run teste:diff-comentar`: o painel que recebe a colagem roda um `node` que so consome a
+  entrada, e o teste liga o bracketed paste escrevendo `\x1b[?2004h` no xterm. O caminho "sem
+  painel" troca o `COMANDO_RETOMAR` por `echo claude -c` e decodifica o base64 do buffer.
 
 ## O mapa
 

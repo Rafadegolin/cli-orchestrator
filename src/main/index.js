@@ -139,6 +139,14 @@ const CORES_TITULO = {
 // aplicar atualizacao pediria confirmacao no meio do reinicio.
 let fechamentoAutorizado = false;
 
+// Comentarios do diff ainda nao colados no agente. Quem sabe e a janela; ela
+// avisa a cada mudanca, e o dialogo de fechar le daqui.
+let rascunhoDiff = 0;
+ipcMain.on('diff:rascunho', (_e, total) => {
+  rascunhoDiff = Math.max(0, Math.floor(Number(total) || 0));
+});
+ipcMain.handle('diff:rascunho', () => rascunhoDiff);
+
 function criarJanela() {
   // Le o tema ANTES de criar a janela: comecar sempre no escuro faria o tema
   // claro piscar preto no arranque, e a cor dos botoes de janela nao pode ser
@@ -205,7 +213,16 @@ function criarJanela() {
     if (fechamentoAutorizado) return;
 
     const rodando = estado.todas().filter((s) => s.status === 'rodando').length;
-    if (rodando === 0) return;
+    // O rascunho de comentarios do diff vive so na janela e nao persiste:
+    // fechar com comentario nao colado o perderia calado.
+    if (rodando === 0 && rascunhoDiff === 0) return;
+
+    const partes = [];
+    if (rodando) partes.push(`${rodando} ${rodando === 1 ? 'sessao esta' : 'sessoes estao'} rodando agora.`);
+    if (rascunhoDiff) {
+      partes.push(`${rascunhoDiff} ${rascunhoDiff === 1
+        ? 'comentario do diff ainda nao foi colado' : 'comentarios do diff ainda nao foram colados'}.`);
+    }
 
     ev.preventDefault();
     dialog.showMessageBox(janela, {
@@ -214,8 +231,9 @@ function criarJanela() {
       defaultId: 1,
       cancelId: 1,
       title: 'Fechar o orquestrador',
-      message: `${rodando} ${rodando === 1 ? 'sessao esta' : 'sessoes estao'} rodando agora.`,
-      detail: 'Fechar interrompe todas elas.\n\n'
+      message: partes.join(' '),
+      detail: (rodando ? 'Fechar interrompe todas as sessoes.\n\n' : '')
+        + (rascunhoDiff ? 'Os comentarios do diff nao sao guardados e se perdem ao fechar.\n\n' : '')
         + 'O arranjo de painéis fica salvo: ao reabrir, eles voltam com um botao de retomar.',
     }).then(({ response }) => {
       if (response === 0) {

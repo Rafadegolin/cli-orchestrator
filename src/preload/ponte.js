@@ -56,6 +56,10 @@ contextBridge.exposeInMainWorld('orq', {
   worktreesArquivar: (projeto, caminho, confirmar = true) =>
     ipcRenderer.invoke('worktrees:arquivar', { projeto, caminho, confirmar }),
   worktreesDiff: (projeto, caminho) => ipcRenderer.invoke('worktrees:diff', { projeto, caminho }),
+  // Quantos comentarios do diff ainda nao foram colados: o rascunho nao
+  // persiste, e o dialogo de fechar o app precisa saber disso.
+  rascunhoDiff: (total) => ipcRenderer.send('diff:rascunho', Number(total) || 0),
+  rascunhoDiffNoMain: () => ipcRenderer.invoke('diff:rascunho'),
   worktreesTamanhos: (caminhos) => ipcRenderer.invoke('worktrees:tamanhos', caminhos),
   worktreesArquivarVarias: (projeto, caminhos, confirmar = true) =>
     ipcRenderer.invoke('worktrees:arquivarVarias', { projeto, caminhos, confirmar }),

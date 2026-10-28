@@ -217,6 +217,28 @@ const TODAS_SECOES = [
     ],
   },
   {
+    id: 'diff',
+    titulo: 'Comentar o diff para o agente',
+    blocos: [
+      p('Clicar na etiqueta de uma worktree mostra o diff: o que a sessão mudou desde que saiu da '
+        + 'base, um arquivo por vez.'),
+      lista([
+        '<b>Clicar numa linha</b> abre uma caixa de comentário; <b>Shift+clique</b> em outra linha '
+          + 'do mesmo arquivo pega o intervalo. <b>Enter</b> salva, <b>Shift+Enter</b> quebra a '
+          + 'linha e <b>Esc</b> cancela só o comentário.',
+        'Os comentários se acumulam num rascunho daquela worktree, que sobrevive a fechar e reabrir '
+          + 'o diff. Clicar num comentário edita ou remove.',
+        '<b>Colar no agente</b> junta tudo num pedido só — arquivo, linha e o trecho citado — e cola '
+          + 'na caixa do Claude daquela worktree <b>sem enviar</b>. O Enter continua sendo seu.',
+        'Sem sessão aberta na worktree, o app abre uma continuando a última conversa dali, já com '
+          + 'o pedido na caixa.',
+      ]),
+      aviso('O rascunho não é guardado: fechar o app com comentário não colado pede confirmação. '
+        + 'E o app não cola numa sessão esperando uma resposta, nem num painel onde o Claude não '
+        + 'está aberto — ali cada linha do pedido viraria um comando do shell.'),
+    ],
+  },
+  {
     id: 'env',
     titulo: 'Arquivos que o worktree não leva',
     blocos: [
