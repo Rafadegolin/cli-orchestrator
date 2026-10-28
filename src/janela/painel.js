@@ -273,8 +273,19 @@ class Painel {
     // xterm e para o cabecalho e o botao Aprovar nao entrarem nisso. O mouseup
     // e ouvido na janela (`soltarArrastos`), porque o autoscroll do xterm
     // leva o ponteiro para fora do painel.
+    //
+    // SO quando quem seleciona e o xterm. Com o rastreamento de mouse ligado (o
+    // TUI do Claude liga), o xterm repassa o arrasto ao PTY e o PROGRAMA desenha
+    // o realce e a rolagem -- como saida. Reter ali congelava a selecao e o
+    // scroll ate soltar o botao. Shift (Alt no macOS, se a opcao deixar) forca
+    // a selecao do xterm mesmo com o mouse do programa: a regra e a mesma do
+    // `shouldForceSelection` dele.
     this.elTerm.addEventListener('mousedown', (ev) => {
-      if (ev.button === 0) this.segurarSelecao();
+      if (ev.button !== 0) return;
+      const forcada = window.OrqShell?.EH_MAC
+        ? ev.altKey && this.term.options.macOptionClickForcesSelection
+        : ev.shiftKey;
+      if (this.term.modes.mouseTrackingMode === 'none' || forcada) this.segurarSelecao();
     }, true);
     this.term.onSelectionChange(() => {
       // Durante o arrasto a selecao muda o tempo todo, inclusive vazia no

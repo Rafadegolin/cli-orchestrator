@@ -285,12 +285,34 @@ async function ate(fn, cond, ms = 10000) {
     p.textoDaTela({ flush: true });
     const furou = !p.segurando && !p.arrastando;
     window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
-    return JSON.stringify({ durante, escondido, soltouSemSelecao, seguraComSelecao, soltouAoLimpar, furou });
+
+    // 4. com o mouse do PROGRAMA (o TUI do Claude), quem desenha a selecao e
+    //    a rolagem e a saida -- reter congelava as duas ate soltar.
+    p.escreverBytes(enc('\\x1b[?1002h'));
+    for (let i = 0; i < 40 && p.term.modes.mouseTrackingMode === 'none'; i++) await pausa(25);
+    const rastreando = p.term.modes.mouseTrackingMode;
+    p.elTerm.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+    const naoSegurouComMouse = !p.segurando;
+    p.escreverBytes(enc('ORQSEGURA4\\r\\n'));
+    await pausa(150);
+    const passouNaHora = tem('ORQSEGURA4');
+    window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+    // Shift forca a selecao do xterm: ai a retencao volta a valer.
+    p.elTerm.dispatchEvent(new MouseEvent('mousedown', { button: 0, shiftKey: true, bubbles: true }));
+    const segurouComShift = p.segurando;
+    window.dispatchEvent(new MouseEvent('mouseup', { button: 0 }));
+    p.escreverBytes(enc('\\x1b[?1002l'));
+    await pausa(100);
+    return JSON.stringify({ durante, escondido, soltouSemSelecao, seguraComSelecao, soltouAoLimpar, furou,
+      rastreando, naoSegurouComMouse, passouNaHora, segurouComShift });
   })()`));
   checar('arrastar no terminal segura a saida', segura.durante === true && segura.escondido === true, JSON.stringify(segura));
   checar('soltar sem selecao entrega a saida na hora', segura.soltouSemSelecao === true, JSON.stringify(segura));
   checar('com selecao, segura ate ela sumir', segura.seguraComSelecao === true && segura.soltouAoLimpar === true, JSON.stringify(segura));
   checar('ler a tela para decidir solta a retencao', segura.furou === true, JSON.stringify(segura));
+  checar('com o mouse do programa, nada e retido', segura.rastreando !== 'none'
+    && segura.naoSegurouComMouse === true && segura.passouNaHora === true, JSON.stringify(segura));
+  checar('Shift forca a selecao do xterm e volta a reter', segura.segurouComShift === true, JSON.stringify(segura));
 
   await zerarGrade(cdp);
   encerrar('COPIAR');

@@ -2222,6 +2222,10 @@ mais, dai o "as vezes".
 - Soltou **sem** selecao: entrega na hora. **Com** selecao: segura ate ela sumir (copiar, clicar,
   digitar — `onSelectionChange`/`onData`) ou ate **10s**; o arrasto em si tem teto de 30s. Nunca
   para sempre: terminal congelado por selecao esquecida esconderia um pedido de permissao.
+- **So retem quando a selecao e DO XTERM** (`term.modes.mouseTrackingMode === 'none'`, ou Shift —
+  Alt no macOS — forcando a selecao dele). Com o Claude rodando, o TUI liga o rastreamento de
+  mouse: o xterm repassa o arrasto ao PTY e e o **programa** que pinta o realce e rola — como
+  saida. Reter ali foi a regressao relatada: a selecao e o scroll so apareciam ao soltar o botao.
 - **Quem le a tela para DECIDIR fura a retencao** (`textoDoBuffer`, `textoDaTela({ flush })`): ali
   texto certo vale mais que selecao. O farejador (sem flush) nao fura — le a tela velha por ate 10s.
 - Estourar os 200 KB durante a retencao **solta** em vez de descartar: perder saida de um painel a
