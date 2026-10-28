@@ -2234,11 +2234,51 @@ button.primario:hover {
 /* O ultimo bloco nao precisa da folga de baixo: a nota vem logo depois. */
 .uso-bloco:last-of-type .uso-grande { margin-bottom: 10px; }
 
-.historico-tabela td:first-child { font-family: var(--ui); }
+/* O `nowrap` da primeira coluna vem da tabela da ajuda, onde ela guarda teclas.
+   Aqui ela guarda nome de feature, que pode ser comprido: sem quebrar, a tabela
+   passava da caixa e ganhava rolagem horizontal. As duas classes no seletor
+   NAO sao redundancia: `.ajuda-tabela td:first-child` tem o mesmo peso e vem
+   depois no arquivo, entao com uma so o `nowrap` dela vencia. */
+.ajuda-tabela.historico-tabela td:first-child {
+  font-family: var(--ui);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 
 .historico-feature { font-weight: 600; color: var(--fg); }
 .historico-num { font-family: var(--mono); font-size: 11.5px; white-space: nowrap; }
 .historico-espera { color: var(--warn); }
+
+.historico-titulo {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+/* A tabela por feature vem depois da linha de base: o titulo dela precisa de ar. */
+.historico-dias + .historico-titulo { margin-top: 22px; }
+
+.historico-chips {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.historico-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg2);
+}
+
+.historico-chip-rotulo { font-size: 11px; color: var(--fg3); }
+.historico-chip b { font-size: 15px; font-weight: 600; color: var(--fg); }
+.historico-chip b.historico-espera { color: var(--warn); }
 
 .historico-vazio, .historico-nota {
   margin: 14px 0 0 0;

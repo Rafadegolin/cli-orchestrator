@@ -25,8 +25,8 @@ worktree — ate entao isso era sempre do `claude -w`.
 Ali ja esta levantado o que o CLI oferece para isso: `--add-dir` como flag **e** `/add-dir` como
 comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma delas.
 
-**Proximo passo: a Fase 10** (`docs/fase-10-proximos-passos.md`), planejada e **ainda nao
-iniciada**. Ver a secao "Proximos passos" logo abaixo.
+**Em andamento: a Fase 10** (`docs/fase-10-proximos-passos.md`). O 10.7 (metricas) esta feito; o
+proximo e o 10.1. Ver a secao "Proximos passos" logo abaixo.
 
 ## Proximos passos: Fase 10
 
@@ -36,8 +36,8 @@ do proprio CLI; o raciocinio, os riscos e as decisoes em aberto de cada item est
 
 Ordem combinada:
 
-1. **10.7 Metricas** sobre o `historico.jsonl` (tempo esperando voce por dia, tempo de resposta, de
-   `terminou` ate integrado). Vem primeiro porque cria a **linha de base** antes do resto.
+1. ~~**10.7 Metricas**~~ **feito**: linha de base por dia no overlay do historico (ver "A linha de
+   base por dia", na secao do historico).
 2. **10.1 Comentario por linha no diff**, colado no agente sem Enter (`term.paste`, as recusas do
    botao Revisao; sem painel aberto, `claude -c` com `--prefill-b64`).
 3. **10.2 Scripts `setup`/`run`/`arquivar` por projeto.** O `setup` vai com separador
@@ -843,6 +843,38 @@ append-only**.
 - Uma passagem so: `estado.js` ja e o ponto unico por onde toda transicao vai, entao o historico
   pendura ali (`anotar`) e nao precisa observar mais nada.
 - Abre clicando no **placar da lateral** — que ja resume o *agora* e leva ao *ao longo do tempo*.
+
+### A linha de base por dia (Fase 10.7)
+
+`historico.metricas()`, no topo do mesmo overlay: espera por dia, tempo de resposta, sessoes e
+features, e integradas, nos ultimos `DIAS_METRICAS` (14) dias. Existe para a Fase 10 ter um
+**antes**: sem ele, nao da para dizer depois se o 10.1-10.6 ajudaram. Calcula ao abrir o overlay;
+**nenhum relogio novo**.
+
+- **"Integrado" e o arquivar com sucesso**, gravado como uma linha `{ tipo: 'fechou' }` no mesmo
+  JSONL (`anotarIntegrada` nos dois handlers de arquivar do `index.js`). E prova LOCAL de merge: o
+  portao do `podeArquivar` ja exige zero commits fora da base. O `remoto.js` ficou de fora de
+  proposito: "mesclado no servidor" sem arquivar e ambiguo, e custaria git a cada ciclo.
+  - **`fechou` nao e transicao**: leva `tipo` e nao `para`, e os lacos de intervalo o pulam. O `id`
+    (`fechou:<projeto>/<feature>`) so existe porque o `ler()` descarta linha sem id.
+  - A chave tem de casar com a das transicoes: projeto pelo MESMO `projetos.donoDe(...)?.nome` do
+    `estado.anotar`, e feature = nome da pasta da worktree = slug = `painel.feature`.
+- **Lead time parte do ULTIMO `terminou`** antes do `fechou` (decisao de quem pediu): mede a cauda
+  (revisao, PR, merge), que e o que o 10.1 e o 10.3 querem encurtar, e nao o retrabalho com o
+  agente. Sem `terminou` antes (worktree anterior ao historico, o lado convidado de uma dupla), conta
+  como integrada com lead `null` — subcontar.
+- **Resposta e so o episodio `esperando` que termina NOUTRO status.** Fechar o painel com a sessao
+  esperando e abandono: soma no tempo esperando (a espera foi real), mas fica fora da resposta. A
+  tela destaca a **mediana**, porque uma espera esquecida no almoco arrasta a media do dia.
+- A espera conta no dia em que o **intervalo comecou**; atravessar a meia-noite e raro, e repartir
+  exigiria aritmetica de fuso. O dia e LOCAL (`diaLocal`), e o `diaDe` e injetavel para o teste nao
+  depender do fuso da maquina. No renderer, `rotuloDia` le a chave como data local tambem —
+  `new Date('2026-01-05')` seria meia-noite UTC, ou seja o dia anterior no Brasil.
+- `historico.js` tinha um **byte NUL literal** no separador do `chave()`, e o Edit/Write recusam
+  arquivo assim. Virou o escape `\u0000` no fonte: o valor em tempo de execucao e o mesmo.
+- O `nowrap` da primeira coluna da tabela vem da `.ajuda-tabela` (onde ela guarda teclas), e com
+  nome de feature comprido a tabela passava da caixa. A regra que o desliga precisa das DUAS classes:
+  com uma so ela empata em peso e perde por ordem no arquivo.
 
 ## Diff dentro do app
 

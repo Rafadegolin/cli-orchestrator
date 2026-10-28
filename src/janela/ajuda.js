@@ -159,6 +159,12 @@ const TODAS_SECOES = [
       ]),
       p('A lista de SESSÕES segue a mesma ordem da grade, e o placar no alto mostra quantas sessões '
         + 'estão vivas e quanto do processador o app está usando.'),
+      p('Clicar no placar abre o <b>histórico</b>. No topo fica a linha de base dos últimos '
+        + '{diasMetricas} dias: quanto tempo as sessões ficaram <b>esperando você</b>, quanto você '
+        + 'leva para <b>responder</b> (a mediana; fechar o painel com a sessão esperando não conta '
+        + 'como resposta) e quantas features foram <b>integradas</b>, com o tempo do último '
+        + '<b>terminou</b> até o arquivar. Integrada é a worktree arquivada pelo app, que só '
+        + 'arquiva o que já está na base. Embaixo vem o tempo de cada feature.'),
     ],
   },
   {

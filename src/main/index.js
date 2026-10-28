@@ -645,6 +645,7 @@ ipcMain.handle('worktrees:arquivarVarias', async (evento, { projeto, caminhos, c
   const r = await worktrees.arquivarVarias(projeto, aptas.map((w) => w.caminho), {
     aoProgresso: (p) => { if (vivo()) dono.webContents.send('worktrees:progresso', p); },
   });
+  for (const a of r.arquivadas) anotarIntegrada(projeto, a.nome);
   // As recusas da triagem e as da execucao contam a mesma historia para quem
   // esta olhando: uma lista so.
   return { ...r, recusadas: [...recusadas, ...r.recusadas] };
@@ -699,8 +700,18 @@ ipcMain.handle('worktrees:arquivar', async (_e, { projeto, caminho, confirmar = 
     if (response !== 0) return { ok: false, motivo: 'cancelado', texto: '' };
   }
 
-  return worktrees.arquivar(projeto, caminho);
+  const r = await worktrees.arquivar(projeto, caminho);
+  if (r.ok) anotarIntegrada(projeto, r.nome);
+  return r;
 });
+
+// Arquivar com sucesso e o "integrado" das metricas do historico: o portao do
+// `podeArquivar` ja exigiu zero commits fora da base. O nome do projeto sai do
+// MESMO `donoDe` que o `estado.anotar` usa, senao a chave nao casaria com as
+// transicoes da feature. E a pasta da worktree e o slug, que e o `feature`.
+function anotarIntegrada(projeto, nome) {
+  historico.fechou({ feature: nome, projeto: projetos.donoDe(projeto)?.nome || '' });
+}
 
 // Cria arquivo novo no repositorio do usuario -- vai aparecer no git status
 // dele, entao sempre pergunta antes.
@@ -764,6 +775,7 @@ ipcMain.handle('app:constantes', () => ({
   arquivoHooks: instalarHooks.ARQ_SETTINGS,
   minutosUso: Math.round(uso.MS_ENTRE / 60000),
   minutosBusca: Math.round(remoto.MS_ENTRE / 60000),
+  diasMetricas: historico.DIAS_METRICAS,
   // Os rotulos de tecla seguem a mesma regra dos numeros: saem do codigo, e nao
   // digitados no texto. Sem isto a ajuda diria "Ctrl" para quem so tem ⌘.
   mod: plataforma.EH_MAC ? '⌘' : 'Ctrl',
@@ -797,6 +809,7 @@ ipcMain.handle('ui:salvar', (_e, parcial) => {
 ipcMain.handle('app:metricas', () => metricas.agora());
 
 ipcMain.handle('historico:resumo', () => historico.resumo());
+ipcMain.handle('historico:metricas', () => historico.metricas());
 
 // Os quatro numeros do medidor do topo. `detalhe` traz junto a tabela por
 // projeto, que e grande e so o overlay precisa.

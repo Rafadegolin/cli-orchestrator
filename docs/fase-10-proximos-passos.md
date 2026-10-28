@@ -296,6 +296,9 @@ skill pede confirmação como a dos hooks.
 
 ## 10.7 Métricas de produtividade
 
+> **Feito.** "Integrado" = arquivar com sucesso (linha `fechou` no JSONL), e o lead time parte do
+> **último** `terminou`. As decisões e os detalhes estão no CLAUDE.md, seção do histórico.
+
 "Aumentar a produtividade de verdade" sem número é opinião. O `historico.jsonl` já grava toda
 transição com feature, projeto e horário (`CONTAM` já inclui `esperando`); falta a agregação.
 

@@ -111,6 +111,8 @@ const textoDaAjuda = `(() => document.getElementById('ajuda-corpo').textContent)
     conteudo.includes(`${real.minutosBusca} minutos`), `codigo diz ${real.minutosBusca}`);
   checar('o intervalo do medidor de uso confere',
     conteudo.includes(`${real.minutosUso} minutos`), `codigo diz ${real.minutosUso}`);
+  checar('a janela da linha de base do historico confere',
+    conteudo.includes(`últimos ${real.diasMetricas} dias`), `codigo diz ${real.diasMetricas}`);
 
   // Nenhum marcador de substituicao pode ter escapado para a tela.
   const sobrou = (conteudo.match(/\{[a-zA-Z]+\}/g) || []);

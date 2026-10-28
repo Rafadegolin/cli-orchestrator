@@ -1243,6 +1243,8 @@ async function arrastarAlca(cdp, id, dx, dy) {
     tabela: Boolean(document.querySelector('.historico-tabela')),
     vazio: Boolean(document.querySelector('.historico-vazio')),
     colunas: [...document.querySelectorAll('.historico-tabela th')].map(t => t.textContent),
+    dias: document.querySelectorAll('.historico-dias tbody tr').length,
+    chips: document.querySelectorAll('.historico-chip').length,
   })`));
   checar('o historico abre e mostra tabela ou o aviso de vazio',
     hist.visivel && (hist.tabela || hist.vazio), JSON.stringify(hist));
@@ -1265,6 +1267,10 @@ async function arrastarAlca(cdp, id, dx, dy) {
     checar('com as colunas que respondem "valeu a pena?"',
       hist.colunas.includes('Trabalhando') && hist.colunas.includes('Esperando você')
       && hist.colunas.includes('Interrupções'), hist.colunas.join(' | '));
+    // A linha de base da Fase 10 (10.7): um dia por linha, inclusive os zerados.
+    checar('e a linha de base por dia, com os quatro numeros no topo',
+      hist.dias === 14 && hist.chips === 4 && hist.colunas.includes('Terminou → integrado'),
+      `${hist.dias} dias, ${hist.chips} chips`);
   }
   await cdp.avaliar(`window.OrqHistorico.fechar()`);
 
