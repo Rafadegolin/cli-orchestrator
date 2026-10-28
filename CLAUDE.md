@@ -25,6 +25,40 @@ worktree — ate entao isso era sempre do `claude -w`.
 Ali ja esta levantado o que o CLI oferece para isso: `--add-dir` como flag **e** `/add-dir` como
 comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma delas.
 
+**Proximo passo: a Fase 10** (`docs/fase-10-proximos-passos.md`), planejada e **ainda nao
+iniciada**. Ver a secao "Proximos passos" logo abaixo.
+
+## Proximos passos: Fase 10
+
+O app resolve bem **para onde olhar** (atender). O que falta e **fechar** (de "o agente terminou" ate
+codigo integrado) e **despachar em escala**. Saiu de um estudo do Orca, do Conductor e do Agent View
+do proprio CLI; o raciocinio, os riscos e as decisoes em aberto de cada item estao no documento.
+
+Ordem combinada:
+
+1. **10.7 Metricas** sobre o `historico.jsonl` (tempo esperando voce por dia, tempo de resposta, de
+   `terminou` ate integrado). Vem primeiro porque cria a **linha de base** antes do resto.
+2. **10.1 Comentario por linha no diff**, colado no agente sem Enter (`term.paste`, as recusas do
+   botao Revisao; sem painel aberto, `claude -c` com `--prefill-b64`).
+3. **10.2 Scripts `setup`/`run`/`arquivar` por projeto.** O `setup` vai com separador
+   INCONDICIONAL antes do `claude` -- com `&&`, setup que falha deixa a bolinha verde para sempre. O
+   painel de `run` tem de herdar o bloco de portas da sessao.
+4. **10.3 Git, PR e CI no cabecalho**, e o estado "pronto para revisar". CI vermelho **nao** e
+   `esperando`: o amarelo continua significando so "pergunta te bloqueando". Sem relogio novo, sem
+   `gh`, e abrir PR pela URL `compare/...?expand=1`, que dispensa token.
+5. **10.5 Scrollback persistente** (ultimas ~500 linhas, `@xterm/addon-serialize` pinado sem `^` --
+   a mesma armadilha de versao do `addon-webgl`).
+6. **10.4 Inbox de issues do Flow**, abrindo pelo MESMO caminho do `/abrir`. Bloqueado por endpoint e
+   autenticacao do lado do Flow -- o contrato e deles.
+7. **10.6 Rotas `/orq/*` + skill de orquestracao via `curl`**: um Claude coordenador cria e acompanha
+   workers. Recusa **qualquer** `Origin` (pagina web nunca tem motivo para chamar), profundidade 1,
+   toda partida pela `OrqFila`. **Spike antes de codigo.**
+
+Ficaram de fora de proposito: suportar outros agentes, navegador embutido, app de celular proprio
+(o Remote Control nativo cobre) e best-of-N (adiado; fica barato depois do 10.1). A regra da fase:
+**montar em cima do que o CLI oferece, nunca competir com ele** -- o Agent View (`claude agents`) ja
+absorve a "lista de sessoes".
+
 ## Comandos
 
 ```
