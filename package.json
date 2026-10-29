@@ -49,6 +49,7 @@
     "teste:aprovacao": "node testes/aprovacao.js",
     "teste:aprovacao-reais": "node testes/aprovacao-reais.js",
     "spike:aprovacao": "node testes/spike-aprovacao.js",
+    "spike:orquestracao": "node testes/spike-orquestracao.js",
     "perfil": "powershell -NoProfile -ExecutionPolicy Bypass -File testes/perfil.ps1",
     "diagnostico": "powershell -NoProfile -ExecutionPolicy Bypass -File testes/diagnostico-assinatura.ps1",
     "teste:abrir": "node testes/abrir.js",

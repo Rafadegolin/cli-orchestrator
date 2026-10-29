@@ -47,7 +47,8 @@ Ordem combinada:
 6. ~~**10.4 Inbox de issues do Flow**~~ **feito**: ver "A inbox do Flow".
 7. **10.6 Rotas `/orq/*` + skill de orquestracao via `curl`**: um Claude coordenador cria e acompanha
    workers. Recusa **qualquer** `Origin` (pagina web nunca tem motivo para chamar), profundidade 1,
-   toda partida pela `OrqFila`. **Spike antes de codigo.**
+   toda partida pela `OrqFila`. **Spike feito** (ver "O que o spike do 10.6 mediu"): a skill basta,
+   o teto do long-poll e 90s, e as agent teams nativas nao substituem nada aqui. Codigo e o proximo.
 
 Ficaram de fora de proposito: suportar outros agentes, navegador embutido, app de celular proprio
 (o Remote Control nativo cobre) e best-of-N (adiado; fica barato depois do 10.1). A regra da fase:
@@ -920,6 +921,36 @@ intacto. O botao mora no rodape da LATERAL, e nao na `#barra`: la ele cobraria a
 `npm run teste:inbox` (Node puro, `fetch` falso, inclusive provando que nenhum erro carrega o token)
 e `npm run teste:inbox-ui` (um Flow falso em `127.0.0.1`, conectar com token errado e certo, filtros,
 abrir ate o `--prefill-b64` no buffer, abrir de novo sem segundo painel, token revogado).
+
+## O que o spike do 10.6 mediu
+
+`npm run spike:orquestracao` (`testes/spike-orquestracao.js`), contra o CLI **2.1.312**, numa pasta
+descartavel com um servidor falso no lugar das rotas `/orq/*`. Consome tokens (~US$ 1,5 a rodada
+inteira). `spawn` assincrono de proposito: com `spawnSync` o servidor falso, que roda no mesmo
+processo, nunca responderia o `curl`. Resultado cru em `%TEMP%\orq-spike-orquestracao\resultado.json`.
+
+**A. Long-poll pela ferramenta Bash.** No binario: `var a=120000,s=600000` -- padrao de **120s**,
+teto de **600s** quando o modelo pede `timeout`. Vivo: 20s passa sem nada; com 150s o modelo **subiu
+o `timeout` para 200s sozinho, nas duas corridas** (com e sem aviso), e o `curl` chegou ao fim. Ele
+deduziu do `?s=150` na URL -- no `/orq/esperar` real nao havera numero assim para ler. **Decisao: o
+`esperar` segura no maximo 90s e a skill chama em laco.** Nao depende de o modelo acertar o `timeout`.
+
+**B. A skill basta, sem executavel `orq`.** Duas rodadas de "divida em tres e despache": nas duas,
+**3 `criar` com corpo valido e `content-type: application/json`, 3 `esperar`, 3 `diff`, zero rota
+inventada**, zero long-poll cortado; 50-70s e US$ 0,27-0,36 por rodada. A skill de escopo de
+PROJETO (`<pasta>/.claude/skills/`) e achada e usada (`Skill` aparece nas duas). Bonus que importa:
+nas duas o modelo **desconfiou** do diff falso (tres resumos identicos `+42 -3`) e disse isso em vez
+de relatar sucesso -- o `/orq/diff` real tem de ser o diff de verdade da worktree, nunca um resumo.
+
+**C. Agent teams nativas: nao substituem o 10.6.** O portao no binario nao tem teste de plataforma
+(`$o(){if(!env.CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS&&!argv("--agent-teams"))return!1;
+if(!E("tengu_amber_flint",!0))...}`), e sem tmux/iTerm2 o backend cai para teammate em processo.
+Mas, MEDIDO no `-p`: **com a env ligada a sessao tem exatamente as mesmas 84 ferramentas** que sem
+ela -- nenhuma `TeamCreate`/`Teammate*`. Pedida uma equipe, o modelo usou `Agent` com `name` e
+`run_in_background` (subagentes nomeados, enderecaveis por `SendMessage`), e os arquivos foram
+escritos pelos delegados. Isso ja existe sem flag nenhuma e roda **dentro de uma sessao so**: sem
+painel, sem worktree, sem hook por worker, sem fila -- exatamente o que o 10.6 entrega e o app sabe
+mostrar. Nao medido: se a TUI interativa expoe as teams (o rollout `tengu_amber_flint` e do servidor).
 
 ## O mapa
 

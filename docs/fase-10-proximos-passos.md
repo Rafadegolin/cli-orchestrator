@@ -310,7 +310,14 @@ motivo legítimo para chamar `/orq/*`**. Portanto: `Host` de loopback, POST com
 O interruptor `externo` não cobre isto; ganha o seu próprio, desligado por padrão, e a instalação da
 skill pede confirmação como a dos hooks.
 
-### Spike antes de qualquer código (a medir)
+### Spike antes de qualquer código
+
+> **Medido** (`npm run spike:orquestracao`, CLI 2.1.312): o Bash do CLI corta em 120s por padrão
+> (teto 600s com `timeout`), então o `esperar` segura no máximo **90s** e a skill chama em laço; a
+> skill de projeto foi seguida nas duas rodadas (3 `criar` válidos, 3 `esperar`, zero rota
+> inventada), então **não precisa de executável `orq`**; e a env das agent teams, no `-p`, não
+> acrescenta ferramenta nenhuma: o que existe são subagentes nomeados dentro de uma sessão só, que
+> não substituem workers visíveis em painéis. Detalhes no CLAUDE.md, "O que o spike do 10.6 mediu".
 
 - O timeout padrão da ferramenta Bash do CLI corta um long-poll longo: medir, e definir o `esperar`
   com teto abaixo dele, em laço.
@@ -356,7 +363,7 @@ mentir para cima.
    decidida.
 5. **10.5 Scrollback** — independente; pode entrar em paralelo a qualquer um.
 6. ~~**10.4 Inbox do Flow**~~ — **feito**.
-7. **10.6 CLI `orq`** — spike primeiro, código só depois de o spike responder as três perguntas.
+7. **10.6 Rotas `/orq/*` + skill** — spike **feito**; o código é o próximo passo.
 
 ## Decisões em aberto
 
@@ -367,7 +374,7 @@ mentir para cima.
 | ~~10.3~~ | **decidido:** `git credential fill`, sem janela, lido na hora e descartado |
 | ~~10.4~~ | **decidido:** token pessoal no Flow (`ApiToken`), cifrado aqui pelo `safeStorage` |
 | ~~10.5~~ | **decidido:** `addon-serialize@0.13.0`, o par do xterm 5.5.0 |
-| 10.6 | teto do long-poll frente ao timeout do Bash do CLI |
+| ~~10.6~~ | **decidido:** `esperar` com teto de 90s em laço; skill via `curl`, sem executável `orq` |
 
 ## Fontes do estudo
 
