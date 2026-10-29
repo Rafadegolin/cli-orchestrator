@@ -128,10 +128,16 @@
     const ta = document.createElement('textarea');
     ta.className = 'notas-texto';
     ta.spellcheck = false;
-    ta.wrap = 'off';
     ta.placeholder = 'Escreva aqui. O texto é guardado sozinho e volta quando você reabrir o bloco.';
 
-    raiz.append(barra, busca, ta);
+    // A textarea quebra na largura do painel, entao linha de texto nao e linha
+    // na tela. A busca mede a altura do texto ate o achado neste espelho, que
+    // copia fonte, padding e largura da textarea.
+    const espelho = document.createElement('div');
+    espelho.className = 'notas-texto notas-espelho';
+    espelho.setAttribute('aria-hidden', 'true');
+
+    raiz.append(barra, busca, ta, espelho);
     painel.elTerm.replaceChildren(raiz);
 
     // ---------------------------------------------- abas
@@ -302,17 +308,24 @@
       busca.classList.toggle('sem-achado', Boolean(termo) && !achados.length);
     }
 
-    // Seleciona no textarea e rola ate a linha. Com `wrap="off"` a conta de
-    // linha e exata: uma linha de texto e uma linha na tela.
+    // Seleciona no textarea e rola ate o achado. Com a quebra automatica uma
+    // linha de texto pode ocupar varias na tela, entao a conta `linha x
+    // line-height` erraria: quem diz o topo e o espelho, com o texto ate ali.
     function irPara(i) {
       if (!achados.length) return;
       atual = (i + achados.length) % achados.length;
       const ini = achados[atual];
       const fim = ini + campo.value.length;
       ta.setSelectionRange(ini, fim);
-      const linha = ta.value.slice(0, ini).split('\n').length - 1;
-      const alturaLinha = parseFloat(getComputedStyle(ta).lineHeight) || 18;
-      ta.scrollTop = Math.max(0, linha * alturaLinha - ta.clientHeight / 2);
+      espelho.style.width = `${ta.clientWidth}px`;
+      // O caractere invisivel no fim faz existir a linha que um `\n` final
+      // abre na textarea e num div nao abre.
+      espelho.textContent = ta.value.slice(0, ini) + '​';
+      const est = getComputedStyle(ta);
+      const alturaLinha = parseFloat(est.lineHeight) || 18;
+      const topo = espelho.scrollHeight - parseFloat(est.paddingBottom) - alturaLinha;
+      espelho.textContent = '';
+      ta.scrollTop = Math.max(0, topo - ta.clientHeight / 2);
       contador.textContent = `${atual + 1}/${achados.length}`;
     }
 

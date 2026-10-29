@@ -1796,6 +1796,18 @@ button.primario:hover {
   font-size: 13px;
   line-height: 1.5;
   tab-size: 4;
+  /* Quebra na largura do painel, inclusive URL ou palavra sem espaco. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* So mede a altura do texto ate o achado da busca (notas.js, irPara). */
+.notas-espelho {
+  position: absolute;
+  left: -99999px;
+  top: 0;
+  height: auto;
+  visibility: hidden;
+  pointer-events: none;
 }
 .notas-texto::placeholder { color: color-mix(in srgb, var(--termfg) 55%, transparent); }
 

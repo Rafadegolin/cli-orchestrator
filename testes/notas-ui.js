@@ -133,6 +133,51 @@ function hook(caminho, id, corpo) {
   await esperar(150);
   checar('Esc fecha a busca', await cdp.avaliar(`document.querySelector('.painel-notas .notas-busca').hidden === true`));
 
+  // ------------------------------------------------------------ quebra automatica
+
+  // Uma aba a parte, no fim: as outras secoes contam as abas pelo indice.
+  await cdp.avaliar(`document.querySelector('.painel-notas .notas-nova').click()`);
+  await esperar(200);
+  const paragrafo = 'integração do checkout com o CRM e ja levamos alguns dados para la '.repeat(12);
+  // A marca fica no MEIO, com texto de sobra depois: no fim, a rolagem parava
+  // no maximo e o teste passaria mesmo com a conta errada.
+  const p4 = `${paragrafo}\n${paragrafo}\n${paragrafo}\n${paragrafo}`;
+  await digitar(`${p4}\nhttps://exemplo.com/${'x'.repeat(400)}\n${p4}\n\nmeio QUEBRA-MARCA-77\n${p4}\n${p4}`);
+  await esperar(300);
+  const larg = JSON.parse(await cdp.avaliar(`(() => { const t = [...window.OrqPainel.painelPorId.values()].find((p) => p.ehNotas).notas.textarea; return JSON.stringify([t.scrollWidth, t.clientWidth, t.scrollHeight, t.clientHeight]); })()`));
+  checar('linha longa quebra na largura, sem rolagem horizontal', larg[0] <= larg[1], JSON.stringify(larg));
+  checar('e o texto quebrado passa bem da altura do painel (a busca tem o que rolar)', larg[2] > larg[3] * 3, JSON.stringify(larg));
+  await cdp.avaliar(`[...window.OrqPainel.painelPorId.values()].find((p) => p.ehNotas).notas.textarea.setSelectionRange(0, 0)`);
+  await cdp.avaliar(`[...window.OrqPainel.painelPorId.values()].find((p) => p.ehNotas).notas.textarea.scrollTop = 0`);
+  await focarTexto();
+  await tecla('f', 'KeyF', 2, 70);
+  await esperar(200);
+  await digitar('QUEBRA-MARCA');
+  await esperar(200);
+  await tecla('Enter', 'Enter', 0, 13);
+  await esperar(150);
+  // Onde a marca esta de verdade, medido sem o espelho do app: uma copia da
+  // textarea, com a mesma largura e altura zero, com o texto ate a linha da
+  // marca -- o scrollHeight dela e o fundo dessa linha.
+  const vis = JSON.parse(await cdp.avaliar(`(() => {
+    const t = [...window.OrqPainel.painelPorId.values()].find((p) => p.ehNotas).notas.textarea;
+    const c = t.cloneNode();
+    c.style.cssText = 'position:absolute;left:-99999px;height:0;width:' + t.offsetWidth + 'px';
+    t.parentNode.append(c);
+    const fimLinha = t.value.indexOf('\\n', t.value.indexOf('QUEBRA-MARCA'));
+    c.value = t.value.slice(0, fimLinha);
+    const est = getComputedStyle(t);
+    const marca = c.scrollHeight - parseFloat(est.paddingBottom) - parseFloat(est.lineHeight);
+    c.remove();
+    return JSON.stringify({ topo: t.scrollTop, alt: t.clientHeight, max: t.scrollHeight - t.clientHeight, marca });
+  })()`));
+  checar('a busca rola ate o achado no texto quebrado (e nao so ate o fim)',
+    vis.marca >= vis.topo && vis.marca <= vis.topo + vis.alt - 10 && vis.topo < vis.max - 50, JSON.stringify(vis));
+  await tecla('Escape', 'Escape', 0, 27);
+  await esperar(150);
+  await cdp.avaliar(`document.querySelectorAll('.painel-notas .notas-aba')[0].click()`);
+  await esperar(200);
+
   // ------------------------------------------------------------ teclas que nao podem vazar
 
   const dens = await cdp.avaliar(`document.getElementById('app').dataset.densidade`);

@@ -1028,8 +1028,13 @@ sabem que nao ha terminal. O `cwd` e a pasta de dados do app, que e o que passa 
   textarea). As teclas 1-4 ja tinham. Ctrl+F nao existia em lugar nenhum do app.
 - **Tab e o `insertText` usam `execCommand('insertText')`**, e nao o `value`: e o que mantem o
   Ctrl+Z. Renomear aba e inline, porque **o Electron nao implementa o `prompt()`** da janela.
-- A busca rola ate a linha pela conta `linha x line-height`, que so e exata porque a textarea e
-  `wrap="off"` -- uma linha de texto e uma linha na tela, como no editor que foi pedido.
+- **A textarea quebra na largura do painel** (`pre-wrap` + `overflow-wrap: anywhere`). Nasceu
+  `wrap="off"`, como no Sublime, e texto corrido virava uma linha infinita com rolagem horizontal --
+  foi pedido o contrario. A quebra e so visual: nenhum `\n` entra no texto.
+- Por isso a busca nao rola mais pela conta `linha x line-height` (linha de texto != linha na
+  tela): ela mede a altura do texto ate o achado num **espelho** (`.notas-espelho`, fora da tela,
+  mesma fonte, padding e largura), so no clique. O `​` no fim do espelho existe porque um `\n`
+  final abre linha na textarea e num div nao.
 
 ## Workers: uma sessao criando outras (Fase 10.6)
 
