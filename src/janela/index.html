@@ -143,6 +143,11 @@
           <span>Avisos</span>
           <span id="avisos-rotulo" class="mono">ligados</span>
         </button>
+        <!-- A paleta (Ctrl+K) tambem abre: com a lateral recolhida, e o caminho. -->
+        <button id="btn-inbox">
+          <span>Minhas issues</span>
+          <span class="mono">Flow</span>
+        </button>
         <button id="btn-ajuda">
           <span>Como usar</span>
           <span class="mono">F1</span>
@@ -279,6 +284,18 @@
         <button id="historico-fechar" title="Fechar (Esc)">&times;</button>
       </div>
       <div id="historico-corpo"></div>
+    </div>
+  </div>
+
+  <!-- A inbox do Pronix Flow (Fase 10.4). O corpo e montado pelo inbox.js:
+       ou o formulario de conectar, ou a lista. -->
+  <div id="inbox" class="overlay" hidden>
+    <div class="historico-caixa">
+      <div class="ajuda-topo">
+        <h2>Minhas issues</h2>
+        <button id="inbox-fechar" title="Fechar (Esc)">&times;</button>
+      </div>
+      <div id="inbox-corpo"></div>
     </div>
   </div>
 
@@ -553,6 +570,7 @@
 <script src="escolha-sessao.js"></script>
 <script src="dupla.js"></script>
 <script src="abrir-externo.js"></script>
+<script src="inbox.js"></script>
 <script src="navegar.js"></script>
 <script src="cor-projeto.js"></script>
 <script src="scripts-projeto.js"></script>

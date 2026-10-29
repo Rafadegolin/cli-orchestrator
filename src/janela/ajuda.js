@@ -29,6 +29,9 @@ let constantes = {
   alt: 'Alt',
   ajudaTecla: 'F1',
   porta: '%PORT%',
+  origemFlow: 'https://flow.pronixhub.com.br',
+  descricaoFlow: 4000,
+  segundosInbox: 60,
 };
 
 const p = (texto) => ({ tipo: 'p', texto });
@@ -381,7 +384,9 @@ const TODAS_SECOES = [
       p('No Flow, o botão <b>Abrir no Claude</b> de uma issue abre a sessão aqui: o app cria a '
         + 'worktree no branch da issue, sobe o Claude nela e deixa a <b>descrição da issue digitada '
         + 'na caixa de entrada</b> — só ela, sem cabeçalho nem link. Você lê e aperta Enter: nada é '
-        + 'enviado sozinho. Issue sem descrição abre com a caixa vazia.'),
+        + 'enviado sozinho. Issue sem descrição abre com a caixa vazia. O caminho contrário — '
+        + 'escolher a issue aqui, sem abrir o navegador — está na próxima seção, '
+        + '<b>Minhas issues</b>.'),
       passos([
         '<b>Cadastre o projeto</b> aqui, apontando para a pasta do clone. É por ele que o app '
           + 'descobre onde o repositório mora: o Flow manda <code>owner/repo</code>, e nunca um '
@@ -407,7 +412,54 @@ const TODAS_SECOES = [
         + 'aceita pedido de site que esteja na lista de origens. Para fechar essa porta de '
         + 'entrada inteira, ponha <code>"externo": "desligado"</code> '
         + 'no <code>ui.json</code> da pasta <code>{pastaDados}</code> — o link '
-        + '<code>{protocolo}://</code> para junto.'),
+        + '<code>{protocolo}://</code> para junto. A lista <b>Minhas issues</b> continua '
+        + 'funcionando: ela é um botão deste app, e não um pedido vindo de fora.'),
+    ],
+  },
+  {
+    id: 'inbox',
+    titulo: 'Minhas issues: a próxima tarefa sem ir ao navegador',
+    blocos: [
+      p('O botão <b>Minhas issues</b>, no rodapé da lateral (ou <b>{mod}+K</b> → minhas issues), '
+        + 'lista aqui as issues do Pronix Flow <b>abertas e atribuídas a você</b> — as em '
+        + 'progresso primeiro, depois as a fazer e o backlog — e abre a sessão de qualquer uma '
+        + 'com um clique. É o mesmo resultado do <b>Abrir no Claude</b>, sem trocar de janela.'),
+      passos([
+        '<b>Crie um token pessoal no Flow</b>, em Configurações → <b>Tokens de API</b>. Ele '
+          + 'aparece uma vez só: copie na hora. O botão <b>Criar um token no Flow</b> do '
+          + 'formulário abre essa página.',
+        '<b>Abra Minhas issues aqui</b> e cole o token. O endereço já vem preenchido com '
+          + '<code>{origemFlow}</code>; troque só se o seu Flow for outro.',
+        '<b>Conectar</b> confere o token com o Flow antes de guardar. Se ele for recusado, '
+          + 'nada é gravado, e o motivo aparece embaixo do campo.',
+        '<b>Clique em Abrir</b> na issue. Daí em diante é exatamente o caminho da seção '
+          + 'anterior: worktree no branch da issue, descrição na caixa do Claude e nada '
+          + 'enviado sozinho.',
+      ]),
+      tabela(['A linha diz', 'O que fazer'], [
+        ['<code>→ nome-do-projeto</code>', 'Nada: é nesse projeto cadastrado que a sessão vai abrir.'],
+        ['a issue não tem repositório no Flow', 'Escolha o repositório no painel lateral da issue, dentro do Flow, e clique em <b>Atualizar</b>.'],
+        ['repositório não cadastrado aqui', 'Cadastre o projeto apontando para o clone daquele repositório.'],
+        ['mais de um projeto aponta para este repositório', 'Há dois clones do mesmo repositório cadastrados, e a lista não escolhe por você. Remova um, ou abra pelo projeto.'],
+      ]),
+      lista([
+        'Filtre pelo seletor de projeto, ou digite parte do identificador ou do título. '
+          + '<b>Sem projeto cadastrado</b> junta as issues que não abrem aqui.',
+        '<b>Abrir</b> numa issue que já tem sessão <b>foca</b> a sessão, em vez de abrir outra.',
+        'O <b>↗</b> da linha abre a issue no Flow, no navegador.',
+        'Uma descrição com mais de {descricaoFlow} caracteres entra cortada, com uma marca '
+          + 'avisando o corte — o mesmo teto do <b>Abrir no Claude</b>.',
+        'A lista é lida ao abrir, no botão <b>Atualizar</b> e ao voltar para a janela com ela '
+          + 'aberta, no máximo uma vez a cada {segundosInbox} segundos. Nada fica consultando '
+          + 'o Flow em segundo plano.',
+        'A lista só <b>lê</b>: não atribui, não muda a issue de coluna e não comenta. Isso '
+          + 'continua sendo do Flow.',
+      ]),
+      aviso('O token só lê as issues de quem o criou: não cria, não altera e não dá acesso ao '
+        + 'resto da conta. Aqui ele fica <b>cifrado pelo sistema</b> na pasta '
+        + '<code>{pastaDados}</code> e nunca volta para a tela. <b>Desconectar</b> apaga o '
+        + 'arquivo; para cortar o acesso de vez, revogue o token no Flow, em Configurações → '
+        + 'Tokens de API.'),
     ],
   },
   {
@@ -619,6 +671,8 @@ const TODAS_SECOES = [
         ['Não consigo arquivar um worktree', 'A etiqueta dele diz o motivo: sessão viva, alteração sem commit ou commit fora da base.'],
         ['O painel abriu mas o comando não rodou', 'Pode estar na fila de partida. A etiqueta <b>na fila</b> aparece no cabeçalho; clique nela para começar agora.'],
         ['Cliquei em Aprovar e nada aconteceu', 'O pedido não estava mais na tela do terminal — provavelmente já foi respondido. O app avisa e leva você até lá em vez de responder às cegas.'],
+        ['Minhas issues diz que o Flow recusou o token', 'O token foi revogado no Flow, ou foi colado pela metade. Crie outro em Configurações → Tokens de API e conecte de novo.'],
+        ['Minhas issues diz que este Flow ainda não tem a inbox', 'O servidor do Flow é de uma versão anterior à que serve esta lista. O <b>Abrir no Claude</b> do navegador continua funcionando.'],
         // Sintomas que so existem em UMA plataforma. Espalhar a lista inteira nos
         // dois lados seria mandar a pessoa procurar o problema dela no meio de
         // coisas que nao podem acontecer na maquina dela.
@@ -752,6 +806,9 @@ async function abrirAjuda(secao) {
     constantes = { ...constantes, ...c };
   } catch { /* usa os padroes */ }
   constantes.tetoFila = window.OrqFila?.TETO_RODANDO ?? 4;
+  // O piso da inbox mora no renderer (e o `focus` da janela que o usa), entao
+  // vem do modulo dela, como o teto da fila.
+  constantes.segundosInbox = Math.round((window.OrqInbox?.MS_PISO ?? 60000) / 1000);
 
   desenharAjuda();
   elAjuda.hidden = false;

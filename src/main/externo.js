@@ -195,7 +195,12 @@ async function atender(bruto, { origem = '', canal = 'http' } = {}) {
   // O interruptor fecha a superficie INTEIRA, deeplink incluido. O portao de
   // Origin do `eventos.js` ja cobre o HTTP; aqui e o que impede o esquema
   // registrado no sistema de continuar abrindo sessao depois de alguem desligar.
-  if (preferencias.carregar().externo === 'desligado') {
+  //
+  // A inbox (Fase 10.4) passa por aqui tambem, e e a excecao: ela e um clique
+  // DENTRO do app, numa issue que o proprio app leu com o token da pessoa. O
+  // interruptor existe contra o que vem de fora, e desliga-lo nao pode quebrar
+  // um botao da tela.
+  if (canal !== 'inbox' && preferencias.carregar().externo === 'desligado') {
     return resposta(403, { ok: false, erro: 'externo-desligado' });
   }
 

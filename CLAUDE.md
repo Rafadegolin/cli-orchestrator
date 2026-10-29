@@ -26,8 +26,8 @@ Ali ja esta levantado o que o CLI oferece para isso: `--add-dir` como flag **e**
 comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma delas.
 
 **Em andamento: a Fase 10** (`docs/fase-10-proximos-passos.md`). O 10.7 (metricas), o 10.1
-(comentar o diff), o 10.2 (scripts), o 10.3 (branch, PR e CI) e o 10.5 (saida que sobrevive ao
-reinicio) estao feitos; o proximo e o 10.4.
+(comentar o diff), o 10.2 (scripts), o 10.3 (branch, PR e CI), o 10.5 (saida que sobrevive ao
+reinicio) e o 10.4 (inbox do Flow) estao feitos; o proximo e o 10.6, que comeca por um spike.
 Ver a secao "Proximos passos" logo abaixo.
 
 ## Proximos passos: Fase 10
@@ -44,8 +44,7 @@ Ordem combinada:
 3. ~~**10.2 Scripts `setup`/`run`/`arquivar` por projeto**~~ **feito**: ver "Scripts do projeto".
 4. ~~**10.3 Git, PR e CI no cabecalho**~~ **feito**: ver "Branch, PR e CI no painel".
 5. ~~**10.5 Scrollback persistente**~~ **feito**: ver "A saida dos painéis sobrevive ao reinicio".
-6. **10.4 Inbox de issues do Flow**, abrindo pelo MESMO caminho do `/abrir`. Bloqueado por endpoint e
-   autenticacao do lado do Flow -- o contrato e deles.
+6. ~~**10.4 Inbox de issues do Flow**~~ **feito**: ver "A inbox do Flow".
 7. **10.6 Rotas `/orq/*` + skill de orquestracao via `curl`**: um Claude coordenador cria e acompanha
    workers. Recusa **qualquer** `Origin` (pagina web nunca tem motivo para chamar), profundidade 1,
    toda partida pela `OrqFila`. **Spike antes de codigo.**
@@ -77,6 +76,8 @@ npm run teste:dupla-reais # com Claude de verdade: ~4min e consome tokens
 npm run teste:portas      # blocos sem colisao e dois servidores no ar ao mesmo tempo
 npm run teste:abrir       # Node puro: o pedido do Pronix Flow, branch literal e allowlist
 npm run teste:abrir-ui    # o pedido chegando no app de verdade, sem invocar o Claude
+npm run teste:inbox       # Node puro: a inbox do Flow, endereco, token e fetch falso
+npm run teste:inbox-ui    # conectar, listar e abrir pela inbox, com um Flow falso no loopback
 npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
 npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
@@ -860,6 +861,65 @@ O resultado: o Claude desenha na area vazia e a sessao anterior fica logo acima,
 `npm run teste:telas`: metade em Node puro, metade pelo CDP com **reload de verdade da janela**
 (`Page.reload`) -- o unico jeito de exercitar o `beforeunload` e o `sendSync`. Antes do reload os
 PTYs sao fechados no main sem destruir os painéis, que apagaria as telas.
+
+## A inbox do Flow (Fase 10.4)
+
+`src/main/flow.js` (Node puro) + `src/main/flow-credencial.js` + `src/janela/inbox.js`. "Minhas
+issues" (botao no rodape da lateral, ou pela paleta) lista as issues abertas atribuidas a voce no
+Pronix Flow e abre a sessao **sem passar pelo navegador**. Ate aqui o contrato era de mao unica: o
+Flow empurrava pelo `/abrir`.
+
+### O contrato, e o lado do Flow que foi feito para isto
+
+`GET <origem>/api/orquestrador/issues` com `Authorization: Bearer pfx_…`, branch
+`feature/orquestrador-inbox` do pronix-flow (item 30 do CLAUDE.md de la). O token e **pessoal**,
+criado em Configuracoes -> Tokens de API no Flow, e so le as issues de quem o criou: o guard dele vale
+so naquela rota, e o `JwtAuthGuard` global de la nao foi tocado. O Flow guarda so o sha256. A
+resposta traz `repo`, `branch`, `issue`, `title`, `url` e `description` com **os mesmos nomes do
+payload do `/abrir`** -- e isso que permite o resto desta secao.
+
+### Abrir e o caminho do `/abrir`, chamado por dentro
+
+`flow:abrir` recebe **so o ID**. O main procura a issue na ultima lista que ELE leu do Flow (em
+memoria, nunca no disco) e chama `externo.atender(flow.paraPedido(issue), { canal: 'inbox' })`. Slug,
+branch literal, worktree, `--prefill-b64`, a deduplicacao por `repo|branch` e o veredito do
+`abrir-externo.js` sao os de sempre, sem copia. O renderer nunca monta o pedido: tudo que chega ao
+`atender` veio do Flow, como pelo HTTP.
+
+- **O interruptor `externo` NAO barra o canal `inbox`.** Ele existe contra o que vem DE FORA
+  (deeplink e HTTP); desliga-lo nao pode quebrar um botao da tela. O `teste:inbox-ui` abre com ele
+  desligado de proposito.
+- **A descricao e cortada em 4000 com marca** (`cortarDescricao`), o mesmo teto do "Abrir no Claude"
+  do navegador. Pelo Flow o corte acontece la; pela inbox ela chega inteira, e o `montarPrompt`
+  **recusaria** acima de 5000 -- uma issue longa nunca abriria.
+- **Em que projeto abre e o MESMO `pedido.resolver`** (`flow.anotar`), rodado para cada linha. Sem a
+  releitura forcada de remotes do `resolverProjeto`: aquilo e um `git config` por projeto, aceitavel
+  para um pedido e caro para cada linha de uma lista. A tela nunca promete um projeto que o clique
+  nao abriria. Ambiguo (dois clones do mesmo repo) fica sem botao -- a inbox nao tem como escolher.
+
+### O token
+
+- **Cifrado pelo `safeStorage`** em `~/.orquestrador/flow.json` (DPAPI no Windows, Chaveiro no
+  macOS). Sem cifra disponivel o app **recusa guardar**, em vez de cair para texto puro calado.
+- **Conectar testa antes de guardar**: token que o Flow recusa nunca chega ao disco, e o motivo
+  aparece no formulario.
+- **Nunca volta para a janela**: o campo e limpo antes do `await`, e nenhum IPC o devolve
+  (`flow:situacao` diz se ha um, e de onde). Decifrado a cada consulta, e morre ali -- a regra do
+  medidor de uso. O teste confere arquivo, DOM e retornos.
+- **So https, e http SO no loopback** (`normalizarBase`): o token viaja no cabecalho. O caminho colado
+  e descartado. O padrao e o `ORIGEM_FLOW` das preferencias -- a mesma constante da allowlist.
+- 401 leva de volta ao formulario dizendo que o token pode ter sido revogado; 404 e "este Flow ainda
+  nao tem a inbox". Erro nunca vira dialogo.
+
+### Sem relogio
+
+Busca ao abrir a tela, no "Atualizar", e no `focus` da janela **com a inbox aberta**, com piso de
+60s. `flow:issues` e coalescida no main. Nenhum relogio novo -- o orcamento de CPU parado continua
+intacto. O botao mora no rodape da LATERAL, e nao na `#barra`: la ele cobraria altura de todo painel.
+
+`npm run teste:inbox` (Node puro, `fetch` falso, inclusive provando que nenhum erro carrega o token)
+e `npm run teste:inbox-ui` (um Flow falso em `127.0.0.1`, conectar com token errado e certo, filtros,
+abrir ate o `--prefill-b64` no buffer, abrir de novo sem segundo painel, token revogado).
 
 ## O mapa
 

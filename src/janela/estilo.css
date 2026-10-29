@@ -2287,12 +2287,127 @@ button.primario:hover {
   animation: orqPop .24s ease;
 }
 
-#historico-corpo, #uso-corpo {
+#historico-corpo, #uso-corpo, #inbox-corpo {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding: 18px 22px 24px 22px;
 }
+
+/* ------------------------------------------------ a inbox do Flow ---- */
+
+.inbox-cabeca {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.inbox-quem {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg3);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inbox-filtros {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.inbox-filtro {
+  flex: 0 0 auto;
+  max-width: 45%;
+  margin-bottom: 14px;
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0 10px;
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.inbox-filtro:focus { border-color: var(--acc); outline: none; }
+
+/* O campo herda o .scripts-campo (fundo, borda, margem), mas nao a largura cheia. */
+.inbox-busca { flex: 1; width: auto; font-family: var(--ui); font-size: 12px; }
+
+.inbox-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.inbox-linha {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 2px;
+  border-bottom: 1px solid var(--line);
+}
+
+.inbox-linha:last-child { border-bottom: none; }
+
+.inbox-texto { flex: 1; min-width: 0; }
+
+.inbox-topo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.inbox-id { color: var(--fg2); font-size: 11px; }
+
+.inbox-estado {
+  font-size: 10.5px;
+  color: var(--fg3);
+  border: 1px solid var(--line2);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+/* Em progresso usa a cor de "rodando": e o mesmo sentido, trabalho andando. */
+.inbox-estado-started { color: var(--acc); border-color: var(--acc); }
+
+.inbox-titulo {
+  color: var(--fg);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inbox-meta {
+  margin-top: 2px;
+  color: var(--fg3);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sem projeto nao e erro, e informacao: nada de vermelho, so o aviso em texto. */
+.inbox-meta-sem { color: var(--warn); }
+
+.inbox-status {
+  margin-top: 4px;
+  color: var(--danger);
+  font-size: 11.5px;
+}
+
+.inbox-acoes {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+}
+
+.inbox-ver { padding: 0 10px; }
 
 /* ------------------------------------------------ o detalhe do uso ---- */
 

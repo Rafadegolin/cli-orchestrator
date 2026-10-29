@@ -92,6 +92,7 @@ const textoDaAjuda = `(() => document.getElementById('ajuda-corpo').textContent)
   const real = JSON.parse(await cdp.avaliar(`(async () => JSON.stringify({
     ...(await window.orq.constantes()),
     tetoFila: window.OrqFila.TETO_RODANDO,
+    segundosInbox: Math.round(window.OrqInbox.MS_PISO / 1000),
   }))()`));
   const conteudo = await cdp.avaliar(textoDaAjuda);
 
@@ -113,6 +114,17 @@ const textoDaAjuda = `(() => document.getElementById('ajuda-corpo').textContent)
     conteudo.includes(`${real.minutosUso} minutos`), `codigo diz ${real.minutosUso}`);
   checar('a janela da linha de base do historico confere',
     conteudo.includes(`últimos ${real.diasMetricas} dias`), `codigo diz ${real.diasMetricas}`);
+
+  // A inbox do Flow (Fase 10.4): o endereco que o formulario traz, o teto da
+  // descricao e o piso de atualizacao, cada um com a unidade amarrando o numero.
+  checar('a ajuda tem a secao da inbox',
+    await cdp.avaliar(`window.OrqAjuda.SECOES.some((s) => s.id === 'inbox')`), '');
+  checar('a origem do Flow citada e a do codigo',
+    conteudo.includes(real.origemFlow), `codigo diz ${real.origemFlow}`);
+  checar('o teto da descricao confere',
+    conteudo.includes(`${real.descricaoFlow} caracteres`), `codigo diz ${real.descricaoFlow}`);
+  checar('o piso de atualizacao da inbox confere',
+    conteudo.includes(`${real.segundosInbox} segundos`), `codigo diz ${real.segundosInbox}`);
 
   // Nenhum marcador de substituicao pode ter escapado para a tela.
   const sobrou = (conteudo.match(/\{[a-zA-Z]+\}/g) || []);

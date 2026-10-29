@@ -28,6 +28,8 @@ const github = require('./github');
 const avisos = require('./avisos');
 const registro = require('./registro');
 const externo = require('./externo');
+const flow = require('./flow');
+const flowCredencial = require('./flow-credencial');
 const claudeFlags = require('./claude-flags');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
@@ -625,6 +627,61 @@ ipcMain.on('externo:pronto', () => externo.pronto());
 // O veredito do renderer sobre um pedido: e o que o /abrir responde ao Flow.
 ipcMain.on('abrir:resposta', (_e, r) => externo.veredito(r));
 
+// ------------------------------------------------- inbox do Flow (Fase 10.4)
+
+// A ultima lista lida, SO em memoria (a regra do 10.4: a inbox nao guarda nada
+// no disco). E dela que o `flow:abrir` tira os campos: o renderer manda o ID, e
+// nunca o pedido montado -- tudo que chega ao `externo.atender` veio do Flow,
+// como pelo /abrir.
+let inboxUltima = new Map();
+let inboxEmVoo = null;
+
+async function lerInbox() {
+  const cred = flowCredencial.ler();
+  if (!cred) return { ok: false, erro: 'desconectado', texto: 'conecte o app ao Flow com um token pessoal' };
+  const r = await flow.buscarInbox(cred);
+  if (!r.ok) return { ok: false, erro: r.erro, texto: r.texto };
+  inboxUltima = new Map(r.issues.map((i) => [i.id, i]));
+  // A descricao fica no main: a lista nao a mostra, e ela so e usada no clique.
+  const issues = flow.anotar(r.issues, projetos.listar())
+    .map(({ description, ...resto }) => ({ ...resto, temDescricao: Boolean(String(description || '').trim()) }));
+  return { ok: true, usuario: r.usuario, base: cred.base, issues };
+}
+
+ipcMain.handle('flow:situacao', () => flowCredencial.situacao());
+
+// Conectar TESTA antes de guardar: um token que o Flow recusa nunca chega ao
+// disco, e a pessoa ve o motivo na hora, em vez de uma inbox vazia depois.
+ipcMain.handle('flow:conectar', async (_e, { base, token } = {}) => {
+  const origem = flow.normalizarBase(base);
+  if (!origem) return { ok: false, texto: 'endereço do Flow inválido (use https)' };
+  const r = await flow.buscarInbox({ base: origem, token });
+  if (!r.ok) return { ok: false, texto: r.texto };
+  const g = flowCredencial.gravar(origem, token);
+  if (!g.ok) return g;
+  return { ok: true, usuario: r.usuario, total: r.issues.length };
+});
+
+ipcMain.handle('flow:desconectar', () => {
+  flowCredencial.apagar();
+  inboxUltima = new Map();
+  return { ok: true };
+});
+
+// Coalescida: abrir a inbox e voltar para a janela no mesmo segundo fazem UMA
+// consulta, nao duas.
+ipcMain.handle('flow:issues', () => {
+  if (!inboxEmVoo) inboxEmVoo = lerInbox().finally(() => { inboxEmVoo = null; });
+  return inboxEmVoo;
+});
+
+ipcMain.handle('flow:abrir', async (_e, id) => {
+  const issue = inboxUltima.get(String(id || ''));
+  if (!issue) return { ok: false, texto: 'a lista ficou velha — atualize e tente de novo' };
+  const { status, corpo } = await externo.atender(flow.paraPedido(issue), { canal: 'inbox' });
+  return { ...corpo, ok: status >= 200 && status < 300 && corpo.ok !== false };
+});
+
 // Uma worktree so, num branch escolhido. O irmao do `worktrees:criarDupla`.
 ipcMain.handle('worktrees:prever', (_e, { caminho, slug, branch } = {}) => worktrees.prever(caminho, slug, { branch }));
 
@@ -917,6 +974,10 @@ ipcMain.handle('app:constantes', () => ({
   porta: plataforma.EH_WIN ? '%PORT%' : '$PORT',
   // O esquema que o Pronix Flow chama. A ajuda cita, entao sai daqui.
   protocolo: externo.ESQUEMA,
+  // A inbox do Flow: o endereco que o formulario traz preenchido e o teto da
+  // descricao que vai para a caixa do Claude.
+  origemFlow: preferencias.ORIGEM_FLOW,
+  descricaoFlow: flow.MAX_DESCRICAO,
 }));
 
 ipcMain.handle('ui:carregar', () => preferencias.carregar());

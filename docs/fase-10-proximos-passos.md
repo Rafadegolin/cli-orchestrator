@@ -201,6 +201,11 @@ o card que o operador quer achar no fim do dia, e hoje ele se parece com qualque
 
 ## 10.4 Inbox de tarefas do Flow dentro do app
 
+> **Feito.** Token **pessoal** criado no Flow (Configurações → Tokens de API; só o sha256 guardado
+> lá, guard próprio só na rota `GET /api/orquestrador/issues`), guardado aqui pelo `safeStorage`.
+> Abrir chama o `externo.atender` com `canal: 'inbox'`, que o interruptor `externo` não barra. Detalhes
+> no CLAUDE.md, "A inbox do Flow".
+
 Hoje o contrato com o Pronix Flow é de mão única: o Flow empurra (`/abrir`, deeplink). Escolher a
 próxima tarefa exige ir ao navegador.
 
@@ -350,7 +355,7 @@ mentir para cima.
 4. **10.3 Git/PR/CI** — local primeiro (à frente, push), GitHub depois, quando a credencial estiver
    decidida.
 5. **10.5 Scrollback** — independente; pode entrar em paralelo a qualquer um.
-6. **10.4 Inbox do Flow** — bloqueado pelo endpoint e pela autenticação do outro lado; pedir cedo.
+6. ~~**10.4 Inbox do Flow**~~ — **feito**.
 7. **10.6 CLI `orq`** — spike primeiro, código só depois de o spike responder as três perguntas.
 
 ## Decisões em aberto
@@ -360,7 +365,7 @@ mentir para cima.
 | ~~10.2~~ | **decidido:** só `projetos.json` por enquanto; o repo com hash fica para depois |
 | 10.2 | separador incondicional **feito** (`&`/`;`); o efeito no primeiro desenho da TUI ainda **a medir** numa sessão real |
 | ~~10.3~~ | **decidido:** `git credential fill`, sem janela, lido na hora e descartado |
-| 10.4 | endpoint e autenticação do lado do Flow |
+| ~~10.4~~ | **decidido:** token pessoal no Flow (`ApiToken`), cifrado aqui pelo `safeStorage` |
 | ~~10.5~~ | **decidido:** `addon-serialize@0.13.0`, o par do xterm 5.5.0 |
 | 10.6 | teto do long-poll frente ao timeout do Bash do CLI |
 

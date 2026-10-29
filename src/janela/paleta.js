@@ -126,6 +126,13 @@
       correr: () => window.OrqDupla?.abrir(),
     });
 
+    lista.push({
+      tag: 'nova',
+      rotulo: 'Minhas issues do Flow',
+      dica: 'abrir a próxima tarefa sem ir ao navegador',
+      correr: () => window.OrqInbox?.abrir(),
+    });
+
     // Uma entrada por projeto com git: a faxina e sempre DE um repositorio, e
     // nao ha uma lista global de worktrees para limpar de uma vez.
     for (const p of window.OrqProjetos?.lista?.() || []) {

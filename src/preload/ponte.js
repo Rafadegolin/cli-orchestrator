@@ -92,6 +92,15 @@ contextBridge.exposeInMainWorld('orq', {
   abrirResposta: (r) => ipcRenderer.send('abrir:resposta', r),
   // Abrir a issue no navegador. O portao de esquema mora no main.
   abrirExterno: (url) => ipcRenderer.invoke('abrir:externo', url),
+
+  // ------------------------------------------- inbox do Flow (Fase 10.4)
+  // O token entra por `flowConectar` e nunca volta: nenhuma destas devolve ele.
+  flowSituacao: () => ipcRenderer.invoke('flow:situacao'),
+  flowConectar: (dados) => ipcRenderer.invoke('flow:conectar', dados),
+  flowDesconectar: () => ipcRenderer.invoke('flow:desconectar'),
+  flowIssues: () => ipcRenderer.invoke('flow:issues'),
+  // So o ID: os campos do pedido saem da lista que o main leu do Flow.
+  flowAbrir: (id) => ipcRenderer.invoke('flow:abrir', id),
   // O CLI ainda aceita `--prefill-b64`? Memoizado no processo principal.
   claudePrefill: () => ipcRenderer.invoke('claude:prefill'),
 
