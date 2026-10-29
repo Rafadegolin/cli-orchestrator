@@ -32,6 +32,10 @@ let constantes = {
   origemFlow: 'https://flow.pronixhub.com.br',
   descricaoFlow: 4000,
   segundosInbox: 60,
+  esperarOrq: 90,
+  maxFilhosOrq: 6,
+  maxPromptOrq: 5000,
+  arquivoSkill: '~/.claude/skills/orquestrador/SKILL.md',
 };
 
 const p = (texto) => ({ tipo: 'p', texto });
@@ -463,6 +467,41 @@ const TODAS_SECOES = [
     ],
   },
   {
+    id: 'orquestracao',
+    titulo: 'Workers: uma sessão dividindo o trabalho com outras',
+    blocos: [
+      p('Uma sessão do Claude aberta aqui pode <b>criar workers</b>: outras sessões, cada uma num '
+        + 'painel novo, numa worktree e num branch próprios, que você vê trabalhando na grade como '
+        + 'qualquer outra. A sessão que pediu, a <b>coordenadora</b>, acompanha cada worker até o fim, '
+        + 'lê o que ele mudou e mescla o branch dele no dela.'),
+      passos([
+        '<b>Ligue a orquestração</b> em <b>{mod}+K</b> → ligar a orquestração de workers. O app '
+          + 'pergunta antes, porque grava uma skill em <code>{arquivoSkill}</code>.',
+        '<b>Commite</b>, na sessão coordenadora, o que os workers precisam enxergar: cada um nasce '
+          + 'do commit atual dela.',
+        '<b>Peça a divisão</b>: "divida isto em três partes e entregue cada uma a um worker". A '
+          + 'sessão usa a skill sozinha.',
+        'Os workers <b>começam sozinhos</b>, alguns segundos depois de o painel abrir. Pedidos de '
+          + 'permissão continuam com você, na faixa de cada painel, como sempre.',
+      ]),
+      lista([
+        'O painel do worker mostra <b>↳ coordenadora</b> no cabeçalho (clique para ir até ela), o '
+          + 'card dela na lateral conta os workers, e no mapa uma linha liga os dois.',
+        'No máximo <b>{maxFilhosOrq} workers vivos</b> por coordenadora, e todos passam pela fila de '
+          + 'partida. Cada worker gasta tokens como uma sessão sua.',
+        'O pedido de cada worker tem até {maxPromptOrq} caracteres. A coordenadora espera um worker '
+          + 'em chamadas de até {esperarOrq} segundos, repetidas até ele terminar.',
+        'Um worker não cria outros workers, e uma coordenadora só enxerga os próprios.',
+        'Fechar a coordenadora não fecha os workers: eles seguem como sessões comuns, e o chip passa '
+          + 'a dizer que ela foi fechada. Ao reiniciar o app, a relação entre os dois não volta.',
+      ]),
+      aviso('As rotas só atendem sessões abertas neste app, em 127.0.0.1:{portaEventos}, e '
+        + '<b>recusam qualquer página web</b>. <b>Desligar</b> a orquestração pela mesma paleta remove '
+        + 'a skill; uma sessão que já estava aberta pode lembrar dela até reiniciar, mas o app passa a '
+        + 'recusar os pedidos.'),
+    ],
+  },
+  {
     id: 'grade',
     titulo: 'A grade: densidade, ordem e tema',
     blocos: [
@@ -672,6 +711,8 @@ const TODAS_SECOES = [
         ['O painel abriu mas o comando não rodou', 'Pode estar na fila de partida. A etiqueta <b>na fila</b> aparece no cabeçalho; clique nela para começar agora.'],
         ['Cliquei em Aprovar e nada aconteceu', 'O pedido não estava mais na tela do terminal — provavelmente já foi respondido. O app avisa e leva você até lá em vez de responder às cegas.'],
         ['Minhas issues diz que o Flow recusou o token', 'O token foi revogado no Flow, ou foi colado pela metade. Crie outro em Configurações → Tokens de API e conecte de novo.'],
+        ['A sessão diz que a orquestração está desligada', 'Ligue em {mod}+K → ligar a orquestração de workers. Desligada, o app recusa os pedidos mesmo com a skill instalada.'],
+        ['Um worker abriu mas ficou parado com o pedido na caixa', 'O Claude não ficou pronto a tempo (fila cheia, ou o CLI demorou a subir). O app avisa; aperte Enter no painel do worker.'],
         ['Minhas issues diz que este Flow ainda não tem a inbox', 'O servidor do Flow é de uma versão anterior à que serve esta lista. O <b>Abrir no Claude</b> do navegador continua funcionando.'],
         // Sintomas que so existem em UMA plataforma. Espalhar a lista inteira nos
         // dois lados seria mandar a pessoa procurar o problema dela no meio de

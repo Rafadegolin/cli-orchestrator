@@ -211,6 +211,17 @@
       correr: () => window.OrqLateral?.alternarAvisos(),
     });
 
+    // A orquestracao de workers (Fase 10.6). Ligar pergunta antes, no dialogo
+    // nativo: instala uma skill no ~/.claude.
+    lista.push({
+      tag: 'app',
+      rotulo: window.OrqOrquestrar?.ligada()
+        ? 'Desligar a orquestração de workers'
+        : 'Ligar a orquestração de workers',
+      dica: 'uma sessão cria outras',
+      correr: () => window.OrqOrquestrar?.alternar(),
+    });
+
     // A saida dos terminais guardada ao fechar (Fase 10.5). Desligar apaga o que
     // ja estava no disco.
     lista.push({

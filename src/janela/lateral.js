@@ -276,6 +276,13 @@ function redesenhar() {
     porta.className = 'card-porta';
     porta.textContent = painel?.portas?.length ? `:${painel.portas[0]}` : '';
 
+    // Coordenadora do orquestrador (10.6): quantos workers ela tem abertos. E o
+    // custo a vista -- cada um e uma sessao inteira gastando token.
+    const filhos = [...window.OrqPainel.painelPorId.values()].filter((x) => x.pai === c.id).length;
+    const elFilhos = document.createElement('span');
+    elFilhos.className = 'card-filhos';
+    elFilhos.textContent = filhos ? `${filhos} worker${filhos === 1 ? '' : 's'}` : '';
+
     // O cartao nao tinha NENHUMA identidade de projeto -- so status. Com sessoes
     // de projetos diferentes lado a lado, a lista era uma coluna de nomes sem
     // agrupamento visivel.
@@ -284,7 +291,7 @@ function redesenhar() {
     li.classList.toggle('card-tinto', Boolean(tinta));
 
     li.title = [c.cwd, c.motivo].filter(Boolean).join('\n');
-    li.append(bolinha, texto, porta);
+    li.append(bolinha, texto, elFilhos, porta);
     li.addEventListener('click', () => window.OrqGrade.focarPainel(c.id));
     return li;
   }));

@@ -18,7 +18,7 @@
 // processo, e uma chamada sincrona travaria o laco de eventos -- o `curl` do
 // Claude nunca seria respondido e o spike mediria a si mesmo.
 //
-// Uso: node testes/spike-orquestracao.js [A] [B] [C]   (sem argumento: todas)
+// Uso: node testes/spike-orquestracao.js [A] [B] [C] [D]   (sem argumento: todas)
 
 const fs = require('fs');
 const http = require('http');
@@ -384,6 +384,129 @@ async function parteC() {
   };
 }
 
+// ------------------------------------------------------------ D
+
+// A partida do worker: o app lanca `claude --name <slug> --deep-link-origin
+// --prefill-b64 <b64>` num PTY e quer mandar UM Enter quando a TUI estiver
+// pronta. Tres coisas a medir antes de escrever isso:
+//   1. uma worktree nova de um projeto ja confiado abre o dialogo de confianca?
+//      (se abrir, o Enter automatico o aceitaria pela pessoa -- proibido)
+//   2. quando o `~/.claude/sessions/<pid>.json` aparece com o nosso `name`, e
+//      com que status (e o sinal que o app vai usar);
+//   3. um `\r` depois disso ENVIA o texto pre-preenchido? (status vira busy e a
+//      resposta aparece na tela)
+//
+// Interativo de verdade, num PTY do node-pty -- o `-p` pula o dialogo de
+// confianca e nao serviria. Consome so dois "responda OK".
+//
+// MEDIDO (CLI 2.1.312, 29/10/2026):
+//   - a worktree de um projeto confiado HERDA a confianca: dialogo nenhum;
+//   - numa pasta NAO confiada o `sessions/<pid>.json` so aparece DEPOIS do
+//     dialogo ser aceito -- logo "registro idle com o nosso name" ja implica
+//     passou da confianca, e o Enter automatico nunca cai nele;
+//   - o padrao do dialogo e "No, exit": um Enter ali FECHA a sessao;
+//   - o registro aparece `idle` ~1,1s depois de subir, com o prefill ja na
+//     caixa; um Enter (`\r`) 300ms depois ENVIA (busy em ~200ms, resposta certa);
+//   - o --deep-link-origin poe na caixa "Prompt from an external link · review
+//     before pressing Enter" -- aviso do CLI, e o Enter o atravessa.
+
+const SESSOES = path.join(os.homedir(), '.claude', 'sessions');
+
+function lerSessao(nome) {
+  let nomes = [];
+  try { nomes = fs.readdirSync(SESSOES).filter((f) => f.endsWith('.json')); } catch { return null; }
+  for (const n of nomes) {
+    try {
+      const s = JSON.parse(fs.readFileSync(path.join(SESSOES, n), 'utf8'));
+      if (s && s.name === nome) return s;
+    } catch { /* sendo escrito */ }
+  }
+  return null;
+}
+
+const semAnsi = (t) => t.replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, ' ').replace(/\x1b\][^\x07]*(\x07|\x1b\\)/g, '').replace(/\x1b[()][0-9A-Za-z]/g, '');
+const RE_CONFIANCA = /trust\s+(the\s+files|this\s+folder)|Do you trust/i;
+
+function sessaoPty(rotulo, cwd, { nome, prompt, marca, aceitarConfianca, msTeto = 120_000 }) {
+  const pty = require('node-pty');
+  const b64 = Buffer.from(prompt, 'utf8').toString('base64url');
+  return new Promise((resolve) => {
+    const inicio = agora();
+    const t = () => agora() - inicio;
+    const ev = [];
+    const marcar = (o) => { ev.push({ ms: t(), ...o }); log(`   ${rotulo} +${t()}ms`, JSON.stringify(o)); };
+    const p = pty.spawn('cmd.exe', ['/c', 'claude', '--name', nome, '--deep-link-origin', '--prefill-b64', b64], {
+      name: 'xterm-256color', cols: 120, rows: 36, cwd, env: envLimpo(), useConptyDll: false,
+    });
+    let tela = '';
+    let viuConfianca = false;
+    let aceitou = false;
+    let enterEm = 0;
+    let ultimoStatus = '';
+    let prefillNaTela = false;
+    let viuBusy = false;
+    let depoisDoEnter = '';
+    p.onData((d) => {
+      tela = (tela + semAnsi(d)).slice(-20000);
+      if (enterEm) depoisDoEnter = (depoisDoEnter + semAnsi(d)).slice(-20000);
+    });
+    let acabou = false;
+    const fim = (motivo) => {
+      if (acabou) return;
+      acabou = true;
+      clearInterval(laco);
+      marcar({ fim: motivo });
+      try { execFileSync('taskkill', ['/PID', String(p.pid), '/T', '/F'], { stdio: 'ignore' }); } catch { /* ja morreu */ }
+      resolve({ rotulo, eventos: ev, viuConfianca, aceitou, prefillNaTela, viuBusy, respondeu: viuBusy && depoisDoEnter.split(marca).length >= 2, telaFinal: tela.slice(-1500) });
+    };
+    const laco = setInterval(() => {
+      if (!viuConfianca && RE_CONFIANCA.test(tela)) {
+        viuConfianca = true;
+        marcar({ confianca: true });
+        if (!aceitarConfianca) return fim('dialogo de confianca numa pasta que deveria herdar');
+        // So na RAIZ descartavel. O padrao do dialogo e "No, exit": o Enter
+        // sozinho FECHA a sessao (medido). Seta para baixo ate "Yes, I trust
+        // this folder", e entao o Enter.
+        // Com folga: a TUI desenha o dialogo antes de ouvir o teclado.
+        setTimeout(() => p.write('\x1b[B'), 1500);
+        setTimeout(() => { marcar({ telaAntesDoEnter: semAnsi(tela).slice(-300) }); p.write('\r'); tela = ''; }, 2500);
+        aceitou = true;
+      }
+      if (!prefillNaTela && tela.includes(prompt.slice(0, 20))) { prefillNaTela = true; marcar({ prefillNaTela: true }); }
+      const s = lerSessao(nome);
+      const st = s ? s.status : '';
+      if (st !== ultimoStatus) { ultimoStatus = st; marcar({ registro: st || '(sem arquivo)' }); }
+      if (!enterEm && st === 'idle') {
+        enterEm = t();
+        setTimeout(() => { p.write('\r'); marcar({ enter: true }); }, 300);
+      }
+      if (enterEm && st === 'busy' && !viuBusy) viuBusy = true;
+      // Enviou de verdade = o registro passou por busy e voltou a idle.
+      if (viuBusy && st === 'idle') { clearInterval(laco); setTimeout(() => fim('busy e de volta a idle'), 1500); return; }
+      if (t() > msTeto) fim('estourou');
+    }, 250);
+  });
+}
+
+async function parteD() {
+  // 1. a RAIZ descartavel nunca foi confiada: o dialogo TEM de aparecer, e e o
+  //    controle de que a deteccao funciona. Aceitar aqui grava a confianca
+  //    desta pasta de %TEMP% no ~/.claude.json -- e o que o caso 2 precisa.
+  const raiz = await sessaoPty('D raiz', PROJ, {
+    nome: 'spike-d-raiz', prompt: 'Responda apenas com a palavra OKRAIZ', marca: 'OKRAIZ', aceitarConfianca: true,
+  });
+  // 2. a worktree, criada como o app criara (git worktree add -b), DENTRO do
+  //    projeto ja confiado.
+  execFileSync('git', ['add', '-A'], { cwd: PROJ });
+  execFileSync('git', ['-c', 'user.email=s@s', '-c', 'user.name=s', 'commit', '-q', '-m', 'base', '--allow-empty'], { cwd: PROJ });
+  const wt = path.join(PROJ, '.claude', 'worktrees', 'spike-d');
+  execFileSync('git', ['worktree', 'add', '-q', '-b', 'worktree-spike-d', wt], { cwd: PROJ });
+  const worktree = await sessaoPty('D worktree', wt, {
+    nome: 'spike-d', prompt: 'Responda apenas com a palavra OKWORKTREE', marca: 'OKWORKTREE', aceitarConfianca: false,
+  });
+  return { raiz, worktree };
+}
+
 // ------------------------------------------------------------ main
 
 (async () => {
@@ -403,6 +526,7 @@ async function parteC() {
   if (roda('A')) resultado.A = await parteA(porta);
   if (roda('B')) resultado.B = await parteB(porta);
   if (roda('C')) resultado.C = await parteC();
+  if (roda('D')) resultado.D = await parteD();
   resultado.chamadas = chamadas;
 
   fs.writeFileSync(SAIDA, JSON.stringify(resultado, null, 2));

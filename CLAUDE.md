@@ -25,10 +25,10 @@ worktree — ate entao isso era sempre do `claude -w`.
 Ali ja esta levantado o que o CLI oferece para isso: `--add-dir` como flag **e** `/add-dir` como
 comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma delas.
 
-**Em andamento: a Fase 10** (`docs/fase-10-proximos-passos.md`). O 10.7 (metricas), o 10.1
+**A Fase 10** (`docs/fase-10-proximos-passos.md`) **esta completa**: o 10.7 (metricas), o 10.1
 (comentar o diff), o 10.2 (scripts), o 10.3 (branch, PR e CI), o 10.5 (saida que sobrevive ao
-reinicio) e o 10.4 (inbox do Flow) estao feitos; o proximo e o 10.6, que comeca por um spike.
-Ver a secao "Proximos passos" logo abaixo.
+reinicio), o 10.4 (inbox do Flow) e o 10.6 (workers criados por uma sessao). Ficam duas medicoes
+numa sessao real, marcadas "a medir" no 10.2 e no 10.5. Ver a secao "Proximos passos" logo abaixo.
 
 ## Proximos passos: Fase 10
 
@@ -45,10 +45,8 @@ Ordem combinada:
 4. ~~**10.3 Git, PR e CI no cabecalho**~~ **feito**: ver "Branch, PR e CI no painel".
 5. ~~**10.5 Scrollback persistente**~~ **feito**: ver "A saida dos painéis sobrevive ao reinicio".
 6. ~~**10.4 Inbox de issues do Flow**~~ **feito**: ver "A inbox do Flow".
-7. **10.6 Rotas `/orq/*` + skill de orquestracao via `curl`**: um Claude coordenador cria e acompanha
-   workers. Recusa **qualquer** `Origin` (pagina web nunca tem motivo para chamar), profundidade 1,
-   toda partida pela `OrqFila`. **Spike feito** (ver "O que o spike do 10.6 mediu"): a skill basta,
-   o teto do long-poll e 90s, e as agent teams nativas nao substituem nada aqui. Codigo e o proximo.
+7. ~~**10.6 Rotas `/orq/*` + skill de orquestracao via `curl`**~~ **feito**: ver "Workers: uma
+   sessao criando outras", e o spike que decidiu a forma em "O que o spike do 10.6 mediu".
 
 Ficaram de fora de proposito: suportar outros agentes, navegador embutido, app de celular proprio
 (o Remote Control nativo cobre) e best-of-N (adiado; fica barato depois do 10.1). A regra da fase:
@@ -79,6 +77,9 @@ npm run teste:abrir       # Node puro: o pedido do Pronix Flow, branch literal e
 npm run teste:abrir-ui    # o pedido chegando no app de verdade, sem invocar o Claude
 npm run teste:inbox       # Node puro: a inbox do Flow, endereco, token e fetch falso
 npm run teste:inbox-ui    # conectar, listar e abrir pela inbox, com um Flow falso no loopback
+npm run teste:orquestracao # Node puro: as rotas /orq/*, portoes, long-poll, diff real e a partida
+npm run teste:orquestracao-ui # um worker nascendo de verdade na grade, sem invocar o Claude
+npm run teste:orquestracao-reais # coordenadora e dois workers de verdade: ~2min e consome tokens
 npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
 npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
@@ -951,6 +952,128 @@ ela -- nenhuma `TeamCreate`/`Teammate*`. Pedida uma equipe, o modelo usou `Agent
 escritos pelos delegados. Isso ja existe sem flag nenhuma e roda **dentro de uma sessao so**: sem
 painel, sem worktree, sem hook por worker, sem fila -- exatamente o que o 10.6 entrega e o app sabe
 mostrar. Nao medido: se a TUI interativa expoe as teams (o rollout `tengu_amber_flint` e do servidor).
+
+**D. A partida do worker, interativa num PTY** (`spike:orquestracao D`; o `-p` pula o dialogo de
+confianca e nao serviria). Tres achados, e o segundo e o que torna o Enter automatico seguro:
+
+- **A worktree de um projeto confiado HERDA a confianca**: nenhum dialogo.
+- **Numa pasta NAO confiada o `sessions/<pid>.json` so aparece DEPOIS de o dialogo ser aceito.** Logo,
+  "registro `idle` com o nosso `name`" ja implica ter passado da confianca, e o Enter nunca cai nele.
+  E cairia mal: **o padrao do dialogo e "No, exit"**, e um Enter ali FECHA a sessao (medido, foi o
+  que derrubou a primeira tentativa do spike).
+- O registro aparece `idle` **~1,1s** depois de subir, ja com o prefill na caixa; um `\r` 300ms
+  depois **envia** (busy em ~200ms, resposta certa). O `--deep-link-origin` poe na caixa
+  "Prompt from an external link · review before pressing Enter" -- aviso do CLI, e o Enter o
+  atravessa.
+
+## Workers: uma sessao criando outras (Fase 10.6)
+
+`src/main/orquestracao.js` (Node puro) + `src/main/skill-orquestrador.js` + o ramo `/orq/*` do
+`eventos.js` + `src/janela/orquestrar.js`. Uma sessao num painel (a **coordenadora**) cria
+**workers** pela skill: cada um e um painel novo, numa worktree e num branch `worktree-<nome>` que
+nascem do **commit atual dela**, comeca a trabalhar sozinho, e ela acompanha, le o diff e mescla.
+Ligar e pela paleta ("Ligar a orquestracao de workers"), com dialogo; **desligado por padrao**.
+
+### As rotas, e por que sao mais estritas que o `/abrir`
+
+`criar` (POST), `enviar` (POST), `status`, `esperar`, `diff` (GET), todas com `X-Orq-Id: $ORQ_ID`
+-- o id do painel, que ja estava no env de todo PTY e e herdado pela ferramenta Bash do CLI.
+
+- **Qualquer `Origin` presente e recusado**, sem allowlist e sem preflight: nenhuma pagina web tem
+  motivo para chamar aqui. `Origin` ausente (o `curl`) passa pela mesma razao do `/abrir`: contra
+  codigo local nao ha defesa. Depois: `Host` de loopback, o interruptor `orquestracao` (503), metodo,
+  `application/json` na escrita, 16 KB de corpo. **A identidade vem depois**, no `orquestracao.js`,
+  que sabe quem sao as sessoes: id que nao e painel vivo e 403, `$ORQ_ID` nao expandido e 401.
+- **Rota inventada DENTRO de `/orq/` e 404 com o nome das rotas** -- o contrario do 200 mudo do resto
+  do servidor, porque quem chama aqui e o modelo, e um erro claro e o que o impede de inventar a
+  proxima. O `teste:orquestracao` confere que o hook continua com o 200 de sempre.
+- **Nenhuma resposta carrega caminho de disco**: o worker e `{ id, nome, branch, status, pergunta,
+  desde, partida }`. O branch basta para o `git merge`.
+- O `ui:salvar` **descarta** `orquestracao`: so `orq:ligar`/`orq:desligar` mexem nela, porque ligar
+  sem instalar a skill (ou o contrario) deixaria os dois mentindo. O fallback do `normalizar` e o
+  **desligado** -- invertido em relacao ao `externo`.
+
+### Limites
+
+- **Profundidade 1** (worker chamando `criar` e 403), **6 vivos** por coordenadora, **3 `criar` a cada
+  30s** -- e so o que NASCEU conta no ritmo: uma recusa por nome repetido nao pode custar ao modelo a
+  vaga da tentativa com o nome certo. Foi o teste que pegou.
+- **Escopo:** a coordenadora so enxerga os proprios workers. Id de outra devolve o mesmo 404 de um id
+  que nao existe.
+- Toda partida passa pela `OrqFila` de graca: o worker nasce pelo `criarPainel` de sempre.
+- **Nome repetido e recusado, nunca reaproveitado** (`worktrees.criar({ desde })` exige pasta e
+  branch novos): reaproveitar entregaria a um worker o trabalho de uma sessao antiga, e o modelo nao
+  teria como saber. Painel ja aberto na pasta tambem e recusa, e nao foco como no Flow.
+
+### `esperar`: o long-poll, e o `terminou` velho
+
+Teto de **90s** (abaixo dos 120s do Bash do CLI; ver o spike A), 16 abertos no maximo, e a vaga volta
+quando o `curl` desiste (`res.on('close')`). Solta em `terminou`, `esperando`, `parada` ou
+`encerrada` -- `esperando` tambem, porque a coordenadora precisa saber que a PESSOA tem de responder.
+
+- **`estado.aoMudar`** e o gancho, e mora no `emitir()`, o ponto unico de `aplicar` e
+  `definirStatus`: cobre hook, farejador e registro sem cada um lembrar de avisar. `remover` avisa
+  tambem (`encerrada`), senao fechar o painel no meio deixava a espera ate o teto.
+- **Um status final ANTERIOR ao ultimo envio e velho.** A coordenadora manda `enviar` e chama
+  `esperar` antes de o hook do worker dizer que voltou a rodar: sem a regra, o `terminou` de antes
+  devolvia na hora, e ela leria um diff que o worker nem comecou a mudar. O `enviadoEm` usa o relogio
+  REAL, e nao o injetavel do teste, porque e comparado com o `desde` do `estado.js`.
+
+### `diff`: assincrono, em dois passos, contra a base da coordenadora
+
+`worktrees.diffLento`: sem `arquivo`, o **resumo** (`--numstat` do commitado, do nao commitado e os
+nao rastreados); com `arquivo`, o diff daquele arquivo, teto de **60 KB** com `truncado`. Tres
+diferencas do `diff()` da janela, todas de proposito: **assincrono** (o modelo chama quantas vezes
+quiser, e o sincrono travaria o processo que hospeda as sessoes), **teto menor** (a saida do Bash do
+CLI nao aguenta 400 KB), e **a base e o branch da coordenadora**, de onde o worker partiu -- com tres
+pontos, so o que o worker fez. `arquivo` absoluto ou com `..` e recusado: e texto do modelo.
+
+### O Enter automatico
+
+O worker nasce com o pedido pelo `--prefill-b64`, que nao envia. Um laco **temporario** no main (1s,
+so enquanto ha worker pendente, morre sozinho) le `claudeDados.sessoes()` e, quando o registro diz
+`idle` com o `name` do worker **e** o `cwd` dentro da worktree dele, escreve **um** `\r`. Desiste em
+150s (o worker pode estar retido na fila) com um toast dizendo que o pedido esta na caixa. A
+seguranca disso e o achado do spike D: sem confianca na pasta, o registro nem aparece.
+
+- **Sem `--prefill-b64` ou sem caber na linha, `criar` RECUSA** (501/413), ao contrario do Flow, que
+  copia para a area de transferencia: o pedido do worker e o trabalho inteiro, e ninguem esta olhando
+  a area de transferencia.
+- **`enviar` cola pelo `colarTexto`** (bracketed paste para multilinha, recusa em dormindo e em
+  `esperando`) e manda o `\r` 700ms depois, a regra do `enviarLinha`. O main recusa `esperando` antes
+  tambem, porque o `enviarLinha` nao tem essa trava.
+
+### A ida e volta com a janela
+
+`orq:pedido`/`orq:resposta`, no molde do `externo.atender`/`veredito`, com prazo de 90s. **O `id` do
+pedido vai por ULTIMO no objeto de resposta** (`{ ...r, id: p.id }`): na primeira versao o id do
+painel novo sobrescrevia o do pedido, o main nao achava quem esperava, e a coordenadora recebia
+"a janela nao respondeu" com o worker ja aberto na tela. Foi o `teste:orquestracao-ui` que pegou;
+o campo do painel e `painel`, e o do `enviar` e `worker`.
+
+### Na tela, e o que NAO persiste
+
+`painel.pai` (o id da coordenadora) vira o chip `↳ <feature>` no cabecalho (peso 5000, sai no degrau
+de 235px com a issue), o card dela conta `N workers`, e o mapa desenha `.mapa-linha-pai`, continua e
+no tom de info. **Nada disso vai para o `sessao.json`**: o id e efemero, e depois de reiniciar o main
+ja nao sabe de worker nenhum -- persistir so faria o chip mentir. Fechar a coordenadora nao fecha os
+workers; o chip passa a dizer `sessão fechada`.
+
+### A skill
+
+`~/.claude/skills/orquestrador/SKILL.md`, escopo de USUARIO como os hooks (a de projeto nao
+sobreviveria a worktree). O texto e o da parte B do spike, com o `X-Orq-Id` em toda chamada, o corpo
+por heredoc (`--data-binary @- <<'JSON'`, porque prompt com apostrofo quebraria o `-d '...'`) e os
+tetos interpolados das constantes. **Uma MARCA no arquivo decide o que e nosso**: sem ela, instalar
+recusa e remover nao toca -- uma skill `orquestrador` da propria pessoa sobrevive. O `--remover-hooks`
+do desinstalador remove a skill junto.
+
+`npm run teste:orquestracao` (Node puro: roteador de verdade numa porta efemera, git de verdade, a
+partida com registro falso), `teste:orquestracao-ui` (pelo CDP, com `echo claude`) e
+`teste:orquestracao-reais` (coordenadora e dois workers de verdade; a skill e as permissoes ficam
+commitadas no repositorio descartavel, e nada vai para o `~/.claude`). **Medido na primeira corrida
+real**: dois `criar`, os dois partindo sozinhos, `terminou` nos dois, e os dois branches mesclados
+pela coordenadora em ~2min.
 
 ## O mapa
 

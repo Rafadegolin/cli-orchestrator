@@ -126,6 +126,18 @@ const textoDaAjuda = `(() => document.getElementById('ajuda-corpo').textContent)
   checar('o piso de atualizacao da inbox confere',
     conteudo.includes(`${real.segundosInbox} segundos`), `codigo diz ${real.segundosInbox}`);
 
+  // A orquestracao de workers (Fase 10.6): os tetos citados sao os do main.
+  checar('a ajuda tem a secao da orquestracao',
+    await cdp.avaliar(`window.OrqAjuda.SECOES.some((s) => s.id === 'orquestracao')`), '');
+  checar('o teto de workers confere',
+    conteudo.includes(`${real.maxFilhosOrq} workers vivos`), `codigo diz ${real.maxFilhosOrq}`);
+  checar('o teto do pedido do worker confere',
+    conteudo.includes(`até ${real.maxPromptOrq} caracteres`), `codigo diz ${real.maxPromptOrq}`);
+  checar('o teto do esperar confere',
+    conteudo.includes(`até ${real.esperarOrq} segundos`), `codigo diz ${real.esperarOrq}`);
+  checar('o arquivo da skill citado e o real',
+    conteudo.includes(real.arquivoSkill), real.arquivoSkill);
+
   // Nenhum marcador de substituicao pode ter escapado para a tela.
   const sobrou = (conteudo.match(/\{[a-zA-Z]+\}/g) || []);
   checar('nenhum {marcador} ficou sem substituir', sobrou.length === 0, sobrou.join(','));

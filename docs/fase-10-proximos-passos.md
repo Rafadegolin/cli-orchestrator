@@ -266,6 +266,14 @@ retomar, o `claude -c` desenha por baixo.
 
 ## 10.6 CLI `orq` e skill de orquestração
 
+> **Feito.** As cinco rotas da tabela abaixo, com `X-Orq-Id`, e a skill em
+> `~/.claude/skills/orquestrador/`, instalada pela paleta com diálogo (desligada por padrão). Duas
+> decisões tomadas na hora de codar: o branch do worker **nasce do commit da coordenadora**, e o
+> worker **começa sozinho** — o app manda o Enter quando o registro do CLI diz que a TUI subiu, o que
+> o spike D mostrou ser seguro contra o diálogo de confiança. O `diff` é em dois passos (resumo, depois
+> arquivo), contra a base da coordenadora. A relação coordenadora → worker não persiste. Detalhes no
+> CLAUDE.md, "Workers: uma sessão criando outras".
+
 **O salto estratégico.** No Orca, um agente coordenador cria worktrees e despacha *workers* pela CLI
 do app (com sinais de `ask` e `worker_done`). É a diferença entre um painel de controle e uma
 plataforma: **o próprio Claude passa a operar o orquestrador**.
@@ -363,7 +371,7 @@ mentir para cima.
    decidida.
 5. **10.5 Scrollback** — independente; pode entrar em paralelo a qualquer um.
 6. ~~**10.4 Inbox do Flow**~~ — **feito**.
-7. **10.6 Rotas `/orq/*` + skill** — spike **feito**; o código é o próximo passo.
+7. ~~**10.6 Rotas `/orq/*` + skill**~~ — **feito**.
 
 ## Decisões em aberto
 

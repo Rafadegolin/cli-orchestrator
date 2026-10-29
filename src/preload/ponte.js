@@ -76,8 +76,9 @@ contextBridge.exposeInMainWorld('orq', {
   // volta a convencao `worktree-<slug>` do `claude -w`.
   worktreesPrever: (caminho, slug, branch) =>
     ipcRenderer.invoke('worktrees:prever', { caminho, slug, branch }),
-  worktreesCriar: (caminho, slug, branch) =>
-    ipcRenderer.invoke('worktrees:criar', { caminho, slug, branch }),
+  // `desde` so vem do worker do orquestrador (10.6): o commit da coordenadora.
+  worktreesCriar: (caminho, slug, branch, desde) =>
+    ipcRenderer.invoke('worktrees:criar', { caminho, slug, branch, desde }),
 
   // ------------------------------------------- pedido externo (Pronix Flow)
   //
@@ -101,6 +102,16 @@ contextBridge.exposeInMainWorld('orq', {
   flowIssues: () => ipcRenderer.invoke('flow:issues'),
   // So o ID: os campos do pedido saem da lista que o main leu do Flow.
   flowAbrir: (id) => ipcRenderer.invoke('flow:abrir', id),
+
+  // ------------------------------------------- orquestracao (Fase 10.6)
+  // O pedido chega do main (uma coordenadora chamou /orq/criar ou /orq/enviar);
+  // a janela faz o painel e devolve o veredito pelo `orqResposta`.
+  aoPedidoOrq: (fn) => ipcRenderer.on('orq:pedido', (_e, p) => fn(p)),
+  aoAvisoOrq: (fn) => ipcRenderer.on('orq:aviso', (_e, a) => fn(a)),
+  orqResposta: (r) => ipcRenderer.send('orq:resposta', r),
+  orqSituacao: () => ipcRenderer.invoke('orq:situacao'),
+  orqLigar: () => ipcRenderer.invoke('orq:ligar'),
+  orqDesligar: () => ipcRenderer.invoke('orq:desligar'),
   // O CLI ainda aceita `--prefill-b64`? Memoizado no processo principal.
   claudePrefill: () => ipcRenderer.invoke('claude:prefill'),
 

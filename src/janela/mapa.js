@@ -169,6 +169,24 @@
         s.append(linha);
       }
     }
+
+    // Coordenadora -> worker (Fase 10.6). Outra classe e sem dedupe contra as
+    // ligacoes: as duas relacoes podem coexistir e dizem coisas diferentes.
+    for (const p of painéis()) {
+      const pai = p.pai ? window.OrqPainel.painelPorId.get(p.pai) : null;
+      if (!pai) continue;
+      const a = centro(pai);
+      const b = centro(p);
+      const linha = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      linha.setAttribute('x1', String(a.x));
+      linha.setAttribute('y1', String(a.y));
+      linha.setAttribute('x2', String(b.x));
+      linha.setAttribute('y2', String(b.y));
+      linha.setAttribute('class', 'mapa-linha-pai');
+      linha.dataset.de = pai.id;
+      linha.dataset.para = p.id;
+      s.append(linha);
+    }
   }
 
   // Arrastar e redimensionar sao continuos, e redesenhar o SVG inteiro a cada

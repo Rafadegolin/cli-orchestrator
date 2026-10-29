@@ -51,7 +51,7 @@ function portasDeQuem(painel) {
 
 async function criarPainel({
   cwd, feature, comandoInicial, tipoPainel, dormindo, indisponivel, ligacoes, ligacoesPendentes,
-  issue, branch, promptInicial, setupInicial, x, y, w, h,
+  issue, branch, promptInicial, setupInicial, x, y, w, h, pai,
 }) {
   const id = novoId();
 
@@ -102,6 +102,11 @@ async function criarPainel({
   // processo principal; o painel so guarda e desenha.
   painel.issue = issue && typeof issue === 'object' ? issue : null;
   painel.mostrarIssue();
+  // A coordenadora que pediu este worker (Fase 10.6). NAO entra no
+  // `retratoSessao()`: o id dela e efemero, e depois de reiniciar o main ja nao
+  // sabe de worker nenhum -- persistir so faria o chip mentir.
+  painel.pai = typeof pai === 'string' ? pai : '';
+  painel.mostrarPai();
   painel.x = Number.isFinite(x) ? x : null;
   painel.y = Number.isFinite(y) ? y : null;
   // Tamanho no mapa. Separado de x/y porque um sessao.json gravado antes do

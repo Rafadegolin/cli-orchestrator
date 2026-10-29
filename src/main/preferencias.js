@@ -48,6 +48,10 @@ const PADRAO = {
   // As rotas /ping e /abrir, que e por onde o Pronix Flow pede uma sessao.
   externo: 'ligado',
   origens: [ORIGEM_FLOW],
+  // As rotas /orq/* (Fase 10.6): uma sessao do Claude criando outras. DESLIGADA
+  // por padrao, ao contrario do `externo`: ligar instala uma skill no
+  // ~/.claude, e isso so acontece por clique, com dialogo.
+  orquestracao: 'desligada',
   personalizado: MOLDE_PADRAO,
 };
 
@@ -100,6 +104,9 @@ function normalizar(bruto) {
     // -- o projeto padroniza pares, e um meio-termo obrigaria a explicar na
     // ajuda dois canais que a pessoa nem sabe que existem.
     externo: b.externo === 'desligado' ? 'desligado' : 'ligado',
+    // O fallback e o DESLIGADO, invertido em relacao ao `externo`: valor torto
+    // num ui.json editado a mao nao pode abrir uma superficie que cria sessoes.
+    orquestracao: b.orquestracao === 'ligada' ? 'ligada' : 'desligada',
     // GUARDAR por padrao: e o que faz o painel restaurado nao voltar vazio. Par
     // `guardar/nao-guardar`, e desligar apaga o que ja estava gravado
     // (`telas.apagarTudo`, no handler do `ui:salvar`).
@@ -216,6 +223,11 @@ function telasLigadas(ui) {
   return (ui || carregar()).telas !== 'nao-guardar';
 }
 
+// Quem decide se as rotas /orq/* respondem e o main, a cada pedido.
+function orquestracaoLigada(ui) {
+  return (ui || carregar()).orquestracao === 'ligada';
+}
+
 function carregar() {
   return normalizar(arquivo.lerJson(NOME, {}).ui);
 }
@@ -228,6 +240,6 @@ function salvar(parcial) {
 }
 
 module.exports = {
-  carregar, salvar, normalizar, avisosLigados, telasLigadas, PADRAO, MOLDE_PADRAO, NOME,
+  carregar, salvar, normalizar, avisosLigados, telasLigadas, orquestracaoLigada, PADRAO, MOLDE_PADRAO, NOME,
   origemPermitida, canonizarOrigem, ORIGEM_FLOW, MAX_ORIGENS,
 };

@@ -31,6 +31,9 @@ const externo = require('./externo');
 const flow = require('./flow');
 const flowCredencial = require('./flow-credencial');
 const claudeFlags = require('./claude-flags');
+const claudeDados = require('./claude-dados');
+const orquestracao = require('./orquestracao');
+const skillOrq = require('./skill-orquestrador');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -50,6 +53,9 @@ if (process.argv.includes('--remover-hooks')) {
   try {
     instalarHooks.desinstalar();
     console.log('hooks removidos');
+    // A skill do orquestrador (Fase 10.6) sai junto: ela manda o Claude chamar
+    // um app que nao existe mais. So a NOSSA -- a marca no arquivo decide.
+    try { skillOrq.remover(); } catch (err) { console.error('falhou ao remover a skill:', err.message); }
   } catch (err) {
     console.error('falhou ao remover hooks:', err.message);
   }
@@ -317,6 +323,7 @@ app.whenReady().then(async () => {
   try {
     await eventos.iniciar({
       aoAbrir: externo.atender,
+      aoOrq: orquestracao.atender,
       versao: app.getVersion(),
       // O `Stop` e quando o agente acabou -- e quase sempre acabou de commitar.
       // E o gatilho do chip de branch (Fase 10.3), no lugar de um relogio.
@@ -627,6 +634,84 @@ ipcMain.on('externo:pronto', () => externo.pronto());
 // O veredito do renderer sobre um pedido: e o que o /abrir responde ao Flow.
 ipcMain.on('abrir:resposta', (_e, r) => externo.veredito(r));
 
+// ------------------------------------------------- orquestracao (10.6)
+
+// `criar` e `enviar` dependem da janela (o slug, o painel, a `OrqFila`): a ida
+// e volta e a do `externo.atender`/`veredito`, sem o resto dele (Flow, ritmo,
+// em voo). Prazo abaixo dos 120s do Bash do CLI: o `curl` da coordenadora tem de
+// receber uma resposta, mesmo que seja "a janela nao respondeu".
+const MS_ORQ_JANELA = 90_000;
+const orqEsperando = new Map();
+let orqSeq = 0;
+
+function pedirJanelaOrq(tipo, carga) {
+  if (!janela || janela.isDestroyed() || janela.webContents.isDestroyed()) return Promise.resolve(null);
+  orqSeq += 1;
+  const id = `oq-${Date.now().toString(36)}-${orqSeq.toString(36)}`;
+  return new Promise((ok) => {
+    const prazo = setTimeout(() => { orqEsperando.delete(id); ok(null); }, MS_ORQ_JANELA);
+    orqEsperando.set(id, (r) => { clearTimeout(prazo); orqEsperando.delete(id); ok(r); });
+    janela.webContents.send('orq:pedido', { ...carga, id, tipo });
+  });
+}
+
+ipcMain.on('orq:resposta', (_e, r) => {
+  const fn = orqEsperando.get(r && r.id);
+  if (fn) fn(r);
+});
+
+orquestracao.configurar({
+  estado,
+  terminais,
+  projetos,
+  worktrees,
+  pedirJanela: pedirJanelaOrq,
+  sessoesClaude: () => claudeDados.sessoes({ pidVivo: worktrees.processoVivo }),
+  escrever: terminais.escrever,
+  avisar: (texto) => {
+    if (janela && !janela.isDestroyed()) janela.webContents.send('orq:aviso', { texto });
+  },
+});
+
+ipcMain.handle('orq:situacao', () => ({
+  ligada: preferencias.orquestracaoLigada(),
+  skill: skillOrq.situacao(),
+}));
+
+// Ligar escreve no ~/.claude do usuario: pergunta antes, como os hooks.
+ipcMain.handle('orq:ligar', async () => {
+  const { response } = await dialog.showMessageBox(janela, {
+    type: 'question',
+    buttons: ['Ligar a orquestração', 'Cancelar'],
+    defaultId: 1,
+    cancelId: 1,
+    title: 'Orquestração de workers',
+    message: 'Deixar uma sessão do Claude criar outras sessões?',
+    detail:
+      `Vou gravar uma skill em ${skillOrq.arquivo()}. Ela ensina uma sessão aberta aqui a `
+      + `criar workers: cada um é um painel novo, numa worktree e num branch próprios, que `
+      + `partem do commit atual da sessão que pediu e começam a trabalhar sozinhos.
+
+`
+      + `No máximo ${orquestracao.MAX_FILHOS} workers vivos por sessão, todos pela fila de partida. `
+      + `Cada worker gasta tokens como uma sessão sua. Pedidos de permissão continuam com você.
+
+`
+      + `As rotas só atendem sessões deste app, em 127.0.0.1:${eventos.PORTA}, e recusam qualquer página web.`,
+  });
+  if (response !== 0) return { cancelado: true };
+  const r = skillOrq.instalar();
+  if (!r.ok) return r;
+  preferencias.salvar({ orquestracao: 'ligada' });
+  return { ok: true, arquivo: r.arquivo };
+});
+
+ipcMain.handle('orq:desligar', () => {
+  const r = skillOrq.remover();
+  preferencias.salvar({ orquestracao: 'desligada' });
+  return { ok: true, removida: r.removida };
+});
+
 // ------------------------------------------------- inbox do Flow (Fase 10.4)
 
 // A ultima lista lida, SO em memoria (a regra do 10.4: a inbox nao guarda nada
@@ -685,7 +770,8 @@ ipcMain.handle('flow:abrir', async (_e, id) => {
 // Uma worktree so, num branch escolhido. O irmao do `worktrees:criarDupla`.
 ipcMain.handle('worktrees:prever', (_e, { caminho, slug, branch } = {}) => worktrees.prever(caminho, slug, { branch }));
 
-ipcMain.handle('worktrees:criar', (_e, { caminho, slug, branch } = {}) => worktrees.criar(caminho, slug, { branch }));
+ipcMain.handle('worktrees:criar', (_e, { caminho, slug, branch, desde } = {}) => (
+  worktrees.criar(caminho, slug, { branch, desde: desde || '' })));
 
 // O CLI ainda aceita `--prefill-b64`? Memoizado no modulo; aqui so o repasse.
 ipcMain.handle('claude:prefill', () => claudeFlags.suportaPrefill());
@@ -978,6 +1064,11 @@ ipcMain.handle('app:constantes', () => ({
   // descricao que vai para a caixa do Claude.
   origemFlow: preferencias.ORIGEM_FLOW,
   descricaoFlow: flow.MAX_DESCRICAO,
+  // A orquestracao (Fase 10.6): os tetos que a ajuda e a skill citam.
+  esperarOrq: orquestracao.ESPERAR_MAX_S,
+  maxFilhosOrq: orquestracao.MAX_FILHOS,
+  maxPromptOrq: orquestracao.MAX_PROMPT,
+  arquivoSkill: skillOrq.arquivo(),
 }));
 
 ipcMain.handle('ui:carregar', () => preferencias.carregar());
@@ -986,7 +1077,10 @@ ipcMain.handle('ui:carregar', () => preferencias.carregar());
 // pelo Windows e nao enxergam o CSS. Sem isto, o tema claro fica com uma faixa
 // preta no canto superior direito.
 ipcMain.handle('ui:salvar', (_e, parcial) => {
-  const ui = preferencias.salvar(parcial);
+  // `orquestracao` so muda pelo `orq:ligar`/`orq:desligar`: ligar sem
+  // instalar a skill (ou desligar sem remove-la) deixaria os dois mentindo.
+  const { orquestracao: _ignorada, ...resto } = parcial || {};
+  const ui = preferencias.salvar(resto);
   // Desligou a saida guardada: o que ja estava no disco vai junto, na hora.
   if (!preferencias.telasLigadas(ui)) telas.apagarTudo();
   if (janela && !janela.isDestroyed()) {

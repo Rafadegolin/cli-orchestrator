@@ -990,9 +990,29 @@ function prever(projeto, slug, { branch: pedido = '' } = {}) {
 // sincrona. `worktree add` faz um checkout inteiro, e sincrono ele bloquearia o
 // processo principal -- sem IPC, sem hooks, e a janela que o Windows oferece
 // fechar.
-async function criar(projeto, slug, { branch: pedido = '', buscar: buscarRemoto = true } = {}) {
+// `desde` (Fase 10.6, o worker do orquestrador): o commit de onde o branch NOVO
+// nasce -- o da sessao coordenadora, para o worker enxergar o que ela ja
+// commitou. Ele exige que tudo seja novo: reaproveitar uma pasta ou um branch
+// com o mesmo nome entregaria a um worker o trabalho de uma sessao antiga, e
+// quem pediu (o modelo) nao teria como saber. Sem `desde`, nada muda.
+async function criar(projeto, slug, { branch: pedido = '', buscar: buscarRemoto = true, desde = '' } = {}) {
   const p = prever(projeto, slug, { branch: pedido });
   if (!p.ok) return p;
+
+  if (desde) {
+    if (p.existe || p.branchExiste || p.remotos.length) {
+      return {
+        ok: false,
+        motivo: 'existe',
+        texto: `ja existe uma worktree ou um branch chamado ${p.branch}; escolha outro nome`,
+      };
+    }
+    // O mesmo portao do `branchValido`: `-` no comeco e argumento disfarcado.
+    const ref = String(desde);
+    if (ref.startsWith('-') || !gitSilencioso(projeto, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).ok) {
+      return { ok: false, motivo: 'desde', texto: `o ponto de partida ${ref} nao e um commit deste repositorio` };
+    }
+  }
 
   // Reaproveitar, nunca recriar: e o que deixa reabrir a mesma dupla amanha so
   // redigitando o nome. Recriar apagaria trabalho.
@@ -1045,8 +1065,8 @@ async function criar(projeto, slug, { branch: pedido = '', buscar: buscarRemoto 
     args = ['worktree', 'add', '--track', '-b', p.branch, p.caminho, `${remoto}/${p.branch}`];
     branchCriado = true;
   } else {
-    // Em lugar nenhum: forka do HEAD do projeto.
-    args = ['worktree', 'add', '-b', p.branch, p.caminho];
+    // Em lugar nenhum: forka do HEAD do projeto -- ou do `desde`, quando veio.
+    args = ['worktree', 'add', '-b', p.branch, p.caminho, ...(desde ? [String(desde)] : [])];
     branchCriado = true;
   }
 
@@ -1217,6 +1237,75 @@ function diff(projeto, caminho) {
   };
 }
 
+// O diff para o COORDENADOR do 10.6, que le pela ferramenta Bash do CLI.
+//
+// Duas diferencas do `diff()` acima, e as duas sao medidas, nao gosto:
+//  - ASSINCRONO (`gitLento`): o modelo chama isto quantas vezes quiser, e o
+//    `diff()` sincrono congelaria o processo que hospeda todas as sessoes a
+//    cada chamada;
+//  - teto de 60 KB e RESUMO primeiro: a saida da ferramenta Bash do CLI nao
+//    aguenta os 400 KB que a janela aguenta. Sem `arquivo` volta a lista
+//    (`--numstat`), com `arquivo` volta o diff daquele arquivo.
+//
+// A base e a de onde o worker PARTIU (o branch da coordenadora), e nao a base do
+// projeto: com tres pontos, e o que o worker fez desde que nasceu.
+const MAX_DIFF_ORQ = 60 * 1024;
+
+function numstat(saida, origem) {
+  return String(saida || '').split('\n').filter(Boolean).map((l) => {
+    const [mais, menos, ...resto] = l.split('\t');
+    return { arquivo: resto.join('\t'), mais: mais === '-' ? null : Number(mais), menos: menos === '-' ? null : Number(menos), origem };
+  }).filter((x) => x.arquivo);
+}
+
+async function diffLento(caminho, { base = '', arquivo = '' } = {}) {
+  if (!fs.existsSync(caminho)) return { ok: false, texto: 'a pasta do worktree nao existe mais' };
+  const b = String(base || '');
+  if (!b || b.startsWith('-')) return { ok: false, texto: 'sem base para comparar' };
+  const comum = ['--no-color', '--no-ext-diff'];
+
+  if (!arquivo) {
+    const [commitado, indice, solto, status] = await Promise.all([
+      gitLento(caminho, ['diff', ...comum, '--numstat', `${b}...HEAD`]),
+      gitLento(caminho, ['diff', ...comum, '--numstat', '--cached']),
+      gitLento(caminho, ['diff', ...comum, '--numstat']),
+      gitLento(caminho, ['status', '--porcelain', '--untracked-files=all']),
+    ]);
+    if (!commitado.ok) return { ok: false, texto: `nao consegui comparar com ${b}: ${commitado.erro}` };
+    const novos = String(status.saida || '').split('\n').filter((l) => l.startsWith('??'))
+      .map((l) => ({ arquivo: l.slice(3).trim(), mais: null, menos: null, origem: 'nao-rastreado' }));
+    const arquivos = [
+      ...numstat(commitado.saida, 'commitado'),
+      ...numstat(indice.saida, 'nao-commitado'),
+      ...numstat(solto.saida, 'nao-commitado'),
+      ...novos,
+    ];
+    return { ok: true, base: b, arquivos, vazio: arquivos.length === 0 };
+  }
+
+  const alvo = String(arquivo);
+  // Caminho do repositorio, nunca absoluto nem para fora: e texto do modelo.
+  if (path.isAbsolute(alvo) || alvo.split(/[\\/]/).includes('..')) {
+    return { ok: false, texto: 'arquivo tem de ser um caminho relativo dentro do repositorio' };
+  }
+  const [commitado, indice, solto] = await Promise.all([
+    gitLento(caminho, ['diff', ...comum, `${b}...HEAD`, '--', alvo]),
+    gitLento(caminho, ['diff', ...comum, '--cached', '--', alvo]),
+    gitLento(caminho, ['diff', ...comum, '--', alvo]),
+  ]);
+  let texto = `${commitado.saida || ''}${indice.saida || ''}${solto.saida || ''}`;
+  if (!texto && fs.existsSync(path.join(caminho, alvo))) {
+    // Nao rastreado: o mesmo --no-index do `naoRastreados`, que sai com 1.
+    const r = await new Promise((ok) => {
+      execFile('git', ['diff', ...comum, '--no-index', '--', '/dev/null', alvo], opcoesGit(caminho, MS_GIT),
+        (_err, saida) => ok(String(saida || '')));
+    });
+    texto = r;
+  }
+  const truncado = texto.length > MAX_DIFF_ORQ;
+  return { ok: true, base: b, arquivo: alvo, diff: truncado ? texto.slice(0, MAX_DIFF_ORQ) : texto, truncado };
+}
+
 function situacaoInclude(projeto) {
   if (!projeto || !fs.existsSync(projeto) || !ehRepositorio(projeto)) {
     return { aplicavel: false, existe: false, candidatos: [] };
@@ -1288,6 +1377,8 @@ module.exports = {
   arquivarVarias,
   diff,
   MAX_DIFF,
+  diffLento,
+  MAX_DIFF_ORQ,
   situacaoInclude,
   criarInclude,
   processoVivo,

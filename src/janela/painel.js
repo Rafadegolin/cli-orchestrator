@@ -160,6 +160,19 @@ class Painel {
       if (this.issue?.url) window.orq.abrirExterno(this.issue.url);
     });
 
+    // Worker do orquestrador (Fase 10.6): de qual sessao coordenadora ele veio.
+    // Mesmo grupo da issue, e pela mesma razao: e IDENTIDADE. Clicar leva a
+    // coordenadora. `pai` e o id do painel dela, so em memoria -- id muda a cada
+    // vez que o app abre, e depois de reiniciar a relacao nao vale mais nada.
+    this.pai = '';
+    this.elPai = document.createElement('button');
+    this.elPai.className = 'painel-pai';
+    this.elPai.hidden = true;
+    this.elPai.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (this.pai && painelPorId.has(this.pai)) window.OrqGrade.focarPainel(this.pai);
+    });
+
     // Branch, PR e CI (Fase 10.3). Texto, tom e menu sao do `OrqBranch`; aqui so
     // nasce o elemento. Mesmo grupo da issue, e pela mesma razao: e IDENTIDADE
     // do trabalho, e a saida (o fechar) nao pode disputar espaco com ele.
@@ -239,7 +252,7 @@ class Painel {
     acoes.className = 'painel-acoes';
     acoes.append(this.elPorta, this.elFila, this.elLigacoes, this.elRender, btnFechar);
 
-    cab.append(this.elBolinha, elFeature, this.elIssue, this.elBranch, this.elLocal, this.elStatus, this.elRevisao, this.elRun, acoes);
+    cab.append(this.elBolinha, elFeature, this.elPai, this.elIssue, this.elBranch, this.elLocal, this.elStatus, this.elRevisao, this.elRun, acoes);
 
     this.elTerm = document.createElement('div');
     this.elTerm.className = 'painel-term';
@@ -964,6 +977,19 @@ class Painel {
       + (i.url ? `\n\n${i.url}` : '\n\n(sem link)');
   }
 
+  mostrarPai() {
+    if (!this.elPai) return;
+    const pai = this.pai ? painelPorId.get(this.pai) : null;
+    this.elPai.hidden = !this.pai;
+    if (!this.pai) return;
+    const nome = pai ? pai.feature : 'sessão fechada';
+    this.elPai.textContent = `↳ ${nome}`;
+    this.elPai.disabled = !pai;
+    this.elPai.title = pai
+      ? `Worker criado pela sessão ${pai.feature}. Clique para ir até ela.`
+      : 'Worker criado por uma sessão que já foi fechada.';
+  }
+
   definirPortas(portas) {
     this.portas = portas || [];
     if (!this.portas.length) {
@@ -1069,6 +1095,8 @@ class Painel {
 
     this.el.remove();
     painelPorId.delete(this.id);
+    // Os workers desta sessao (10.6) passam a dizer que a coordenadora fechou.
+    for (const outro of painelPorId.values()) if (outro.pai === this.id) outro.mostrarPai();
     const i = ordemDeUso.indexOf(this.id);
     if (i >= 0) ordemDeUso.splice(i, 1);
 

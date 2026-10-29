@@ -1032,6 +1032,17 @@ button:focus-visible, input:focus-visible {
 
 .card-atencao .card-sub { color: var(--warn); }
 
+/* Os workers de uma coordenadora (Fase 10.6). Vazio nao ocupa nada. */
+.card-filhos {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--info);
+}
+.card-filhos:empty { display: none; }
+.card-filhos:not(:empty) + .card-porta { margin-left: 6px; }
+
 /* ----------------------------------------------------------- rodape lateral */
 
 #lateral-pe {
@@ -1561,6 +1572,26 @@ button.primario:hover {
 
 .painel-issue:hover:not(:disabled) { border-color: var(--info); }
 
+/* De qual coordenadora o worker veio (Fase 10.6). A familia da issue, com o
+   mesmo peso de compressao; sai no mesmo degrau do @container. */
+.painel-pai {
+  flex: 0 5000 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg2);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.painel-pai:hover:not(:disabled) { border-color: var(--fg2); }
+.painel-pai:disabled { cursor: default; opacity: .7; }
+
 /* Branch, PR e CI (Fase 10.3). Mesma familia da issue, mas com peso de
    compressao BAIXO (500, contra 5000 da issue): mais alto ele perdia 3px antes
    de a pill e o status cederem, e `· push` virava `· pu…` -- justamente a
@@ -1608,6 +1639,7 @@ button.primario:hover {
    caminho daqui de volta para o Flow. */
 @container (max-width: 235px) {
   .painel-issue { display: none; }
+  .painel-pai { display: none; }
 }
 
 @container (max-width: 210px) {
@@ -1913,6 +1945,13 @@ button.primario:hover {
   stroke: var(--acc);
   stroke-width: 2;
   stroke-dasharray: 6 5;
+  opacity: .55;
+}
+
+/* Coordenadora -> worker: continua (a ligacao e tracejada) e no tom de info. */
+.mapa-linha-pai {
+  stroke: var(--info);
+  stroke-width: 2;
   opacity: .55;
 }
 

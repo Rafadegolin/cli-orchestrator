@@ -44,6 +44,13 @@ let versaoApp = '';
 let servidor = null;
 let aoEvento = null;
 let aoAbrir = null;
+let aoOrq = null;
+
+// As rotas /orq/* (Fase 10.6): quem chama e o `curl` de uma sessao do Claude,
+// nunca um navegador. Corpo curto (nome + prompt de ate 5000 caracteres).
+const MAX_CORPO_ORQ = 16 * 1024;
+const MS_CORPO_ORQ = 5_000;
+const METODO_ORQ = { criar: 'POST', enviar: 'POST', status: 'GET', esperar: 'GET', diff: 'GET' };
 
 function responder(res) {
   if (res.writableEnded) return;
@@ -86,6 +93,8 @@ function tratar(req, res) {
   if (partes[0] === 'evento') { tratarEvento(req, res, partes); return; }
 
   if (partes[0] === 'ping' || partes[0] === 'abrir') { tratarExterno(req, res, partes[0]); return; }
+
+  if (partes[0] === 'orq') { tratarOrq(req, res, partes[1] || '', url.searchParams); return; }
 
   // Caminho desconhecido continua com o 200 mudo de sempre. NAO vira 404: quem
   // bate aqui e varredor de porta, e um 404 com corpo so entrega informacao.
@@ -361,6 +370,115 @@ function tratarExterno(req, res, rota) {
   req.on('error', seguir);
 }
 
+// --------------------------------------------------- /orq/* (Fase 10.6)
+
+// MAIS ESTRITA que o /abrir, e por um motivo so: nenhuma pagina web tem razao
+// legitima para chamar aqui. Entao nao ha allowlist nem preflight -- QUALQUER
+// `Origin` presente e recusado, antes de tudo que tenha efeito. O resto do
+// raciocinio do /abrir vale igual: `Origin` ausente (o curl da sessao) e aceito,
+// porque contra codigo local nao ha defesa, e o `Host` de loopback fecha o DNS
+// rebinding.
+//
+// A ordem, toda antes de qualquer efeito:
+//   1. Host de loopback
+//   2. nenhum Origin (OPTIONS cai aqui tambem: sem Origin nao ha preflight)
+//   3. o interruptor `orquestracao` (desligado por padrao)
+//   4. rota conhecida e metodo certo; escrita so com application/json
+//   5. corpo curto
+// A identidade (`X-Orq-Id`) e conferida no `orquestracao.js`, que sabe quem
+// sao as sessoes.
+//
+// Diferente do resto do servidor, caminho desconhecido DENTRO de /orq/ vira 404
+// com o nome das rotas: quem chama e o modelo, e um erro claro e o que o impede
+// de inventar a proxima.
+function tratarOrq(req, res, rota, params) {
+  const metodo = String(req.method || 'GET').toUpperCase();
+
+  if (!hostLocal(req.headers.host)) {
+    responderJson(res, 403, { ok: false, erro: 'host-invalido' });
+    return;
+  }
+  if (req.headers.origin !== undefined) {
+    responderJson(res, 403, { ok: false, erro: 'origem-proibida', texto: 'as rotas /orq/* nao atendem paginas web' });
+    return;
+  }
+  if (!preferencias.orquestracaoLigada()) {
+    responderJson(res, 503, {
+      ok: false,
+      erro: 'orquestracao-desligada',
+      texto: 'a orquestracao esta desligada no orquestrador (paleta: "Ligar a orquestração de workers")',
+    });
+    return;
+  }
+  const esperado = METODO_ORQ[rota];
+  if (!esperado) {
+    responderJson(res, 404, { ok: false, erro: 'rota-desconhecida', texto: `rotas: ${Object.keys(METODO_ORQ).join(', ')}` });
+    return;
+  }
+  if (metodo !== esperado) {
+    responderJson(res, 405, { ok: false, erro: 'metodo', texto: `use ${esperado}` }, { allow: esperado });
+    return;
+  }
+  if (esperado === 'POST' && !/^application\/json\b/i.test(String(req.headers['content-type'] || ''))) {
+    responderJson(res, 415, { ok: false, erro: 'tipo-invalido', texto: 'mande -H "content-type: application/json"' });
+    return;
+  }
+  if (!aoOrq) {
+    responderJson(res, 503, { ok: false, erro: 'sem-handler' });
+    return;
+  }
+
+  const cabecalhoId = String(req.headers['x-orq-id'] || '').trim();
+  const query = Object.fromEntries(params);
+
+  let corpo = '';
+  let grande = false;
+  let terminou = false;
+
+  const seguir = () => {
+    if (terminou) return;
+    terminou = true;
+    clearTimeout(prazo);
+    if (grande) {
+      responderJson(res, 413, { ok: false, erro: 'corpo-grande' });
+      return;
+    }
+    let json = {};
+    if (esperado === 'POST') {
+      try {
+        json = corpo ? JSON.parse(corpo) : {};
+      } catch {
+        responderJson(res, 400, { ok: false, erro: 'corpo-invalido', texto: 'o corpo nao e JSON valido' });
+        return;
+      }
+      if (!json || typeof json !== 'object' || Array.isArray(json)) json = {};
+    }
+    // Nao e `async` pelo mesmo motivo do /abrir: o `.catch` e o que responde.
+    Promise.resolve()
+      .then(() => aoOrq({
+        rota,
+        orqId: cabecalhoId,
+        query,
+        corpo: json,
+        // O long-poll do `esperar` precisa saber quando o curl desistiu.
+        aoFechar: (fn) => res.on('close', fn),
+      }))
+      .then((r) => responderJson(res, (r && r.status) || 200, (r && r.corpo) || { ok: true }))
+      .catch((err) => {
+        console.error(`[eventos] /orq/${rota} falhou:`, (err && err.stack) || err);
+        responderJson(res, 500, { ok: false, erro: 'falha-interna' });
+      });
+  };
+
+  const prazo = setTimeout(seguir, MS_CORPO_ORQ);
+  req.on('data', (c) => {
+    if (corpo.length + c.length > MAX_CORPO_ORQ) { grande = true; return; }
+    corpo += c;
+  });
+  req.on('end', seguir);
+  req.on('error', seguir);
+}
+
 // A porta e fixa (o comando do hook a leva embutida), entao reabrir o app antes
 // do processo anterior soltar o socket da EADDRINUSE -- e o usuario que so
 // fechou e abriu de novo cai num aviso de porta ocupada e fica sem bolinhas.
@@ -401,9 +519,12 @@ function tentarEscutar() {
 // E dois callbacks do mesmo formato lado a lado (`iniciar(cb, abrir)`) e o que
 // este projeto ja recusou por escrito no `index.js`: trocar os dois de lugar nao
 // daria erro nenhum.
-async function iniciar({ aoEvento: cbEvento = null, aoAbrir: cbAbrir = null, versao = '' } = {}) {
+async function iniciar({
+  aoEvento: cbEvento = null, aoAbrir: cbAbrir = null, aoOrq: cbOrq = null, versao = '',
+} = {}) {
   aoEvento = cbEvento;
   aoAbrir = cbAbrir;
+  aoOrq = cbOrq;
   versaoApp = String(versao || '');
 
   for (let i = 0; i < TENTATIVAS; i++) {
@@ -439,7 +560,14 @@ function parar() {
 // efemera, em Node puro. Testar contra a 47615 seria brigar com o app instalado
 // da propria maquina, e reimplementar um roteador de mentira no teste seria
 // testar o roteador de mentira.
+// So para o teste, que sobe o `tratarSeguro` no proprio servidor e nao passa
+// pelo `iniciar()`. No app os handlers entram SO pelo `iniciar` (ver acima).
+function _handlersParaTeste({ aoAbrir: a = null, aoOrq: o = null } = {}) {
+  aoAbrir = a;
+  aoOrq = o;
+}
+
 module.exports = {
   iniciar, parar, PORTA, ENDERECO, ARQ_PORTA,
-  tratarSeguro, hostLocal, cabecalhosCors,
+  tratarSeguro, hostLocal, cabecalhosCors, _handlersParaTeste,
 };

@@ -24,8 +24,29 @@ function definirJanela(j) {
 }
 
 function emitir(evento, dados) {
+  if (evento === 'estado:diff') avisarOuvintes(dados);
   if (janela && !janela.isDestroyed() && !janela.webContents.isDestroyed()) {
     janela.webContents.send(evento, dados);
+  }
+}
+
+// Quem quer saber de mudanca de status DENTRO do main (o long-poll do
+// /orq/esperar). O `emitir` e o ponto unico por onde `aplicar` e
+// `definirStatus` passam, entao pendurar aqui cobre hook, farejador e registro
+// sem cada um ter de lembrar de avisar.
+//
+// Um ouvinte que estoura nao derruba os outros nem o diff da janela: este
+// caminho roda dentro do `setImmediate` de todo hook.
+const ouvintes = new Set();
+
+function aoMudar(fn) {
+  ouvintes.add(fn);
+  return () => ouvintes.delete(fn);
+}
+
+function avisarOuvintes(dados) {
+  for (const fn of [...ouvintes]) {
+    try { fn(dados); } catch (err) { console.error('[estado] ouvinte falhou:', (err && err.stack) || err); }
   }
 }
 
@@ -59,8 +80,11 @@ function anotar(s, para) {
 }
 
 function remover(id) {
-  anotar(sessoes.get(id), null);
+  const s = sessoes.get(id);
+  anotar(s, null);
   sessoes.delete(id);
+  // A janela ja sabe (foi ela que fechou o painel); quem espera no main, nao.
+  if (s) avisarOuvintes({ id, status: 'encerrada', motivo: 'painel fechado', desde: Date.now(), pergunta: '', tipo: '' });
 }
 
 // Chamado na saida do app: fecha os intervalos de todas as sessoes vivas.
@@ -241,6 +265,11 @@ function todas() {
   return [...sessoes.values()].map((s) => ({ ...s }));
 }
 
+function obter(id) {
+  const s = sessoes.get(id);
+  return s ? { ...s } : null;
+}
+
 module.exports = {
   STATUS,
   definirJanela,
@@ -252,4 +281,6 @@ module.exports = {
   aplicar,
   definirStatus,
   todas,
+  obter,
+  aoMudar,
 };
