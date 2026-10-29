@@ -128,6 +128,13 @@
 
     lista.push({
       tag: 'nova',
+      rotulo: 'Bloco de notas',
+      dica: 'texto que fica guardado',
+      correr: () => window.OrqNotas?.abrir(),
+    });
+
+    lista.push({
+      tag: 'nova',
       rotulo: 'Minhas issues do Flow',
       dica: 'abrir a próxima tarefa sem ir ao navegador',
       correr: () => window.OrqInbox?.abrir(),

@@ -34,6 +34,7 @@ const claudeFlags = require('./claude-flags');
 const claudeDados = require('./claude-dados');
 const orquestracao = require('./orquestracao');
 const skillOrq = require('./skill-orquestrador');
+const notas = require('./notas');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -310,6 +311,9 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error('[historico] poda falhou:', err.message);
   }
+  // O bloco de notas: copia do ultimo arquivo BOM, uma vez por arranque. E a
+  // rede para o dia em que uma gravacao estragar o texto de alguem.
+  try { notas.fazerBackup(); } catch (err) { console.error('[notas] backup falhou:', err.message); }
   // A rede da poda das telas: a principal e a lista do fechamento, que nao
   // existe quando o app caiu.
   try {
@@ -1069,6 +1073,7 @@ ipcMain.handle('app:constantes', () => ({
   maxFilhosOrq: orquestracao.MAX_FILHOS,
   maxPromptOrq: orquestracao.MAX_PROMPT,
   arquivoSkill: skillOrq.arquivo(),
+  arquivoNotas: arquivo.caminho(notas.NOME),
 }));
 
 ipcMain.handle('ui:carregar', () => preferencias.carregar());
@@ -1108,6 +1113,19 @@ ipcMain.on('telas:salvar', (e, lista) => {
     e.returnValue = { gravados: 0, erro: err.message };
   }
 });
+// ------------------------------------------------- bloco de notas
+
+ipcMain.handle('notas:carregar', () => notas.carregar());
+// O de sempre, com debounce na janela.
+ipcMain.handle('notas:salvar', (_e, estado) => {
+  try { return notas.salvar(estado); } catch (err) { return { ok: false, texto: err.message }; }
+});
+// SINCRONO, no `beforeunload`: o molde do `telas:salvar`. So a resposta
+// sincrona garante que o texto chegou ao disco antes de a janela morrer.
+ipcMain.on('notas:salvarAgora', (e, estado) => {
+  try { e.returnValue = notas.salvar(estado); } catch (err) { e.returnValue = { ok: false, texto: err.message }; }
+});
+
 ipcMain.handle('telas:carregar', (_e, { cwd, feature } = {}) => (
   preferencias.telasLigadas() ? telas.carregar(cwd, feature) : null));
 ipcMain.on('telas:apagar', (_e, { cwd, feature } = {}) => telas.apagar(cwd, feature));

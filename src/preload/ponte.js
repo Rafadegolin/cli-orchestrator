@@ -131,6 +131,10 @@ contextBridge.exposeInMainWorld('orq', {
   // A saida dos painéis ao fechar (Fase 10.5). `sendSync`: e chamado no
   // `beforeunload`, e e so assim que o main recebe antes de a janela morrer.
   telasSalvar: (lista) => ipcRenderer.sendSync('telas:salvar', lista),
+  // O bloco de notas. `notasSalvarAgora` e sincrono, para o `beforeunload`.
+  notasCarregar: () => ipcRenderer.invoke('notas:carregar'),
+  notasSalvar: (estado) => ipcRenderer.invoke('notas:salvar', estado),
+  notasSalvarAgora: (estado) => ipcRenderer.sendSync('notas:salvarAgora', estado),
   telasCarregar: (cwd, feature) => ipcRenderer.invoke('telas:carregar', { cwd, feature }),
   telasApagar: (cwd, feature) => ipcRenderer.send('telas:apagar', { cwd, feature }),
   aoMudarBranch: (fn) => ipcRenderer.on('branch:estado', (_e, carga) => fn(carga)),

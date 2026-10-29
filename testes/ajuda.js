@@ -138,6 +138,12 @@ const textoDaAjuda = `(() => document.getElementById('ajuda-corpo').textContent)
   checar('o arquivo da skill citado e o real',
     conteudo.includes(real.arquivoSkill), real.arquivoSkill);
 
+  // O bloco de notas: o arquivo citado e o que o main grava de verdade.
+  checar('a ajuda tem a secao do bloco de notas',
+    await cdp.avaliar(`window.OrqAjuda.SECOES.some((s) => s.id === 'notas')`), '');
+  checar('o arquivo das notas citado e o real',
+    conteudo.includes(real.arquivoNotas), real.arquivoNotas);
+
   // Nenhum marcador de substituicao pode ter escapado para a tela.
   const sobrou = (conteudo.match(/\{[a-zA-Z]+\}/g) || []);
   checar('nenhum {marcador} ficou sem substituir', sobrou.length === 0, sobrou.join(','));

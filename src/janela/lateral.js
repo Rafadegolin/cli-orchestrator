@@ -438,6 +438,9 @@ btnFilaDica?.addEventListener('click', pularParaMaisAntigo);
 // `metaKey` junto do `ctrlKey` pela mesma razao do Ctrl+B e do Ctrl+K: no Mac
 // o modificador e o ⌘, e este era o unico atalho que nao aceitava os dois.
 window.addEventListener('keydown', (ev) => {
+  // Escrevendo no bloco de notas, Ctrl+Enter e do editor, e nao um salto de
+  // painel no meio da frase.
+  if (ev.target?.closest?.('.painel-notas')) return;
   if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
     ev.preventDefault();
     pularParaMaisAntigo();

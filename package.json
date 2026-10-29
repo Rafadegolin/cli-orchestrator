@@ -59,6 +59,8 @@
     "teste:orquestracao": "node testes/orquestracao.js",
     "teste:orquestracao-ui": "node testes/orquestracao-ui.js",
     "teste:orquestracao-reais": "node testes/orquestracao-reais.js",
+    "teste:notas": "node testes/notas.js",
+    "teste:notas-ui": "node testes/notas-ui.js",
     "teste:worktrees": "node testes/worktrees.js",
     "teste:worktrees-ui": "node testes/worktrees-ui.js",
     "teste:metas": "node testes/metas.js",

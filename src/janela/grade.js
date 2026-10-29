@@ -53,10 +53,17 @@ async function criarPainel({
   cwd, feature, comandoInicial, tipoPainel, dormindo, indisponivel, ligacoes, ligacoesPendentes,
   issue, branch, promptInicial, setupInicial, x, y, w, h, pai,
 }) {
+  // O bloco de notas e UM so (Fase 11): pedir de novo foca o que ja existe.
+  if (tipoPainel === 'notas') {
+    const ja = [...porId.values()].find((p) => p.ehNotas && !p.encerrado);
+    if (ja) { ja.focar(); return ja; }
+  }
+
   const id = novoId();
 
   const painel = new OrqP.Painel({
     id,
+    tipoPainel,
     feature: feature || OrqP.nomeCurto(cwd),
     cwd,
     aoFocar: (pid) => { focado = pid; marcarFocado(); },
@@ -81,7 +88,7 @@ async function criarPainel({
   // bolinha VERDE para sempre -- `estado.definirStatus(id, 'rodando')` marca
   // todo painel que nasce, e sem hooks nada nunca corrige. Verde significa
   // "Claude trabalhando", e um terminal nao esta trabalhando nada.
-  painel.tipoPainel = tipoPainel === 'terminal' ? 'terminal' : 'sessao';
+  painel.tipoPainel = ['terminal', 'notas'].includes(tipoPainel) ? tipoPainel : 'sessao';
   painel.ligacoes = Array.isArray(ligacoes) ? [...ligacoes] : [];
   // Pendente e a ligacao que o CLI ainda NAO aceitou. Sem restaurar isto, o
   // seletor voltava dizendo "desligar" para uma ligacao que nunca chegou a
@@ -119,6 +126,16 @@ async function criarPainel({
 
   // O fit precisa do elemento ja no DOM e com tamanho para calcular cols/rows.
   painel.ajustar();
+
+  // Bloco de notas: sem PTY, sem card na lateral, sem dormir -- nao ha processo
+  // nenhum para religar, entao ele volta VIVO do `sessao.json`. O texto e do
+  // main (`notas.js`), e o painel so o carrega.
+  if (painel.ehNotas) {
+    ordenarGrade();
+    if (!dormindo) painel.focar();
+    salvarSessao();
+    return painel;
+  }
 
   // Painel restaurado: monta tudo menos o PTY, e espera voce mandar retomar.
   if (dormindo) {
@@ -355,7 +372,7 @@ async function restaurarSessao() {
       dormindo: true,
       indisponivel: !s.existe,
     }).then(async (painel) => {
-      if (!s.existe || !painel) return;
+      if (!s.existe || !painel || painel.ehNotas) return;
       const t = await window.orq.telasCarregar?.(s.cwd, s.feature);
       if (t && t.conteudo) painel.mostrarTelaAnterior(t.conteudo, t.salvoEm);
     });
@@ -418,6 +435,10 @@ function ordenarGrade(lista) {
     const p = porId.get(c.id);
     if (p) p.el.style.order = String(i);
   });
+  // O bloco de notas nao tem card na lateral, entao a lista acima nao o inclui:
+  // sem isto ele ficaria com `order` vazio, que no CSS e 0 -- na frente de todos.
+  let fim = ordenada.length;
+  for (const p of porId.values()) if (p.ehNotas) p.el.style.order = String(fim++);
   // O molde da densidade personalizada e por POSICAO, entao ele so pode ser
   // aplicado depois que as posicoes existem. Aqui e o unico ponto por onde toda
   // reordenacao passa -- pendurar em outro lugar seria pendurar em varios.

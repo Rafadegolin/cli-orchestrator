@@ -80,6 +80,11 @@
     }
 
     p.focar();
+    // No bloco de notas o caminho vira texto da nota, no cursor.
+    if (p.ehNotas) {
+      p.notas?.inserir(caminhos.map(comoArgumento).join(''));
+      return true;
+    }
     // Sem `\r`, nunca. Soltar um arquivo nao pode disparar execucao nem custo.
     window.orq.escrever(p.id, caminhos.map(comoArgumento).join(''));
     window.OrqToast?.mostrar(caminhos.length === 1

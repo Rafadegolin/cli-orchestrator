@@ -121,6 +121,9 @@ function jaLigado(id, caminho) {
 // Painel aberto naquela pasta, se houver -- e quem recebe o espelho da ligacao.
 function painelEm(caminho) {
   for (const p of window.OrqPainel?.painelPorId.values() || []) {
+    // O bloco de notas nao e "o painel desta pasta": a pasta dele e a de dados
+    // do app, e quem pergunta aqui (ligar, diff, arquivar, Flow) quer sessao.
+    if (p.ehNotas) continue;
     if (normalizar(p.cwd) === normalizar(caminho)) return p;
   }
   return null;

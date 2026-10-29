@@ -75,8 +75,13 @@ const ordemDeUso = [];
 const painelPorId = new Map();
 
 class Painel {
-  constructor({ id, feature, cwd, aoFocar, aoFechar }) {
+  constructor({ id, feature, cwd, aoFocar, aoFechar, tipoPainel }) {
     this.id = id;
+    // O bloco de notas e um Painel SEM terminal: mesmo frame, cabecalho, alca,
+    // mapa e densidade, e nenhum xterm, PTY ou vaga de WebGL. Decidido aqui, e
+    // nao depois, porque o que muda e justamente o que o construtor monta.
+    this.ehNotas = tipoPainel === 'notas';
+    if (this.ehNotas) this.tipoPainel = 'notas';
     this.feature = feature;
     this.cwd = cwd;
     this.aoFocarExterno = aoFocar;
@@ -109,6 +114,14 @@ class Painel {
     // WebGL e canvas pela posicao em ordemDeUso, e um id ainda nao registrado
     // da indexOf === -1 -- todo painel nasceria em canvas.
     painelPorId.set(id, this);
+
+    if (this.ehNotas) {
+      this.el = this._montarDom();
+      this.el.classList.add('painel-notas');
+      window.OrqNotas.montar(this);
+      return;
+    }
+
     ordemDeUso.unshift(id);
 
     this.el = this._montarDom();
@@ -641,6 +654,11 @@ class Painel {
   }
 
   focar() {
+    if (this.ehNotas) {
+      this.notas?.focar();
+      if (this.aoFocarExterno) this.aoFocarExterno(this.id);
+      return;
+    }
     this._marcarUso();
     this.term.focus();
     if (this.aoFocarExterno) this.aoFocarExterno(this.id);
@@ -1056,12 +1074,13 @@ class Painel {
   // Redimensionar reflui o buffer inteiro do terminal. Fazer isso a cada pixel
   // arrastado e caro; espera-se o usuario parar.
   agendarAjuste() {
+    if (this.ehNotas) return;
     clearTimeout(this.timerResize);
     this.timerResize = setTimeout(() => this.ajustar(), MS_DEBOUNCE_RESIZE);
   }
 
   ajustar() {
-    if (this.encerrado) return;
+    if (this.encerrado || this.ehNotas) return;
     if (!this.elTerm.clientWidth || !this.elTerm.clientHeight) return;
     try {
       this.fit.fit();
@@ -1072,6 +1091,7 @@ class Painel {
   }
 
   marcarFim(exitCode) {
+    if (this.ehNotas) return;
     this.definirStatus('encerrada', `processo saiu (código ${exitCode})`);
     this.term.write(`\r\n\x1b[90m[processo encerrado: ${exitCode}]\x1b[0m\r\n`);
   }
@@ -1088,10 +1108,13 @@ class Painel {
     this.pendentesBytes = 0;
     this.observer?.disconnect();
     this.observerVista?.disconnect();
-    window.orq.fecharTerminal(this.id);
+    // O bloco de notas grava o que falta ANTES de sumir: fechar o painel nao
+    // pode custar a ultima frase digitada.
+    if (this.ehNotas) this.notas?.fechar();
+    else window.orq.fecharTerminal(this.id);
 
     try { this.addonRender?.dispose(); } catch { /* ja disposto */ }
-    try { this.term.dispose(); } catch { /* ja disposto */ }
+    try { this.term?.dispose(); } catch { /* ja disposto */ }
 
     this.el.remove();
     painelPorId.delete(this.id);

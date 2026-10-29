@@ -24,7 +24,7 @@ function limparPainel(p, i) {
     comandoInicial: p.comandoInicial ? String(p.comandoInicial) : '',
     // Sem isto, salvar um layout com um painel de terminal e aplica-lo depois
     // devolvia uma sessao dormindo esperando `claude` no lugar do terminal.
-    tipoPainel: p.tipoPainel === 'terminal' ? 'terminal' : 'sessao',
+    tipoPainel: ['terminal', 'notas'].includes(p.tipoPainel) ? p.tipoPainel : 'sessao',
     ligacoes: Array.isArray(p.ligacoes) ? [...new Set(p.ligacoes.map(String))] : [],
     branch: String(p.branch || ''),
     // Um layout reabre os MESMOS painéis, entao o chip da issue tem de vir junto

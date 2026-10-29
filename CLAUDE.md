@@ -80,6 +80,8 @@ npm run teste:inbox-ui    # conectar, listar e abrir pela inbox, com um Flow fal
 npm run teste:orquestracao # Node puro: as rotas /orq/*, portoes, long-poll, diff real e a partida
 npm run teste:orquestracao-ui # um worker nascendo de verdade na grade, sem invocar o Claude
 npm run teste:orquestracao-reais # coordenadora e dois workers de verdade: ~2min e consome tokens
+npm run teste:notas       # Node puro: o bloco de notas no disco, tetos, arquivo estragado e .bak
+npm run teste:notas-ui    # abas, fechar e reabrir, reload no meio do debounce, Ctrl+F, enviar
 npm run teste:worktrees   # Node puro, sem app: listar, recusas e arquivar
 npm run teste:worktrees-ui # a lista na lateral, retomar e arquivar pela tela
 npm run teste:fase6       # grade rolavel, painel invisivel, fila de partida
@@ -965,6 +967,56 @@ confianca e nao serviria). Tres achados, e o segundo e o que torna o Enter autom
   depois **envia** (busy em ~200ms, resposta certa). O `--deep-link-origin` poe na caixa
   "Prompt from an external link · review before pressing Enter" -- aviso do CLI, e o Enter o
   atravessa.
+
+## O bloco de notas: o primeiro painel sem terminal
+
+`src/main/notas.js` (Node puro) + `src/janela/notas.js` (IIFE) + `tipoPainel: 'notas'`. Um painel na
+grade, com abas, Ctrl+F e "▸ sessao" (cola a selecao ou a aba inteira numa sessao pelo `colarTexto`,
+**sem Enter**). Pedido como "um Sublime dentro do orquestrador, e ao fechar NAO perdemos o que esta
+escrito" -- e essa ultima frase decide o desenho inteiro.
+
+### O texto mora no main, e o painel e so uma vista
+
+`~/.orquestrador/notas.json`, UM bloco para o app inteiro: fechar o painel pelo × so fecha a vista, e
+abrir de novo (botao no rodape da lateral, ou a paleta) foca o que ja existe em vez de duplicar.
+Tres caminhos de gravacao, e cada um cobre o buraco do outro: debounce de 400ms a cada tecla, o
+`destruir()` do painel gravando o que falta, e `notas:salvarAgora` por **`sendSync` no
+`beforeunload`** -- o molde do `telas:salvar`. O `teste:notas-ui` prova o terceiro digitando e
+recarregando a janela **antes** do debounce.
+
+**Nunca perder texto** pediu tres cuidados que os outros arquivos de estado nao tem:
+
+- **Arquivo ilegivel e POSTO DE LADO** (`notas.json.ilegivel-<data>`), e nao so ignorado como faz o
+  `lerJson`: com o padrao vazio na mao, a primeira gravacao da janela trocaria o texto da pessoa por
+  uma aba vazia, para sempre.
+- **`.bak` no arranque, so do arquivo BOM**: um estragado nao pode levar o backup junto.
+- **Acima do teto a gravacao e RECUSADA inteira** (50 abas, 1 MB por aba, 5 MB no total), e nunca
+  cortada: o que ja esta no disco fica. O total existe por causa do debounce, que regravaria dezenas
+  de MB a cada pausa. Sem carregar do disco, a textarea fica **desabilitada**: escrever sobre um
+  estado que nao foi lido seria o mesmo apagao por outro caminho.
+
+### Um `Painel` sem xterm, e quem precisou aprender a ignora-lo
+
+O construtor decide pelo `tipoPainel` (`ehNotas`) e monta o frame de sempre -- cabecalho, alca,
+mapa, densidade -- com `OrqNotas.montar` no lugar do `_montarTerminal`. **Fora do `ordemDeUso`**
+(nao disputa vaga de WebGL), sem PTY, sem card na lateral e sem dormir: volta VIVO do `sessao.json`,
+porque nao ha processo para religar. `focar`, `ajustar`, `agendarAjuste`, `marcarFim` e `destruir`
+sabem que nao ha terminal. O `cwd` e a pasta de dados do app, que e o que passa no filtro
+`p && p.cwd` do `sessao.js`.
+
+- **`tipoPainel` ganhou um terceiro valor**, e as listas brancas que convertiam tudo em `'sessao'`
+  foram as de sempre: `sessao.js` (carregar e salvar), `layouts.js`, `grade.js`.
+- **Sem card na lateral, ele ficava sem `style.order`**, que no CSS e 0 -- na frente de todos.
+  `ordenarGrade` o poe no fim.
+- **`painelEm` o pula**, senao ligar, diff, arquivar e o Flow poderiam achar "o painel desta pasta"
+  no bloco de notas. O "enviar para varias" tambem o pula, e soltar arquivo nele escreve o caminho
+  no texto.
+- **Ctrl+Enter da lateral nao dispara com o foco no bloco** (ela nao tinha guarda nenhuma de
+  textarea). As teclas 1-4 ja tinham. Ctrl+F nao existia em lugar nenhum do app.
+- **Tab e o `insertText` usam `execCommand('insertText')`**, e nao o `value`: e o que mantem o
+  Ctrl+Z. Renomear aba e inline, porque **o Electron nao implementa o `prompt()`** da janela.
+- A busca rola ate a linha pela conta `linha x line-height`, que so e exata porque a textarea e
+  `wrap="off"` -- uma linha de texto e uma linha na tela, como no editor que foi pedido.
 
 ## Workers: uma sessao criando outras (Fase 10.6)
 

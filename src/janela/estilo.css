@@ -1657,6 +1657,154 @@ button.primario:hover {
 
 .painel-term .xterm { height: 100%; }
 
+/* ================================================= bloco de notas */
+
+/* Um painel SEM terminal: o cabecalho perde tudo que e de sessao (status, porta,
+   ligar, Revisao, run, branch, render) e o rodape de aprovacao, que reserva 34px
+   para um pedido de permissao que aqui nunca vem. Duas classes, para vencer as
+   regras de `display` de cada elemento sem `!important`. */
+.painel-notas .bolinha,
+.painel-notas .painel-local,
+.painel-notas .painel-status,
+.painel-notas .painel-revisao,
+.painel-notas .painel-run,
+.painel-notas .painel-branch,
+.painel-notas .painel-ligacoes,
+.painel-notas .painel-fila,
+.painel-notas .painel-porta,
+.painel-notas .painel-render,
+.painel-notas .painel-rodape { display: none; }
+
+.painel-notas .painel-term { padding: 0; }
+
+.notas {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--termfg);
+}
+
+.notas-abas {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--termfg) 14%, transparent);
+  min-width: 0;
+}
+
+.notas-lista {
+  display: flex;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.notas-aba {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  max-width: 180px;
+  padding: 3px 4px 3px 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+}
+.notas-aba:hover { border-color: color-mix(in srgb, var(--termfg) 20%, transparent); }
+.notas-aba.ativa {
+  background: color-mix(in srgb, var(--termfg) 12%, transparent);
+  border-color: color-mix(in srgb, var(--termfg) 26%, transparent);
+}
+.notas-aba-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notas-aba-campo {
+  width: 130px;
+  font: inherit;
+  color: var(--termfg);
+  background: var(--term);
+  border: 1px solid var(--acc);
+  border-radius: 5px;
+  padding: 1px 4px;
+}
+
+.notas-aba-fechar,
+.notas-nova,
+.notas-enviar,
+.notas-busca button {
+  flex: 0 0 auto;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--termfg);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.notas-aba-fechar { padding: 0 4px; }
+.notas-aba-fechar:hover,
+.notas-nova:hover,
+.notas-enviar:hover,
+.notas-busca button:hover { border-color: color-mix(in srgb, var(--termfg) 30%, transparent); }
+.notas-enviar { border-color: color-mix(in srgb, var(--termfg) 22%, transparent); }
+
+.notas-estado {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--termfg);
+}
+.notas-estado[data-estado="erro"] { color: var(--danger); }
+
+.notas-busca {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--termfg) 14%, transparent);
+}
+.notas-busca-campo {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--termfg);
+  background: var(--term);
+  border: 1px solid color-mix(in srgb, var(--termfg) 26%, transparent);
+  border-radius: 6px;
+  padding: 3px 7px;
+}
+.notas-busca.sem-achado .notas-busca-campo { border-color: var(--danger); }
+.notas-busca-conta { font-family: var(--mono); font-size: 10px; min-width: 42px; text-align: right; }
+
+.notas-texto {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  border: 0;
+  outline: none;
+  padding: 10px 12px;
+  background: var(--term);
+  color: var(--termfg);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  tab-size: 4;
+}
+.notas-texto::placeholder { color: color-mix(in srgb, var(--termfg) 55%, transparent); }
+
+.menu-notas-cab {
+  padding: 6px 11px 4px;
+  font-size: 11px;
+  color: var(--fg2);
+}
+
 /* --------------------------------------------------- faixa de aprovacao */
 
 /* O ESPACO E RESERVADO SEMPRE. Vazia, ela usa o fundo do terminal e parece so

@@ -36,7 +36,7 @@
   function candidatas() {
     const fora = new Set(['encerrada']);
     return [...(window.OrqPainel?.painelPorId.values() || [])]
-      .filter((p) => !p.dormindo && !p.encerrado && !fora.has(p.status));
+      .filter((p) => !p.ehNotas && !p.dormindo && !p.encerrado && !fora.has(p.status));
   }
 
   function ligadasA(painel) {

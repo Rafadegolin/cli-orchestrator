@@ -36,6 +36,7 @@ let constantes = {
   maxFilhosOrq: 6,
   maxPromptOrq: 5000,
   arquivoSkill: '~/.claude/skills/orquestrador/SKILL.md',
+  arquivoNotas: '~/.orquestrador/notas.json',
 };
 
 const p = (texto) => ({ tipo: 'p', texto });
@@ -499,6 +500,34 @@ const TODAS_SECOES = [
         + '<b>recusam qualquer página web</b>. <b>Desligar</b> a orquestração pela mesma paleta remove '
         + 'a skill; uma sessão que já estava aberta pode lembrar dela até reiniciar, mas o app passa a '
         + 'recusar os pedidos.'),
+    ],
+  },
+  {
+    id: 'notas',
+    titulo: 'Bloco de notas: texto que não se perde',
+    blocos: [
+      p('O botão <b>Bloco de notas</b>, no rodapé da lateral (ou <b>{mod}+K</b> → bloco de notas), '
+        + 'abre na grade um painel de texto livre, com abas, para rascunho de prompt, lista de '
+        + 'tarefas ou um log colado. <b>O texto é guardado sozinho</b> enquanto você escreve, e volta '
+        + 'inteiro quando você reabre o bloco, depois de fechar o painel ou o app.'),
+      tabela(['Para', 'Faça'], [
+        ['Nova aba', 'O <b>+</b> na barra de abas.'],
+        ['Renomear uma aba', 'Duplo clique no nome. Sem nome, a aba se chama pela primeira linha do texto.'],
+        ['Fechar uma aba', 'O <b>×</b> da aba. Com texto, o app pergunta antes; a última aba é esvaziada, e não fechada.'],
+        ['Buscar', '<b>{mod}+F</b>. Enter vai para o próximo, Shift+Enter para o anterior, Esc fecha.'],
+        ['Mandar para uma sessão', '<b>▸ sessão</b> (ou {mod}+Shift+Enter): cola a seleção, ou a aba inteira, na caixa da sessão escolhida, <b>sem enviar</b>.'],
+      ]),
+      lista([
+        'Fechar o painel pelo <b>×</b> não apaga nada: só fecha a vista. Há um bloco de notas só, e '
+          + 'abrir de novo foca o que já está aberto.',
+        'Tab escreve uma tabulação, {mod}+Z desfaz, e soltar um arquivo em cima do bloco escreve o '
+          + 'caminho dele no texto.',
+        'O texto fica em <code>{arquivoNotas}</code>, com uma cópia <code>.bak</code> feita a cada vez '
+          + 'que o app abre. Se o arquivo um dia vier estragado, ele é guardado ao lado com o nome '
+          + '<code>.ilegivel-&lt;data&gt;</code> em vez de ser sobrescrito.',
+        'O limite é de 50 abas e 1 MB por aba. Acima disso o app avisa e deixa de gravar, sem cortar '
+          + 'o que já estava guardado.',
+      ]),
     ],
   },
   {

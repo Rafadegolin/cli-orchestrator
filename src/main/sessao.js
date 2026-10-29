@@ -63,7 +63,7 @@ function carregar() {
       comandoInicial: p.comandoInicial ? String(p.comandoInicial) : '',
       // Painel de shell puro ('terminal') ou sessao do Claude. Lista branca:
       // o arquivo e do usuario e pode ser editado a mao.
-      tipoPainel: p.tipoPainel === 'terminal' ? 'terminal' : 'sessao',
+      tipoPainel: ['terminal', 'notas'].includes(p.tipoPainel) ? p.tipoPainel : 'sessao',
       // Ligacoes sao caminhos de pasta: sobrevivem ao fechar e reabrir, ao
       // contrario de id de painel.
       ligacoes: Array.isArray(p.ligacoes) ? p.ligacoes.map(String) : [],
@@ -107,7 +107,7 @@ function salvar(paineis) {
       comandoInicial: p.comandoInicial ? String(p.comandoInicial) : '',
       // Painel de shell puro ('terminal') ou sessao do Claude. Lista branca:
       // o arquivo e do usuario e pode ser editado a mao.
-      tipoPainel: p.tipoPainel === 'terminal' ? 'terminal' : 'sessao',
+      tipoPainel: ['terminal', 'notas'].includes(p.tipoPainel) ? p.tipoPainel : 'sessao',
       ligacoes: Array.isArray(p.ligacoes) ? [...new Set(p.ligacoes.map(String))] : [],
       ligacoesPendentes: Array.isArray(p.ligacoesPendentes)
         ? [...new Set(p.ligacoesPendentes.map(String))] : [],
