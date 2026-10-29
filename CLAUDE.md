@@ -30,6 +30,19 @@ comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma del
 reinicio), o 10.4 (inbox do Flow) e o 10.6 (workers criados por uma sessao). Ficam duas medicoes
 numa sessao real, marcadas "a medir" no 10.2 e no 10.5. Ver a secao "Proximos passos" logo abaixo.
 
+**A proxima onda (pedida em 29/10/2026, depois da v0.1.46): aproximar o app do Orca**, em duas
+frentes, ainda sem plano:
+
+1. **Como as sessoes aparecem nos projetos** -- mais intuitivo e mais bonito. Hoje a lateral separa
+   a lista de sessoes (cards por status) da arvore de projetos e worktrees.
+2. **Todo o gerenciamento do GitHub sem sair do app**, como o Orca. Hoje ha so o chip de branch, PR e
+   CI da Fase 10.3 (`branches.js`, `github.js`), o push, e "abrir/criar PR" no navegador.
+
+Comecar por um estudo do Orca ([github.com/stablyai/orca](https://github.com/stablyai/orca),
+[onorca.dev](https://onorca.dev/)) contra o que o app ja tem, e planejar por partes, como a Fase 10.
+A credencial do GitHub continua sendo a do `git credential fill` (decisao do 10.3), sem token novo
+para colar, e a regra da Fase 10 vale: montar em cima do que o CLI e o git oferecem.
+
 ## Proximos passos: Fase 10
 
 O app resolve bem **para onde olhar** (atender). O que falta e **fechar** (de "o agente terminou" ate
