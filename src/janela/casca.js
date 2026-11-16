@@ -41,6 +41,9 @@
     avisos: 'ligados',
     telas: 'guardar',
     acento: '#3ddc97',
+    fonteUi: '',
+    fonteMono: '',
+    tamanhoTerminal: 11.5,
     personalizado: { cols: 3, alturaLinha: 160, celulas: [] },
   };
   const ouvintes = [];
@@ -78,6 +81,9 @@
     // cada um), entao trocar de tema refaz a conta. Depois da classe, sempre:
     // o `acento.js` le o fundo do tema que esta valendo.
     window.OrqAcento?.aplicar(ui.acento);
+    // As fontes nao dependem do tema, mas moram no mesmo ponto unico de
+    // "aplicar o que o ui.json diz" (`fontes-ui.js`).
+    window.OrqFontes?.aplicar(ui);
   }
 
   function aplicarDensidade() {
@@ -282,6 +288,9 @@
   window.addEventListener('keydown', (ev) => {
     if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
     if (ev.key.toLowerCase() !== 'b') return;
+    // Dentro do editor do bloco de notas o Ctrl+B e NEGRITO, a tecla de
+    // sempre de todo editor de texto. A lateral continua no botao e na paleta.
+    if (ev.target?.closest?.('.notas-texto')) return;
     ev.preventDefault();
     ev.stopPropagation();
     alternarLateral();

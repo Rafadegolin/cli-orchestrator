@@ -46,8 +46,24 @@
     return true;
   }
 
+  // Imagem na area de transferencia: o main salva um PNG na pasta de dados e o
+  // painel recebe o CAMINHO entre aspas, como no arrastar (`anexos.js`). O
+  // Claude Code anexa a imagem pelo caminho. Sem Enter, como em toda colagem.
+  async function colarImagem(term) {
+    if (!term) return false;
+    const r = await window.orq.salvarImagem();
+    if (!r || !r.caminho) {
+      window.OrqToast?.mostrar((r && r.erro) || 'não consegui colar a imagem');
+      return false;
+    }
+    const comoArgumento = window.OrqAnexos?.comoArgumento || ((c) => `"${c}" `);
+    term.paste(comoArgumento(r.caminho));
+    return true;
+  }
+
   async function colar(term) {
     if (!term) return false;
+    if (window.orq.temImagem()) return colarImagem(term);
     const texto = await window.orq.colar();
     if (!texto) return false;
     // `term.paste`, NUNCA `window.orq.escrever` direto: ele normaliza \r\n -> \r
@@ -120,6 +136,17 @@
     if ((mod && ev.shiftKey && ehV) || (ev.shiftKey && !ev.ctrlKey && ehInsert)
         || (EH_MAC && mod && !ev.shiftKey && ehV)) {
       colar(term);
+      return cancelar(ev);
+    }
+
+    // Ctrl+V puro (e o Alt+V, que e a tecla de imagem do proprio Claude Code no
+    // Windows) SO quando ha imagem. Sem imagem devolvem `true` e seguem para o
+    // PTY exatamente como antes: o Ctrl+V continua sendo \x16 para quem o usa.
+    // A pergunta e sincrona -- o cancelamento tem de sair daqui, agora.
+    const ctrlVPuro = !EH_MAC && ev.ctrlKey && !ev.shiftKey && !ev.altKey && !ev.metaKey && ehV;
+    const altV = !EH_MAC && ev.altKey && !ev.ctrlKey && !ev.shiftKey && !ev.metaKey && ehV;
+    if ((ctrlVPuro || altV) && window.orq.temImagem()) {
+      colarImagem(term);
       return cancelar(ev);
     }
 
@@ -242,7 +269,7 @@
   }
 
   window.OrqCopia = {
-    ligar, tratarTecla, copiar, colar,
+    ligar, tratarTecla, copiar, colar, colarImagem,
     abrirMenu, fecharMenu, menuAberto, termFocado,
   };
 })();

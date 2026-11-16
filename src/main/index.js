@@ -36,6 +36,7 @@ const orquestracao = require('./orquestracao');
 const skillOrq = require('./skill-orquestrador');
 const notas = require('./notas');
 const resumo = require('./resumo');
+const imagens = require('./imagens');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -322,6 +323,8 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error('[telas] poda falhou:', err.message);
   }
+  // As imagens coladas no terminal: 30 dias e somem.
+  try { imagens.podar(); } catch (err) { console.error('[imagens] poda falhou:', err.message); }
 
   criarJanela();
 
@@ -514,6 +517,27 @@ ipcMain.handle('branch:abrirPr', async (_e, id) => {
 // `clipboard` do Electron nao tem nenhuma dessas condicoes.
 ipcMain.on('clipboard:escrever', (_e, texto) => clipboard.writeText(String(texto || '')));
 ipcMain.handle('clipboard:ler', () => clipboard.readText());
+
+// Colar IMAGEM no terminal. Duas metades, e a primeira e sincrona de proposito:
+// quem pergunta e o `attachCustomKeyEventHandler` do xterm, que precisa decidir
+// NA HORA se cancela a tecla (a regra do `copiar.js`: tratou, cancelou). Uma
+// resposta assincrona chegaria depois de o Ctrl+V ja ter ido ao PTY.
+//
+// "Tem imagem" exige tambem NAO ter texto: copiar celulas do Excel ou um trecho
+// do Word poe um bitmap junto do texto, e ali quem cola quer o texto.
+function clipboardTemImagem() {
+  try {
+    if (clipboard.readText()) return false;
+    return !clipboard.readImage().isEmpty();
+  } catch {
+    return false;
+  }
+}
+ipcMain.on('clipboard:temImagem', (e) => { e.returnValue = clipboardTemImagem(); });
+ipcMain.handle('clipboard:salvarImagem', () => {
+  if (!clipboardTemImagem()) return { erro: 'a área de transferência não tem imagem' };
+  return imagens.salvar(clipboard.readImage().toPNG());
+});
 
 
 ipcMain.handle('estado:todas', () => estado.todas());

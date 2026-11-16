@@ -23,8 +23,10 @@ const VERSAO = 1;
 const MAX_ABAS = 50;
 // Por aba e no total. O total e o que importa para o debounce: regravar
 // dezenas de MB a cada pausa de digitacao travaria o processo principal.
-const MAX_ABA = 1024 * 1024;
-const MAX_TOTAL = 5 * 1024 * 1024;
+// Contam `texto` E `html` (a formatacao, desde o editor WYSIWYG): o HTML infla
+// o mesmo texto, e por isso os tetos dobraram junto.
+const MAX_ABA = 2 * 1024 * 1024;
+const MAX_TOTAL = 10 * 1024 * 1024;
 const MAX_TITULO = 80;
 
 const aba = (o = {}) => ({
@@ -56,6 +58,11 @@ function normalizar(bruto) {
         id,
         titulo: typeof a.titulo === 'string' ? a.titulo.replace(/[\r\n\t]+/g, ' ').slice(0, MAX_TITULO) : '',
         texto: a.texto,
+        // A formatacao. Ausente numa aba de antes do editor formatado, e entao
+        // a janela monta o HTML a partir do `texto`. NAO e sanitizado aqui: o
+        // arquivo e do usuario e o HTML so vira DOM depois do `limparHtml` da
+        // janela, que e quem sabe o que o editor aceita. Aqui e so um texto.
+        ...(typeof a.html === 'string' ? { html: a.html } : {}),
         criadaEm: num(a.criadaEm),
         editadaEm: num(a.editadaEm),
       };
@@ -73,7 +80,7 @@ function excede(estado) {
   if (estado.abas.length > MAX_ABAS) return `no maximo ${MAX_ABAS} abas`;
   let total = 0;
   for (const a of estado.abas) {
-    const n = Buffer.byteLength(a.texto, 'utf8');
+    const n = Buffer.byteLength(a.texto, 'utf8') + Buffer.byteLength(a.html || '', 'utf8');
     if (n > MAX_ABA) return `a aba "${a.titulo || 'sem titulo'}" passou de ${MAX_ABA / 1024 / 1024} MB`;
     total += n;
   }

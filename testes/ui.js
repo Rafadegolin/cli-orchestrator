@@ -1045,6 +1045,51 @@ async function arrastarAlca(cdp, id, dx, dy) {
     await cdp.avaliar(`window.OrqCasca.mudar({ acento: '#3ddc97' })`);
   }
 
+  // --- 13b. as fontes ------------------------------------------------------
+  //
+  // O nome escolhido vai NA FRENTE da cadeia vendorizada, e a padrao nao
+  // escreve inline nenhum. O terminal muda junto (familia e tamanho), em todo
+  // painel vivo.
+  {
+    await cdp.avaliar(`window.OrqCasca.mudar({ fonteUi: '', fonteMono: '', tamanhoTerminal: 11.5 })`);
+    await zerarGrade(cdp);
+    await cdp.avaliar(`window.OrqGrade.criarPainel({ cwd: ${JSON.stringify(RAIZ)}, feature: 'fonte' }).then(() => 'ok')`);
+    await esperar(1500);
+    const ler = () => cdp.avaliar(`JSON.stringify({
+      ui: document.documentElement.style.getPropertyValue('--ui'),
+      mono: document.documentElement.style.getPropertyValue('--mono'),
+      corpo: getComputedStyle(document.body).fontFamily,
+      term: (() => { const p = [...window.OrqPainel.painelPorId.values()].find((x) => x.term); return p ? [p.term.options.fontFamily, p.term.options.fontSize] : null; })(),
+    })`).then(JSON.parse);
+    let f = await ler();
+    checar('fonte padrao: nenhum inline, o CSS calibrado vale', f.ui === '' && f.mono === '' && /Space Grotesk/.test(f.corpo), JSON.stringify(f));
+    checar('e o terminal com JetBrains Mono 11.5', f.term && /JetBrains Mono/.test(f.term[0]) && f.term[1] === 11.5, JSON.stringify(f.term));
+    await cdp.avaliar(`window.OrqCasca.mudar({ fonteUi: 'Segoe UI', fonteMono: 'Consolas', tamanhoTerminal: 14 })`);
+    await esperar(400);
+    f = await ler();
+    checar('a fonte escolhida vai na frente, com a vendorizada de reserva',
+      /^'Segoe UI', 'Space Grotesk'/.test(f.ui) && /^'Consolas', 'JetBrains Mono'/.test(f.mono), JSON.stringify(f));
+    checar('o terminal vivo troca familia e tamanho', f.term && /^"Consolas"/.test(f.term[0]) && f.term[1] === 14, JSON.stringify(f.term));
+    const disco = JSON.parse(await cdp.avaliar(`(async () => JSON.stringify(await window.orq.uiCarregar()))()`));
+    checar('as fontes sao gravadas no ui.json', disco.fonteUi === 'Segoe UI' && disco.tamanhoTerminal === 14, JSON.stringify(disco));
+    const detecta = JSON.parse(await cdp.avaliar(`JSON.stringify([
+      window.OrqFontes.instalada('Consolas'), window.OrqFontes.instalada('Fonte Que Nao Existe 123'),
+      window.OrqFontes.monoespacada('Consolas'), window.OrqFontes.monoespacada('Arial')])`));
+    checar('o seletor sabe o que esta instalado e o que e monoespacado',
+      detecta[0] === true && detecta[1] === false && detecta[2] === true && detecta[3] === false, JSON.stringify(detecta));
+    // Previa que nao virou `change` volta atras ao fechar.
+    await cdp.avaliar(`(() => { window.OrqFontes.abrir(); const c = document.getElementById('fontes-ui'); c.value = 'Arial'; c.dispatchEvent(new Event('input')); return 'ok'; })()`);
+    const previa = await cdp.avaliar(`document.documentElement.style.getPropertyValue('--ui')`);
+    await cdp.avaliar('window.OrqFontes.fechar()');
+    f = await ler();
+    checar('a previa aplica, e fechar sem gravar devolve a gravada', /^'Arial'/.test(previa) && /^'Segoe UI'/.test(f.ui), `${previa} -> ${f.ui}`);
+    await cdp.avaliar(`window.OrqCasca.mudar({ fonteUi: '', fonteMono: '', tamanhoTerminal: 11.5 })`);
+    await esperar(300);
+    f = await ler();
+    checar('voltar ao padrao limpa o inline e o terminal', f.ui === '' && f.mono === '' && f.term && f.term[1] === 11.5, JSON.stringify(f));
+    await zerarGrade(cdp);
+  }
+
   // --- 14a1. o painel focado NAO muda de lugar ----------------------------
   //
   // A ordenacao por urgencia e global: uma mudanca de status em QUALQUER sessao

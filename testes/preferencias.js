@@ -86,6 +86,25 @@ const gravarBruto = (ui) => fs.writeFileSync(
       preferencias.salvar({ acento: torto }).acento === '#3ddc97', '');
   }
 
+  // --- as fontes ---------------------------------------------------------
+  checar('as fontes nascem vazias (= as vendorizadas), tamanho 11.5',
+    padrao.fonteUi === '' && padrao.fonteMono === '' && padrao.tamanhoTerminal === 11.5, JSON.stringify(padrao));
+  const comFonte = preferencias.salvar({ fonteUi: '  Segoe UI ', fonteMono: 'Cascadia Mono', tamanhoTerminal: 13.3 });
+  checar('nome de fonte valido sobrevive, aparado',
+    comFonte.fonteUi === 'Segoe UI' && comFonte.fonteMono === 'Cascadia Mono', JSON.stringify(comFonte));
+  checar('o tamanho anda de meio em meio ponto', comFonte.tamanhoTerminal === 13.5, String(comFonte.tamanhoTerminal));
+  // Nome de fonte vira valor de CSS: aspas, virgula e ponto e virgula abririam
+  // outra declaracao.
+  for (const torto of ['Arial; color: red', '"Arial"', 'a,b', 'x'.repeat(65), 7, null]) {
+    checar(`fonte torta (${JSON.stringify(torto).slice(0, 20)}) volta ao padrao`,
+      preferencias.salvar({ fonteUi: torto }).fonteUi === '', '');
+  }
+  checar('tamanho fora da faixa e limitado',
+    preferencias.salvar({ tamanhoTerminal: 99 }).tamanhoTerminal === 20
+    && preferencias.salvar({ tamanhoTerminal: 2 }).tamanhoTerminal === 9
+    && preferencias.salvar({ tamanhoTerminal: 'x' }).tamanhoTerminal === 11.5, '');
+  preferencias.salvar({ fonteUi: '', fonteMono: '', tamanhoTerminal: 11.5 });
+
   // --- o molde entra pela porta da normalizacao ---------------------------
   const salvo = preferencias.salvar({
     personalizado: { cols: 3, alturaLinha: 200, celulas: [{ c: 1, r: 2 }, { c: 2, r: 1 }] },

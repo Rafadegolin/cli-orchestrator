@@ -80,6 +80,28 @@ checar('acima de 5 MB no total: recusada', !r.ok && /total/.test(r.texto), JSON.
 checar('mais de 50 abas: so as 50 primeiras sao lidas',
   notas.normalizar({ abas: Array.from({ length: 60 }, (_, i) => ({ id: `q${i}`, texto: 'a' })) }).abas.length === notas.MAX_ABAS);
 
+// ------------------------------------------------------------ formatacao (html)
+
+r = notas.salvar({
+  ativa: 'h',
+  abas: [
+    { id: 'h', texto: 'negrito e lista', html: '<div><b>negrito</b> e lista</div>' },
+    { id: 'v', texto: 'aba de antes do editor formatado' },
+  ],
+});
+e = notas.carregar();
+checar('o html da formatacao vai e volta', r.ok && e.abas[0].html === '<div><b>negrito</b> e lista</div>', JSON.stringify(e.abas[0]));
+checar('e o texto puro e gravado ao lado dele', e.abas[0].texto === 'negrito e lista');
+checar('aba sem html (de antes do editor) continua valida e sem html inventado',
+  e.abas[1].texto === 'aba de antes do editor formatado' && !('html' in e.abas[1]), JSON.stringify(e.abas[1]));
+checar('html que nao e string cai, a aba fica', !('html' in notas.normalizar({ abas: [{ id: 'a', texto: 'x', html: 42 }] }).abas[0]));
+const metade = 'z'.repeat(notas.MAX_ABA / 2 + 10);
+r = notas.salvar({ abas: [{ id: 'm', texto: metade, html: metade }] });
+checar('o teto por aba conta texto E html', !r.ok && /MB/.test(r.texto), JSON.stringify(r).slice(0, 120));
+checar('os tetos sao 2 MB por aba e 10 MB no total',
+  notas.MAX_ABA === 2 * 1024 * 1024 && notas.MAX_TOTAL === 10 * 1024 * 1024);
+notas.salvar(JSON.parse(antes));
+
 // ------------------------------------------------------------ backup e arquivo estragado
 
 checar('backup do arquivo bom', notas.fazerBackup() === true && fs.readFileSync(`${ARQ}.bak`, 'utf8') === antes);

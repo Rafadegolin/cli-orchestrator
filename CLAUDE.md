@@ -419,6 +419,18 @@ subconjunto dos 5 que os hooks entregam — `terminou` (evento `Stop`) fica, com
   - `::selection` e a sombra do botao primario passaram a usar `color-mix` sobre `--acc`; eram
     `rgba(61, 220, 151, …)` cravado. O verde do `.diff-mais` fica: e semantica de diff.
   - Nao entra nos layouts salvos: e identidade visual, nao arranjo.
+- **A fonte tambem e escolhivel** (`src/janela/fontes-ui.js`, paleta: "Fonte…"): `fonteUi`,
+  `fonteMono` e `tamanhoTerminal` no `ui.json`. **Nada e baixado** (o CSP e `font-src 'self'`): o
+  nome e de uma fonte INSTALADA, e entra NA FRENTE da cadeia vendorizada, inline no `<html>` como o
+  acento -- nome que nao existe cai na padrao, e nao em serif. Vazio nao escreve inline nenhum.
+  - **`fonteMono` vale para o terminal E para todo `.mono` da tela**; o xterm troca pelo
+    `OrqPainel.definirFonte` (molde do `definirCursor`) e reajusta pelo `agendarAjuste`, porque a
+    largura da celula muda cols/rows.
+  - O main so aceita `[\p{L}\p{N} ._-]{1,64}`: o nome vira valor de CSS, e aspas, virgula ou `;`
+    abririam outra declaracao. Tamanho de 9 a 20, em meio ponto.
+  - "Esta instalada?" e medido em canvas contra tres genericos. `document.fonts.check` NAO serve:
+    devolve `true` para nome desconhecido sem `@font-face`. O seletor avisa tambem fonte nao
+    monoespacada para o terminal (colunas desalinham).
 - **Fontes vendorizadas** em `src/janela/fontes/` (Space Grotesk + JetBrains Mono, subsets latin e
   latin-ext, OFL). Baixadas uma vez e commitadas: o CSP e `font-src 'self'` e o app tem de abrir sem
   internet. `teste:ui` confere com `document.fonts.check` — sem isso o app cai em fallback e a tela
@@ -1031,10 +1043,48 @@ sabem que nao ha terminal. O `cwd` e a pasta de dados do app, que e o que passa 
 - **A textarea quebra na largura do painel** (`pre-wrap` + `overflow-wrap: anywhere`). Nasceu
   `wrap="off"`, como no Sublime, e texto corrido virava uma linha infinita com rolagem horizontal --
   foi pedido o contrario. A quebra e so visual: nenhum `\n` entra no texto.
-- Por isso a busca nao rola mais pela conta `linha x line-height` (linha de texto != linha na
-  tela): ela mede a altura do texto ate o achado num **espelho** (`.notas-espelho`, fora da tela,
-  mesma fonte, padding e largura), so no clique. O `​` no fim do espelho existe porque um `\n`
-  final abre linha na textarea e num div nao.
+
+### O editor formatado (WYSIWYG), e o que ele trocou
+
+Pedido: negrito, italico, sublinhado "etc" no bloco. A textarea virou um **`contenteditable`** com
+uma barra (negrito, italico, sublinhado, tachado, codigo, titulo `h3`, listas, limpar), toda por
+`execCommand` -- que mantem o Ctrl+Z nativo, como o `insertText` ja mantinha.
+
+- **Cada aba guarda `html` E `texto`.** O `texto` (puro, derivado do editor por `percorrer()`)
+  continua sendo a fonte do titulo, da busca e da compatibilidade: uma versao antiga do app lendo o
+  arquivo segue vendo o conteudo. Aba sem `html` (de antes do editor) e montada do `texto` na hora,
+  sem migracao no disco. Os tetos passaram a contar os dois, e dobraram (**2 MB por aba, 10 MB no
+  total**), ainda recusando inteiro, nunca cortando.
+- **HTML do disco nunca vira DOM sem o `limparHtml`**: lista branca de tags (`b i u s code ul ol li
+  h3 div br`), **nenhum atributo**, num `<template>` inerte (o `onerror` de uma `<img>` la dentro nao
+  roda). O main NAO sanitiza: e so um texto para ele, e quem sabe o que o editor aceita e a janela.
+  O `teste:notas-ui` grava `<img onerror>`, `<script>` e `onclick` no arquivo e confere o DOM limpo.
+- **Colar e soltar texto entram como texto puro.** Formatacao de pagina ou do Word traria fonte e
+  cor de fora; imagem colada no bloco e ignorada.
+- **Para a sessao vai Markdown** (`paraMarkdown`, o mesmo `percorrer` com as marcas ligadas):
+  `**negrito**`, `_italico_`, `~~tachado~~`, `` `codigo` ``, `- `/`1. `, `### `. Sublinhado nao tem
+  Markdown e vai como texto.
+- **`percorrer()` e o coracao**: produz o texto linha a linha com a regra de bloco do Chromium, e um
+  mapa `segs` (no de texto -> posicao). O `<br>` que e o ULTIMO conteudo de um bloco e marcador
+  ("esta linha existe"), nao quebra -- sem essa regra `<div>a</div><div><br></div>` virava `a\n\n`.
+  Cursor por aba e busca sao posicoes NESSE texto, convertidas de volta para o DOM pelo mapa: o DOM
+  da aba e reconstruido ao voltar, e um `Range` velho apontaria para nos mortos.
+- **A busca realca pela Custom Highlight API** (`::highlight(notas-achado)`), e nao selecionando:
+  selecionar no editor com o foco no campo de busca levava o foco embora, e o Enter seguinte
+  escrevia no texto. Esc fecha e SELECIONA o achado atual. O `.notas-espelho` saiu: quem diz onde
+  o achado esta e o `getBoundingClientRect` do `Range`.
+- **O modelo so e lido do editor no debounce** (`sincronizar`, tambem na troca de aba, no fechar e
+  no `beforeunload`): percorrer o DOM a cada tecla seria trabalho jogado fora no meio da frase.
+- **Ctrl+B no editor e negrito, e nao a lateral**: o Ctrl+B do `casca.js` (captura) agora ignora
+  quando o alvo esta dentro de `.notas-texto`. A lateral continua no botao e na paleta.
+
+### Abrir e fechar pela tecla
+
+**Ctrl+Shift+N** (`OrqNotas.alternar`), em captura com `stopPropagation`, no molde do Ctrl+B. Com
+o foco DENTRO do bloco, fecha a vista (o texto fica); em qualquer outro caso abre ou foca -- fechar
+um bloco que voce nao esta olhando seria surpresa. Ao medir que "a tecla nao vaza para o PTY",
+ignore `ESC[O`/`ESC[I`: o ConPTY liga o aviso de foco (modo 1004), e perder o foco para o bloco
+manda `ESC[O` -- e o terminal funcionando, nao a tecla.
 
 ## Workers: uma sessao criando outras (Fase 10.6)
 
@@ -2920,6 +2970,25 @@ Cmd+C, o Cmd+V, o Cmd+Q e o recortar/colar dos campos de texto dos modais — e 
 lugar de onde eles venham. O `Cmd+Shift+C` e o menu do botao direito existem como caminho garantido
 nos dois sistemas, e sao eles que devem ser usados se um dia isto se mostrar errado num Mac de
 verdade.
+
+### Colar IMAGEM: vira arquivo, e o painel recebe o caminho
+
+Pedido: colar um print direto no terminal, em vez de salvar e arrastar. O Claude Code anexa uma
+imagem pelo caminho dela no prompt -- exatamente o que o arrastar (`anexos.js`) ja fazia. Colar com
+imagem na area de transferencia salva um PNG em `~/.orquestrador/imagens/` (`src/main/imagens.js`,
+Node puro; poda de 30 dias no arranque) e cola `"<caminho>" ` pelo `term.paste`, sem Enter.
+
+- **`clipboard:temImagem` e SINCRONO (`sendSync`), e tem de ser**: quem pergunta e o
+  `attachCustomKeyEventHandler`, que precisa decidir NA HORA se cancela a tecla (tratou, cancelou).
+- **Ctrl+V puro e Alt+V (a tecla de imagem do proprio Claude Code no Windows) so sao tratados COM
+  imagem.** Sem imagem devolvem `true` e seguem para o PTY como antes (`\x16`). Os gestos de colar
+  texto (Ctrl+Shift+V, Shift+Insert, Cmd+V, o menu) passam pelo `colar()`, que testa imagem antes.
+- **"Tem imagem" exige NAO ter texto**: copiar celulas do Excel ou um trecho do Word poe um bitmap
+  junto do texto, e ali quem cola quer o texto.
+- **Nao verificado de ponta a ponta numa sessao do Claude Code** (a sessao que construiu isto nao
+  tinha acesso a area de transferencia do Windows: ate o `Set-Clipboard` puro falhava). O
+  `teste:copiar` cobre o caminho com uma imagem posta pelo `System.Windows.Forms.Clipboard` -- rode
+  numa sessao interativa.
 
 ## Ler o buffer do terminal: `isWrapped` decide se funciona
 

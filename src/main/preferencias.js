@@ -33,6 +33,25 @@ const MAX_LINHAS = 4;
 const ORIGEM_FLOW = 'https://flow.pronixhub.com.br';
 const MAX_ORIGENS = 20;
 
+// O tamanho do xterm, em px. Passo de meio ponto: 11.5 e o valor de sempre.
+const TAMANHO_TERMINAL = 11.5;
+const NOME_FONTE = /^[\p{L}\p{N} ._-]{1,64}$/u;
+
+// Nome de fonte vira valor de CSS (`--ui`) e opcao do xterm: so letras,
+// numeros, espaco, ponto, hifen e sublinhado -- nada de aspas, virgula ou
+// ponto e virgula, que fechariam a declaracao e abririam outra.
+function nomeFonte(v) {
+  if (typeof v !== 'string') return '';
+  const t = v.trim();
+  return NOME_FONTE.test(t) ? t : '';
+}
+
+function tamanhoTerminal(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return TAMANHO_TERMINAL;
+  return Math.min(20, Math.max(9, Math.round(n * 2) / 2));
+}
+
 const PADRAO = {
   tema: 'escuro',
   densidade: 2,
@@ -45,6 +64,11 @@ const PADRAO = {
   // A cor de destaque. E a BASE escolhida; o ajuste de contraste por tema e
   // feito na janela (`acento.js`), entao aqui so entra hex valido.
   acento: '#3ddc97',
+  // As fontes. Vazio = a vendorizada (Space Grotesk / JetBrains Mono). O nome e
+  // de uma fonte INSTALADA na maquina, ou da lista do seletor: nada e baixado.
+  fonteUi: '',
+  fonteMono: '',
+  tamanhoTerminal: TAMANHO_TERMINAL,
   // As rotas /ping e /abrir, que e por onde o Pronix Flow pede uma sessao.
   externo: 'ligado',
   origens: [ORIGEM_FLOW],
@@ -115,6 +139,9 @@ function normalizar(bruto) {
     // um ui.json editado a mao com `red` ou `#FFF` cai no verde, em vez de
     // virar uma variavel CSS invalida que apaga o foco do app inteiro.
     acento: /^#[0-9a-f]{6}$/i.test(String(b.acento || '')) ? String(b.acento).toLowerCase() : PADRAO.acento,
+    fonteUi: nomeFonte(b.fonteUi),
+    fonteMono: nomeFonte(b.fonteMono),
+    tamanhoTerminal: tamanhoTerminal(b.tamanhoTerminal),
     // A LISTA DE ORIGENS, e a UNICA chave deste arquivo em que `[]` NAO cai no
     // padrao.
     //

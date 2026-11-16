@@ -129,7 +129,7 @@
     lista.push({
       tag: 'nova',
       rotulo: 'Bloco de notas',
-      dica: 'texto que fica guardado',
+      dica: 'ctrl+shift+n',
       correr: () => window.OrqNotas?.abrir(),
     });
 
@@ -185,6 +185,13 @@
       rotulo: 'Cor de destaque…',
       dica: '',
       correr: () => window.OrqAcento?.abrir(),
+    });
+
+    lista.push({
+      tag: 'tema',
+      rotulo: 'Fonte…',
+      dica: 'interface, terminal e tamanho',
+      correr: () => window.OrqFontes?.abrir(),
     });
 
     lista.push({

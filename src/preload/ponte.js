@@ -26,6 +26,10 @@ contextBridge.exposeInMainWorld('orq', {
   // dela -- copiaria vazio. Quem tem o texto e o `term.getSelection()`.
   copiar: (texto) => ipcRenderer.send('clipboard:escrever', texto),
   colar: () => ipcRenderer.invoke('clipboard:ler'),
+  // SINCRONO: quem pergunta e o handler de tecla do xterm, que decide ali mesmo
+  // se cancela o Ctrl+V. Ver `clipboard:temImagem` no main.
+  temImagem: () => ipcRenderer.sendSync('clipboard:temImagem'),
+  salvarImagem: () => ipcRenderer.invoke('clipboard:salvarImagem'),
 
   // O lote chega como [{ id, bytes: Uint8Array }] -- um envio por quadro com
   // todos os painéis juntos.

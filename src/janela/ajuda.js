@@ -506,7 +506,8 @@ const TODAS_SECOES = [
     id: 'notas',
     titulo: 'Bloco de notas: texto que não se perde',
     blocos: [
-      p('O botão <b>Bloco de notas</b>, no rodapé da lateral (ou <b>{mod}+K</b> → bloco de notas), '
+      p('O botão <b>Bloco de notas</b>, no rodapé da lateral, <b>{mod}+Shift+N</b> (que também fecha, '
+        + 'com o foco no bloco) ou <b>{mod}+K</b> → bloco de notas '
         + 'abre na grade um painel de texto livre, com abas, para rascunho de prompt, lista de '
         + 'tarefas ou um log colado. <b>O texto é guardado sozinho</b> enquanto você escreve, e volta '
         + 'inteiro quando você reabre o bloco, depois de fechar o painel ou o app.'),
@@ -514,14 +515,16 @@ const TODAS_SECOES = [
         ['Nova aba', 'O <b>+</b> na barra de abas.'],
         ['Renomear uma aba', 'Duplo clique no nome. Sem nome, a aba se chama pela primeira linha do texto.'],
         ['Fechar uma aba', 'O <b>×</b> da aba. Com texto, o app pergunta antes; a última aba é esvaziada, e não fechada.'],
-        ['Buscar', '<b>{mod}+F</b>. Enter vai para o próximo, Shift+Enter para o anterior, Esc fecha.'],
-        ['Mandar para uma sessão', '<b>▸ sessão</b> (ou {mod}+Shift+Enter): cola a seleção, ou a aba inteira, na caixa da sessão escolhida, <b>sem enviar</b>.'],
+        ['Formatar', 'A barra acima do texto: negrito, itálico, sublinhado, tachado, código, título e listas. <b>{mod}+B</b>, <b>{mod}+I</b> e <b>{mod}+U</b> também (no bloco, o {mod}+B é negrito, e não a lateral).'],
+        ['Buscar', '<b>{mod}+F</b>. Os achados ficam marcados; Enter vai para o próximo, Shift+Enter para o anterior, Esc fecha e seleciona o atual.'],
+        ['Mandar para uma sessão', '<b>▸ sessão</b> (ou {mod}+Shift+Enter): cola a seleção, ou a aba inteira, na caixa da sessão escolhida, <b>sem enviar</b>, em Markdown (**negrito**, listas com -).'],
       ]),
       lista([
         'Fechar o painel pelo <b>×</b> não apaga nada: só fecha a vista. Há um bloco de notas só, e '
           + 'abrir de novo foca o que já está aberto.',
         'Tab escreve uma tabulação, {mod}+Z desfaz, e soltar um arquivo em cima do bloco escreve o '
-          + 'caminho dele no texto.',
+          + 'caminho dele no texto. Colar entra como texto puro: a formatação de uma página ou do Word '
+          + 'não vem junto.',
         'O texto fica em <code>{arquivoNotas}</code>, com uma cópia <code>.bak</code> feita a cada vez '
           + 'que o app abre. Se o arquivo um dia vier estragado, ele é guardado ao lado com o nome '
           + '<code>.ilegivel-&lt;data&gt;</code> em vez de ser sobrescrito.',
@@ -557,6 +560,10 @@ const TODAS_SECOES = [
         + 'escolha uma das prontas ou qualquer outra. O tom é ajustado sozinho em cada tema para o '
         + 'texto continuar legível, e o seletor avisa se a cor ficar parecida com a de "esperando". '
         + 'Ela vale para o app todo e não entra nos layouts salvos.'),
+      p('A <b>fonte</b> também é sua: procure <b>Fonte</b> na paleta e escreva o nome de qualquer '
+        + 'fonte instalada na máquina, uma para a interface e outra para o terminal (que vale também '
+        + 'para os textos de código da tela), mais o tamanho do terminal. Nada é baixado; se o nome '
+        + 'não existir na máquina, o seletor avisa e a tela segue com a padrão. Em branco, volta à do app.'),
       p('No canto esquerdo da barra de título, o primeiro botão <b>recolhe a barra lateral</b> '
         + '(<b>{mod}+B</b>), e a grade ocupa o espaço dela — os terminais refluem sozinhos. A escolha '
         + 'é lembrada. Com ela recolhida, a fila de atenção continua alcançável por <b>{mod}+Enter</b> '
@@ -683,6 +690,7 @@ const TODAS_SECOES = [
         ['{mod}+Enter', 'Pula para a sessão que espera há mais tempo'],
         ['{mod}+K', 'Abre a paleta de comandos'],
         ['{mod}+B', 'Recolhe ou mostra a barra lateral'],
+        ['{mod}+Shift+N', 'Abre o bloco de notas; com o foco nele, fecha'],
         ['{alt}+setas', 'Pula para o terminal ao lado, acima ou abaixo'],
         ['{mod}+C', 'Copia a seleção do terminal; <b>sem</b> seleção, interrompe como sempre'],
         ['{mod}+Shift+C', 'Copia a seleção, sempre'],

@@ -737,6 +737,39 @@ button:focus-visible, input:focus-visible {
 
 #acento-padrao.ativa { border-color: var(--acc); color: var(--acc); }
 #acento-pronto { margin-left: auto; }
+
+/* --------------------------------------------- as fontes do app */
+
+/* O campo de nome e texto comum, nao comando: a fonte da interface. */
+.fontes-campo { font-family: var(--ui); font-size: 12.5px; }
+.fontes-campo + datalist + .acento-aviso { margin-top: -8px; }
+
+.fontes-tamanho {
+  display: block;
+  width: 100%;
+  margin: 0 0 14px;
+  accent-color: var(--acc);
+}
+
+/* A previa do terminal usa o fundo do TERMINAL, escuro nos dois temas, como
+   o painel de verdade. */
+.fontes-previa {
+  margin-bottom: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.fontes-previa-ui { padding: 9px 12px; font-family: var(--ui); color: var(--fg); background: var(--bg2); }
+.fontes-previa-mono {
+  padding: 9px 12px;
+  background: var(--term);
+  color: var(--termfg);
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#fontes-padrao.ativa { border-color: var(--acc); color: var(--acc); }
+#fontes-pronto { margin-left: auto; }
 /* Empurra o "Fechar" para a direita sem depender do sufixo do id. */
 #cor-pronto { margin-left: auto; }
 
@@ -1782,10 +1815,44 @@ button.primario:hover {
 .notas-busca.sem-achado .notas-busca-campo { border-color: var(--danger); }
 .notas-busca-conta { font-family: var(--mono); font-size: 10px; min-width: 42px; text-align: right; }
 
+.notas-formatos {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--termfg) 14%, transparent);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.notas-formato {
+  flex: 0 0 auto;
+  min-width: 26px;
+  height: 24px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--termfg);
+  font-family: var(--ui);
+  font-size: 12px;
+  padding: 0 6px;
+  cursor: pointer;
+}
+.notas-formato:hover { border-color: color-mix(in srgb, var(--termfg) 30%, transparent); }
+.notas-formato.ativo {
+  background: color-mix(in srgb, var(--termfg) 14%, transparent);
+  border-color: color-mix(in srgb, var(--termfg) 26%, transparent);
+}
+.notas-formato.f-negrito { font-weight: 700; }
+.notas-formato.f-italico { font-style: italic; }
+.notas-formato.f-sublinhado { text-decoration: underline; }
+.notas-formato.f-tachado { text-decoration: line-through; }
+
 .notas-texto {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
   resize: none;
   border: 0;
   outline: none;
@@ -1800,16 +1867,27 @@ button.primario:hover {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-/* So mede a altura do texto ate o achado da busca (notas.js, irPara). */
-.notas-espelho {
-  position: absolute;
-  left: -99999px;
-  top: 0;
-  height: auto;
-  visibility: hidden;
+.notas-texto.vazio::before {
+  content: attr(data-placeholder);
+  color: color-mix(in srgb, var(--termfg) 55%, transparent);
   pointer-events: none;
+  position: absolute;
 }
-.notas-texto::placeholder { color: color-mix(in srgb, var(--termfg) 55%, transparent); }
+.notas-texto[contenteditable="false"] { opacity: .6; }
+/* A formatacao do editor. Tudo herda a fonte do bloco (a monoespacada do
+   app); o codigo inline se distingue pelo fundo. */
+.notas-texto b { font-weight: 700; }
+.notas-texto h3 { font-size: 1.2em; font-weight: 700; margin: .4em 0 .2em; }
+.notas-texto ul,
+.notas-texto ol { margin: .2em 0; padding-left: 1.6em; }
+.notas-texto code {
+  padding: 0 3px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--termfg) 14%, transparent);
+  font-family: inherit;
+}
+::highlight(notas-achado) { background-color: color-mix(in srgb, var(--warn) 35%, transparent); color: inherit; }
+::highlight(notas-atual) { background-color: var(--warn); color: var(--term); }
 
 .menu-notas-cab {
   padding: 6px 11px 4px;

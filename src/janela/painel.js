@@ -69,6 +69,12 @@ const TEMA = {
   white: '#c8d3e0',
 };
 
+// A fonte do xterm. Mutavel por `definirFonte`; o padrao e o de sempre.
+const FONTE_TERMINAL = {
+  familia: '"JetBrains Mono", "Cascadia Mono", Consolas, monospace',
+  tamanho: 11.5,
+};
+
 // Ordem de uso: o primeiro da lista e o mais recentemente focado. Os primeiros
 // TETO_WEBGL ficam em WebGL, o resto cai para canvas.
 const ordemDeUso = [];
@@ -324,8 +330,9 @@ class Painel {
     this.term = new Terminal({
       allowProposedApi: true,
       scrollback: SCROLLBACK,
-      fontFamily: '"JetBrains Mono", "Cascadia Mono", Consolas, monospace',
-      fontSize: 11.5,
+      // Escolhivel pela paleta ("Fonte…"); `definirFonte` muda os que ja existem.
+      fontFamily: FONTE_TERMINAL.familia,
+      fontSize: FONTE_TERMINAL.tamanho,
       // O doc de UI pede 1.65, medida pensada para o terminal FALSO do
       // prototipo (uma pilha de divs). Aqui altura de linha nao e decoracao, e
       // quantidade de LINHAS: num painel de 268px (a antiga densidade 3), 1.65 daria
@@ -1229,4 +1236,24 @@ function definirCursor(cor) {
   }
 }
 
-window.OrqPainel = { Painel, painelPorId, nomeCurto, achatar: Painel.achatar, definirCursor };
+// A fonte do terminal (`fontes-ui.js`). Mesmo molde do cursor: o objeto e o
+// que os painéis NOVOS recebem, e os vivos sao reajustados. Trocar fonte ou
+// tamanho muda a largura da celula, entao cols/rows mudam junto -- o
+// `agendarAjuste` faz o `fit()` e o `pty.resize()` com o debounce de sempre.
+function definirFonte(familia, tamanho) {
+  if (!familia || !tamanho) return;
+  if (FONTE_TERMINAL.familia === familia && FONTE_TERMINAL.tamanho === tamanho) return;
+  FONTE_TERMINAL.familia = familia;
+  FONTE_TERMINAL.tamanho = tamanho;
+  for (const p of painelPorId.values()) {
+    if (!p.term || p.encerrado) continue;
+    p.term.options.fontFamily = familia;
+    p.term.options.fontSize = tamanho;
+    p.agendarAjuste();
+  }
+}
+
+window.OrqPainel = {
+  Painel, painelPorId, nomeCurto, achatar: Painel.achatar, definirCursor, definirFonte,
+  fonteTerminal: () => ({ ...FONTE_TERMINAL }),
+};

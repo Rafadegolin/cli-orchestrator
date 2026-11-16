@@ -222,6 +222,78 @@ async function ate(fn, cond, ms = 10000) {
   checar('Ctrl+Shift+V cola UMA vez', colaV === 1, `colou ${colaV}x`);
   const colaIns = await vezesQueColou('ORQ_DUPLA_B', SHIFT, 45, 'Insert', 'Insert');
   checar('Shift+Insert cola UMA vez', colaIns === 1, `colou ${colaIns}x`);
+
+  // --- colar IMAGEM ---------------------------------------------------------
+  //
+  // A imagem vai para o clipboard pelo proprio Windows (o renderer nao tem como
+  // escrever bitmap), e SetImage zera o texto -- que e a condicao do app para
+  // tratar como imagem.
+  if (process.platform === 'win32') {
+    const { spawnSync } = require('child_process');
+    const ps = spawnSync('powershell', ['-NoProfile', '-STA', '-Command',
+      'Add-Type -AssemblyName System.Windows.Forms,System.Drawing; '
+      + '$b = New-Object System.Drawing.Bitmap 24,16; '
+      + '[System.Windows.Forms.Clipboard]::SetImage($b)'], { encoding: 'utf8' });
+    checar('imagem posta no clipboard do sistema', ps.status === 0, ps.stderr);
+    checar('o app enxerga a imagem (e nao texto)', await cdp.avaliar('window.orq.temImagem()') === true);
+
+    async function coletarImagem(mods, vk, code, key) {
+      await cdp.avaliar(`(() => {
+        const p = ${P};
+        window.__dados = [];
+        window.__colaSub = p.term.onData((d) => window.__dados.push(d));
+        p.focar();
+        p.term.focus();
+        return 'ok';
+      })()`);
+      await tecla(mods, vk, code, key);
+      await esperar(1200);
+      return JSON.parse(await cdp.avaliar('(() => { window.__colaSub.dispose(); return JSON.stringify(window.__dados); })()'));
+    }
+
+    const dados = await coletarImagem(CTRL, 86, 'KeyV', 'v');
+    const junto = dados.join('');
+    const achado = /"([^"]+\.png)" /.exec(junto);
+    checar('Ctrl+V com imagem cola o caminho de um PNG entre aspas', Boolean(achado), JSON.stringify(dados));
+    checar('uma vez so, e sem o \\x16 do Ctrl+V', (junto.match(/\.png"/g) || []).length === 1 && !junto.includes('\x16'), JSON.stringify(dados));
+    checar('e sem Enter', !/\r/.test(junto.replace(/\x1b\[20[01]~/g, '')), JSON.stringify(dados));
+    if (achado) {
+      const fs = require('fs');
+      const ok = fs.existsSync(achado[1]) && fs.readFileSync(achado[1]).subarray(1, 4).toString() === 'PNG';
+      checar('o arquivo existe e e PNG', ok, achado[1]);
+      try { fs.rmSync(achado[1], { force: true }); } catch { /* segue */ }
+    }
+
+    // Com TEXTO no clipboard o Ctrl+V volta a ser o de sempre: \x16 para o PTY.
+    await cdp.avaliar(`window.orq.copiar('ORQ_TEXTO_DEPOIS')`);
+    checar('clipboard de volta ao texto', await cdp.avaliar('window.orq.colar()') === 'ORQ_TEXTO_DEPOIS');
+    checar('com texto, nao conta como imagem', await cdp.avaliar('window.orq.temImagem()') === false);
+    const dadosTexto = (await coletarImagem(CTRL, 86, 'KeyV', 'v')).join('');
+    checar('Ctrl+V com texto continua mandando \\x16, sem colar', dadosTexto.includes('\x16') && !dadosTexto.includes('ORQ_TEXTO_DEPOIS'), JSON.stringify(dadosTexto));
+  }
+
+  // O modulo do main, em Node puro: gravar, recusar vazio e podar.
+  {
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const imagens = require('../src/main/imagens');
+    const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'orq-imagens-'));
+    const png = Buffer.from('89504e470d0a1a0a', 'hex');
+    const a = imagens.salvar(png, { pasta });
+    const b = imagens.salvar(png, { pasta });
+    checar('salvar grava na pasta e devolve o caminho', a.caminho && fs.existsSync(a.caminho) && path.dirname(a.caminho) === pasta, JSON.stringify(a));
+    checar('duas colagens no mesmo segundo nao colidem', b.caminho && b.caminho !== a.caminho, JSON.stringify(b));
+    checar('buffer vazio e recusa, nao excecao', Boolean(imagens.salvar(Buffer.alloc(0), { pasta }).erro));
+    fs.writeFileSync(path.join(pasta, 'meu.txt'), 'x');
+    const velho = Date.now() - 40 * 86_400_000;
+    fs.utimesSync(a.caminho, velho / 1000, velho / 1000);
+    fs.utimesSync(path.join(pasta, 'meu.txt'), velho / 1000, velho / 1000);
+    const r = imagens.podar({ pasta });
+    checar('a poda apaga o PNG velho e so ele', r.apagados === 1 && !fs.existsSync(a.caminho) && fs.existsSync(b.caminho)
+      && fs.existsSync(path.join(pasta, 'meu.txt')), JSON.stringify(r));
+    fs.rmSync(pasta, { recursive: true, force: true });
+  }
   // --- o menu do botao direito --------------------------------------------
   const menu = JSON.parse(await cdp.avaliar(`(() => {
     const p = window.OrqPainel.painelPorId.get(${JSON.stringify(id)});
