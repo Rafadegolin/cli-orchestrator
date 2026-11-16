@@ -215,6 +215,18 @@ class Painel {
       this.colarRevisao();
     });
 
+    // Devolutiva ao solicitante (resumo-issue.js): o Claude desta sessao resume
+    // o que foi entregue e o texto vai como rascunho para a issue no Flow.
+    this.elResumo = document.createElement('button');
+    this.elResumo.className = 'painel-revisao painel-resumo';
+    this.elResumo.textContent = 'Resumo';
+    this.elResumo.title = 'Pedir ao Claude desta sessão a devolutiva ao solicitante '
+      + '(vai como rascunho para a issue no Pronix Flow)';
+    this.elResumo.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      window.OrqResumo?.abrir(this.id);
+    });
+
     // O `run` do projeto (Fase 10.2): abre um painel de terminal na mesma pasta,
     // com as MESMAS portas desta sessao. So aparece quando o projeto tem `run`.
     this.elRun = document.createElement('button');
@@ -265,7 +277,7 @@ class Painel {
     acoes.className = 'painel-acoes';
     acoes.append(this.elPorta, this.elFila, this.elLigacoes, this.elRender, btnFechar);
 
-    cab.append(this.elBolinha, elFeature, this.elPai, this.elIssue, this.elBranch, this.elLocal, this.elStatus, this.elRevisao, this.elRun, acoes);
+    cab.append(this.elBolinha, elFeature, this.elPai, this.elIssue, this.elBranch, this.elLocal, this.elStatus, this.elRevisao, this.elResumo, this.elRun, acoes);
 
     this.elTerm = document.createElement('div');
     this.elTerm.className = 'painel-term';
@@ -903,6 +915,7 @@ class Painel {
   mostrarRevisao() {
     if (!this.elRevisao) return;
     this.elRevisao.hidden = this.tipoPainel === 'terminal';
+    if (this.elResumo) this.elResumo.hidden = this.tipoPainel === 'terminal';
     this.elRevisao.title = `Cola na caixa do Claude, sem enviar:\n\n${this.textoRevisao()}`;
     this.mostrarRun();
     // Roda depois que o `grade.js` define o `tipoPainel`: terminal nao tem chip.

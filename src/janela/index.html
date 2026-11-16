@@ -292,6 +292,18 @@
     </div>
   </div>
 
+  <!-- Devolutiva ao solicitante: escolher a issue que recebe o resumo do
+       Claude da sessao. O corpo e montado pelo resumo-issue.js. -->
+  <div id="resumo" class="overlay" hidden>
+    <div class="historico-caixa">
+      <div class="ajuda-topo">
+        <h2>Devolutiva ao solicitante</h2>
+        <button id="resumo-fechar" title="Fechar (Esc)">&times;</button>
+      </div>
+      <div id="resumo-corpo"></div>
+    </div>
+  </div>
+
   <!-- A inbox do Pronix Flow (Fase 10.4). O corpo e montado pelo inbox.js:
        ou o formulario de conectar, ou a lista. -->
   <div id="inbox" class="overlay" hidden>
@@ -576,6 +588,7 @@
 <script src="dupla.js"></script>
 <script src="abrir-externo.js"></script>
 <script src="inbox.js"></script>
+<script src="resumo-issue.js"></script>
 <script src="orquestrar.js"></script>
 <script src="notas.js"></script>
 <script src="navegar.js"></script>
