@@ -158,10 +158,15 @@ jobs:
   # se faz upload para uma release que ja existe.
   macos:
     needs: windows
-    # `macos-14` e nao `macos-latest`: o alvo declarado no electron-builder.yml
+    # Versao FIXA e nao `macos-latest`: o alvo declarado no electron-builder.yml
     # e arm64, e o `latest` ja mudou de arquitetura uma vez. Fixar a versao e o
     # que garante que o runner e Apple Silicon.
-    runs-on: macos-14
+    #
+    # Era `macos-14` ate o GitHub aposenta-lo: o job passou a ser CANCELADO em 1s,
+    # sem runner, com "The configuration 'macos-14-arm64-us-default' is not
+    # supported" (v0.1.48 e v0.1.49 sairam sem o zip do Mac). O sintoma nao e
+    # falha, e "cancelled" -- quando acontecer de novo, e esta linha.
+    runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v4
