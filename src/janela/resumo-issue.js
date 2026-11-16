@@ -57,6 +57,13 @@
     return [...vistos].map(([id, origem]) => ({ id, origem }));
   }
 
+  // O pedido vai COM Enter. Se o Claude saiu e o painel voltou ao shell, a linha
+  // seria executada como comando -- entao so com a TUI do Claude na tela. Ela
+  // liga o bracketed paste sozinha: o mesmo sinal que o `colarTexto` usa.
+  function claudeNaTela(painel) {
+    return !painel.dormindo && !painel.encerrado && painel.term?.modes?.bracketedPasteMode === true;
+  }
+
   function fechar() {
     elCaixa.hidden = true;
     painelAtual = null;
@@ -86,6 +93,14 @@
       erro('O Claude ainda está trabalhando nesta sessão: espere ele terminar.');
       return;
     }
+    if (painel.status === 'esperando') {
+      erro('A sessão está esperando uma resposta sua: responda antes.');
+      return;
+    }
+    if (!claudeNaTela(painel)) {
+      erro('O Claude não está aberto neste painel: abra ou retome a sessão antes.');
+      return;
+    }
 
     travar(true);
     erro('');
@@ -96,6 +111,11 @@
     if (!r || !r.ok) { erro((r && r.texto) || 'não deu para preparar o pedido'); return; }
 
     fechar();
+    // Rechecado: a ida ao Flow leva tempo, e o Claude pode ter saido nesse meio.
+    if (!claudeNaTela(painel)) {
+      window.OrqToast?.mostrar('O Claude saiu deste painel: o pedido de devolutiva não foi enviado.');
+      return;
+    }
     // O `colarTexto` faz as recusas de sempre (dormindo, encerrada, esperando
     // resposta) e avisa por toast.
     if (!painel.colarTexto(r.prompt, 'o pedido de devolutiva')) return;
