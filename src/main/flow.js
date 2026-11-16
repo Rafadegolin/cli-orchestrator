@@ -170,9 +170,120 @@ async function buscarInbox({ base, token, buscar = fetch } = {}) {
   return { ok: true, ...normalizarInbox(corpo) };
 }
 
+// ------------------------------------------- devolutiva ao solicitante
+
+// "TECH-3641". Mesma regra de key do Flow (`parseIdentifier` em
+// `orquestrador-summary.service.ts`): letra + 1..9 alfanumericos, caixa livre.
+const IDENTIFICADOR = /^[A-Za-z][A-Za-z0-9]{1,9}-\d{1,9}$/;
+
+function identificadorValido(id) {
+  return IDENTIFICADOR.test(String(id || '').trim());
+}
+
+// Teto do texto da devolutiva -- o `MAX_SUMMARY_LENGTH` do Flow.
+const MAX_RESUMO = 20_000;
+
+// Uma chamada autenticada ao Flow, com os mesmos portoes do `buscarInbox`
+// (origem https, formato do token) e os mesmos codigos de erro. Nunca estoura e
+// nunca carrega o token no retorno.
+async function chamar({ base, token, caminho, metodo = 'GET', corpo, buscar = fetch }) {
+  const origem = normalizarBase(base);
+  if (!origem) return { ok: false, erro: 'url', texto: 'endereço do Flow inválido (use https)' };
+  if (!tokenValido(token)) return { ok: false, erro: 'token', texto: 'isso não parece um token do Flow (pfx_…)' };
+
+  let r;
+  try {
+    r = await buscar(`${origem}${caminho}`, {
+      method: metodo,
+      headers: {
+        Authorization: `Bearer ${String(token).trim()}`,
+        Accept: 'application/json',
+        ...(corpo !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(corpo !== undefined ? { body: JSON.stringify(corpo) } : {}),
+      signal: AbortSignal.timeout(MS_API),
+    });
+  } catch {
+    return { ok: false, erro: 'rede', texto: `não consegui falar com ${origem}` };
+  }
+
+  if (r.status === 401) {
+    return { ok: false, erro: 'token', texto: 'o Flow recusou o token — ele pode ter sido revogado' };
+  }
+  let json = null;
+  try { json = await r.json(); } catch { /* corpo vazio ou nao-JSON */ }
+  if (!r.ok) {
+    const msg = json && typeof json.message === 'string' ? json.message : '';
+    return {
+      ok: false,
+      erro: r.status === 404 ? 'nao-encontrada' : 'servidor',
+      status: r.status,
+      texto: msg || `o Flow respondeu ${r.status}`,
+    };
+  }
+  if (!json || typeof json !== 'object') {
+    return { ok: false, erro: 'formato', texto: 'a resposta do Flow não é JSON' };
+  }
+  return { ok: true, json };
+}
+
+// O contexto da issue para o pedido de devolutiva (`OrqIssueContextDto`).
+// 404 aqui tanto pode ser issue inexistente quanto um Flow de antes da rota.
+async function buscarContexto({ base, token, identificador, buscar = fetch } = {}) {
+  const id = String(identificador || '').trim();
+  if (!identificadorValido(id)) {
+    return { ok: false, erro: 'identificador', texto: `"${id}" não é um identificador de issue (ex.: TECH-123)` };
+  }
+  const r = await chamar({ base, token, caminho: `${CAMINHO}/${encodeURIComponent(id)}`, buscar });
+  if (!r.ok) {
+    if (r.erro === 'nao-encontrada') {
+      return { ...r, texto: `a issue ${id} não existe no Flow (ou este Flow ainda não tem a devolutiva)` };
+    }
+    return r;
+  }
+  const b = r.json;
+  const req = b.requester && typeof b.requester === 'object' ? b.requester : null;
+  const nomeSolicitante = req ? texto(req.name, 120) : '';
+  return {
+    ok: true,
+    contexto: {
+      issue: texto(b.issue, 60) || id.toUpperCase(),
+      titulo: texto(b.title, 300),
+      url: pedidos.urlSegura(b.url),
+      descricao: cortarDescricao(b.description),
+      solicitante: nomeSolicitante
+        ? { nome: nomeSolicitante, cargo: texto(req.position, 120), departamento: texto(req.department, 120) }
+        : null,
+    },
+  };
+}
+
+// Grava a devolutiva como RASCUNHO. Devolve `{ ok, url }` (a issue no Flow).
+async function salvarResumo({ base, token, identificador, texto: corpo, buscar = fetch } = {}) {
+  const id = String(identificador || '').trim();
+  if (!identificadorValido(id)) return { ok: false, erro: 'identificador', texto: 'identificador de issue inválido' };
+  const t = String(corpo || '').replace(/\r\n?/g, '\n').trim();
+  if (!t) return { ok: false, erro: 'vazio', texto: 'a devolutiva veio vazia' };
+  if (t.length > MAX_RESUMO) return { ok: false, erro: 'grande', texto: `a devolutiva passa de ${MAX_RESUMO} caracteres` };
+  const r = await chamar({
+    base,
+    token,
+    metodo: 'POST',
+    corpo: { body: t },
+    buscar,
+    caminho: `${CAMINHO}/${encodeURIComponent(id)}/summaries`,
+  });
+  if (!r.ok) return r;
+  return { ok: true, url: pedidos.urlSegura(r.json.url) };
+}
+
 module.exports = {
   CAMINHO,
   MAX_DESCRICAO,
+  MAX_RESUMO,
+  identificadorValido,
+  buscarContexto,
+  salvarResumo,
   normalizarBase,
   tokenValido,
   cortarDescricao,

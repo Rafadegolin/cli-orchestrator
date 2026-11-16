@@ -35,6 +35,7 @@ const claudeDados = require('./claude-dados');
 const orquestracao = require('./orquestracao');
 const skillOrq = require('./skill-orquestrador');
 const notas = require('./notas');
+const resumo = require('./resumo');
 
 // Chamado pelo desinstalador (recursos/instalador.nsh) antes de apagar os
 // arquivos. Tem de ser rapido e mudo: nada de janela, nada de dialogo -- o
@@ -328,6 +329,7 @@ app.whenReady().then(async () => {
     await eventos.iniciar({
       aoAbrir: externo.atender,
       aoOrq: orquestracao.atender,
+      aoResumo: resumo.receber,
       versao: app.getVersion(),
       // O `Stop` e quando o agente acabou -- e quase sempre acabou de commitar.
       // E o gatilho do chip de branch (Fase 10.3), no lugar de um relogio.
@@ -676,6 +678,19 @@ orquestracao.configurar({
     if (janela && !janela.isDestroyed()) janela.webContents.send('orq:aviso', { texto });
   },
 });
+
+// Devolutiva ao solicitante (resumo.js). O clique pede o prompt; o curl do
+// Claude entrega o texto pelo /resumo/<nonce>; o aviso volta ao painel certo.
+resumo.configurar({
+  lerCredencial: () => flowCredencial.ler(),
+  porta: eventos.PORTA,
+  aoSalvo: (info) => {
+    if (janela && !janela.isDestroyed()) janela.webContents.send('resumo:salvo', info);
+  },
+});
+
+ipcMain.handle('resumo:preparar', (_e, { painelId, identificador } = {}) => (
+  resumo.preparar({ painelId, identificador })));
 
 ipcMain.handle('orq:situacao', () => ({
   ligada: preferencias.orquestracaoLigada(),
