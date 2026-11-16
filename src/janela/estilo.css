@@ -3621,3 +3621,13 @@ button.primario:hover {
 .dupla-lado { margin-bottom: 14px; }
 .dupla-lado .modal-linha { margin-bottom: 0; }
 .dupla-lado .modal-dica { margin-top: 6px; }
+
+/* ------------------------------------------- devolutiva ao solicitante */
+
+/* As listas do seletor reaproveitam as linhas da inbox; so ganham teto, para
+   uma inbox longa nao empurrar o campo livre e os botoes para fora da caixa. */
+.resumo-lista {
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}

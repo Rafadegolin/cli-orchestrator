@@ -55,6 +55,7 @@
     "teste:abrir": "node testes/abrir.js",
     "teste:abrir-ui": "node testes/abrir-ui.js",
     "teste:inbox": "node testes/inbox.js",
+    "teste:resumo": "node testes/resumo.js",
     "teste:inbox-ui": "node testes/inbox-ui.js",
     "teste:orquestracao": "node testes/orquestracao.js",
     "teste:orquestracao-ui": "node testes/orquestracao-ui.js",

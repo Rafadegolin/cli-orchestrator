@@ -45,11 +45,17 @@ let servidor = null;
 let aoEvento = null;
 let aoAbrir = null;
 let aoOrq = null;
+let aoResumo = null;
 
 // As rotas /orq/* (Fase 10.6): quem chama e o `curl` de uma sessao do Claude,
 // nunca um navegador. Corpo curto (nome + prompt de ate 5000 caracteres).
 const MAX_CORPO_ORQ = 16 * 1024;
 const MS_CORPO_ORQ = 5_000;
+// /resumo/<nonce>: o texto da devolutiva, ate 20 000 caracteres -- com acento,
+// cada um pode custar ate 3 bytes em UTF-8.
+const MAX_CORPO_RESUMO = 128 * 1024;
+const MS_CORPO_RESUMO = 10_000;
+
 const METODO_ORQ = { criar: 'POST', enviar: 'POST', status: 'GET', esperar: 'GET', diff: 'GET' };
 
 function responder(res) {
@@ -95,6 +101,8 @@ function tratar(req, res) {
   if (partes[0] === 'ping' || partes[0] === 'abrir') { tratarExterno(req, res, partes[0]); return; }
 
   if (partes[0] === 'orq') { tratarOrq(req, res, partes[1] || '', url.searchParams); return; }
+
+  if (partes[0] === 'resumo') { tratarResumo(req, res, partes[1] || ''); return; }
 
   // Caminho desconhecido continua com o 200 mudo de sempre. NAO vira 404: quem
   // bate aqui e varredor de porta, e um 404 com corpo so entrega informacao.
@@ -479,6 +487,76 @@ function tratarOrq(req, res, rota, params) {
   req.on('error', seguir);
 }
 
+// ------------------------------------- /resumo/<nonce> (devolutiva ao solicitante)
+
+// O `curl` do Claude da sessao entrega o texto da devolutiva (ver resumo.js).
+// Mesmos portoes do /orq/*, menos o interruptor `orquestracao` -- a devolutiva
+// nao cria nem comanda sessao nenhuma, e nao pode depender de um recurso
+// desligado por padrao:
+//   1. Host de loopback
+//   2. nenhum Origin (pagina web nao tem o que fazer aqui)
+//   3. POST com text/plain
+//   4. corpo com teto
+// A autorizacao e o NONCE do caminho: de uso unico, com prazo, gerado no clique.
+function tratarResumo(req, res, nonce) {
+  const metodo = String(req.method || 'GET').toUpperCase();
+
+  if (!hostLocal(req.headers.host)) {
+    responderJson(res, 403, { ok: false, erro: 'host-invalido' });
+    return;
+  }
+  if (req.headers.origin !== undefined) {
+    responderJson(res, 403, { ok: false, erro: 'origem-proibida', texto: 'a rota /resumo nao atende paginas web' });
+    return;
+  }
+  if (metodo !== 'POST') {
+    responderJson(res, 405, { ok: false, erro: 'metodo', texto: 'use POST' }, { allow: 'POST' });
+    return;
+  }
+  if (!/^text\/plain\b/i.test(String(req.headers['content-type'] || ''))) {
+    responderJson(res, 415, { ok: false, erro: 'tipo-invalido', texto: 'mande -H "content-type: text/plain; charset=utf-8"' });
+    return;
+  }
+  if (!aoResumo) {
+    responderJson(res, 503, { ok: false, erro: 'sem-handler' });
+    return;
+  }
+
+  // Bytes, e nao string: o texto tem acento, e juntar pedacos como string
+  // poderia partir um caractere de varios bytes no meio.
+  const pedacos = [];
+  let tamanho = 0;
+  let grande = false;
+  let terminou = false;
+
+  const seguir = () => {
+    if (terminou) return;
+    terminou = true;
+    clearTimeout(prazo);
+    if (grande) {
+      responderJson(res, 413, { ok: false, erro: 'corpo-grande', texto: 'a devolutiva passou do limite' });
+      return;
+    }
+    const texto = Buffer.concat(pedacos).toString('utf8');
+    Promise.resolve()
+      .then(() => aoResumo({ nonce, texto }))
+      .then((r) => responderJson(res, (r && r.status) || 200, (r && r.corpo) || { ok: true }))
+      .catch((err) => {
+        console.error('[eventos] /resumo falhou:', (err && err.stack) || err);
+        responderJson(res, 500, { ok: false, erro: 'falha-interna' });
+      });
+  };
+
+  const prazo = setTimeout(seguir, MS_CORPO_RESUMO);
+  req.on('data', (c) => {
+    if (tamanho + c.length > MAX_CORPO_RESUMO) { grande = true; return; }
+    tamanho += c.length;
+    pedacos.push(c);
+  });
+  req.on('end', seguir);
+  req.on('error', seguir);
+}
+
 // A porta e fixa (o comando do hook a leva embutida), entao reabrir o app antes
 // do processo anterior soltar o socket da EADDRINUSE -- e o usuario que so
 // fechou e abriu de novo cai num aviso de porta ocupada e fica sem bolinhas.
@@ -520,11 +598,13 @@ function tentarEscutar() {
 // este projeto ja recusou por escrito no `index.js`: trocar os dois de lugar nao
 // daria erro nenhum.
 async function iniciar({
-  aoEvento: cbEvento = null, aoAbrir: cbAbrir = null, aoOrq: cbOrq = null, versao = '',
+  aoEvento: cbEvento = null, aoAbrir: cbAbrir = null, aoOrq: cbOrq = null, aoResumo: cbResumo = null,
+  versao = '',
 } = {}) {
   aoEvento = cbEvento;
   aoAbrir = cbAbrir;
   aoOrq = cbOrq;
+  aoResumo = cbResumo;
   versaoApp = String(versao || '');
 
   for (let i = 0; i < TENTATIVAS; i++) {
@@ -562,9 +642,10 @@ function parar() {
 // testar o roteador de mentira.
 // So para o teste, que sobe o `tratarSeguro` no proprio servidor e nao passa
 // pelo `iniciar()`. No app os handlers entram SO pelo `iniciar` (ver acima).
-function _handlersParaTeste({ aoAbrir: a = null, aoOrq: o = null } = {}) {
+function _handlersParaTeste({ aoAbrir: a = null, aoOrq: o = null, aoResumo: r = null } = {}) {
   aoAbrir = a;
   aoOrq = o;
+  aoResumo = r;
 }
 
 module.exports = {

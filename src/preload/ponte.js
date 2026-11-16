@@ -102,6 +102,11 @@ contextBridge.exposeInMainWorld('orq', {
   flowIssues: () => ipcRenderer.invoke('flow:issues'),
   // So o ID: os campos do pedido saem da lista que o main leu do Flow.
   flowAbrir: (id) => ipcRenderer.invoke('flow:abrir', id),
+  // Devolutiva ao solicitante: o main le a issue no Flow e devolve o prompt
+  // para colar no Claude; quando o curl do Claude entrega o texto, avisa aqui.
+  resumoPreparar: (painelId, identificador) =>
+    ipcRenderer.invoke('resumo:preparar', { painelId, identificador }),
+  aoSalvarResumo: (fn) => ipcRenderer.on('resumo:salvo', (_e, info) => fn(info)),
 
   // ------------------------------------------- orquestracao (Fase 10.6)
   // O pedido chega do main (uma coordenadora chamou /orq/criar ou /orq/enviar);
