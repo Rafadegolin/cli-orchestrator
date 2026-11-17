@@ -10,7 +10,6 @@
 const elProjetosLista = document.getElementById('projetos-lista');
 const elProjetosContagem = document.getElementById('projetos-contagem');
 const btnProjetoAdd = document.getElementById('btn-projeto-add');
-const elFeatureProjeto = document.getElementById('nome-feature');
 
 // Marcas de acentuacao que sobram do normalize('NFD'). Construido a partir de
 // string para o arquivo nao guardar caracteres combinantes literais, que sao
@@ -786,7 +785,9 @@ function retomar(projeto, w, { comandoInicial } = {}) {
 // sentinela, e nao `comandoInicial: ''`: a conta la embaixo e
 // `comandoInicial || montarComando(...)`, entao string vazia cairia de volta no
 // padrao e o Claude subiria assim mesmo.
-async function abrirProjeto(id, { comandoInicial, terminal = false } = {}) {
+// O nome da sessao chega em `feature` (o campo mora no dialogo de abrir
+// sessao desde o redesign R1). Vazio = roda na pasta, sem worktree.
+async function abrirProjeto(id, { comandoInicial, terminal = false, feature: nome = '' } = {}) {
   const p = projetosCache.find((x) => x.id === id);
   if (!p) return null;
 
@@ -796,9 +797,7 @@ async function abrirProjeto(id, { comandoInicial, terminal = false } = {}) {
     return null;
   }
 
-  const feature = (elFeatureProjeto?.value || '').trim();
-  if (elFeatureProjeto) elFeatureProjeto.value = '';
-  window.OrqCasca?.atualizarDica();
+  const feature = String(nome || '').trim();
   ultimoProjetoId = p.id;
 
   // Projeto com `setup` (Fase 10.2): quem cria a worktree passa a ser o APP, e
@@ -852,7 +851,7 @@ async function abrirEmWorktreeNova(p, slug) {
   return painel;
 }
 
-// O botao "Nova sessao" da barra: usa o ultimo projeto aberto, senao o unico,
+// "Nova sessao" pela paleta (o botao da barra saiu no redesign R1): usa o ultimo projeto aberto, senao o unico,
 // senao o primeiro da lista. Sem nenhum projeto cadastrado nao ha o que
 // adivinhar -- abre o cadastro, que e o passo que falta de verdade.
 async function abrirUltimo() {
@@ -873,7 +872,6 @@ function cadastrarProjeto() {
 
 btnProjetoAdd?.addEventListener('click', cadastrarProjeto);
 document.getElementById('vazio-cadastrar')?.addEventListener('click', cadastrarProjeto);
-document.getElementById('btn-nova-sessao')?.addEventListener('click', abrirUltimo);
 
 carregarProjetos();
 

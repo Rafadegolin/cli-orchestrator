@@ -10,11 +10,8 @@
 (() => {
   const elApp = document.getElementById('app');
   const btnTema = document.getElementById('btn-tema');
-  const elOrdenacao = document.getElementById('ordenacao');
   const elDensidade = document.getElementById('densidade');
   const btnLateral = document.getElementById('btn-lateral');
-  const elCampo = document.getElementById('nome-feature');
-  const elDica = document.getElementById('barra-dica');
   const elNum = document.getElementById('placar-num');
   const elCpu = document.getElementById('placar-cpu');
   const elCarga = document.getElementById('placar-carga');
@@ -121,12 +118,6 @@
     btnLateral.setAttribute('aria-pressed', String(fechada));
   }
 
-  function aplicarOrdem() {
-    for (const b of elOrdenacao.querySelectorAll('button')) {
-      b.classList.toggle('ativa', b.dataset.ordem === ui.ordem);
-    }
-  }
-
   function avisar() {
     for (const fn of ouvintes) {
       try {
@@ -142,7 +133,6 @@
     ui = { ...ui, ...parcial };
     aplicarTema();
     aplicarDensidade();
-    aplicarOrdem();
     aplicarLateral();
     avisar();
     window.orq.uiSalvar(parcial);
@@ -259,10 +249,13 @@
   // O `worktree-` nao e nosso: e o `claude -w` que o poe, e nao ha opcao para
   // mudar isso (medido: a flag aceita `[name]` e mais nada). Mostrar aqui e o
   // que evita a surpresa de procurar um branch que tem outro nome.
-  function atualizarDica() {
-    const bruto = (elCampo.value || '').trim();
-    const slug = window.OrqProjetos ? window.OrqProjetos.slugFeature(bruto) : bruto;
-    elDica.textContent = slug
+  //
+  // Redesign R1: o campo saiu da barra e mora no dialogo de abrir sessao
+  // (escolha-sessao.js), que chama esta funcao com o texto digitado.
+  function dicaDoNome(bruto) {
+    const nome = String(bruto || '').trim();
+    const slug = window.OrqProjetos ? window.OrqProjetos.slugFeature(nome) : nome;
+    return slug
       ? `cria o worktree ${slug} · branch worktree-${slug}`
       : 'sem nome, roda na pasta do projeto sem criar worktree';
   }
@@ -301,13 +294,6 @@
     if (b) mudar({ densidade: b.dataset.cols === 'p' ? 'p' : Number(b.dataset.cols) });
   });
 
-  elOrdenacao.addEventListener('click', (ev) => {
-    const b = ev.target.closest('button[data-ordem]');
-    if (b) mudar({ ordem: b.dataset.ordem });
-  });
-
-  elCampo.addEventListener('input', atualizarDica);
-
   window.addEventListener('keydown', (ev) => {
     if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
     if (!['1', '2', '3', '4'].includes(ev.key)) return;
@@ -330,7 +316,10 @@
   window.OrqCasca = {
     // Leitura, nunca a referencia: ninguem muda preferencia por atribuicao.
     ui: () => ({ ...ui }),
-    ordem: () => ui.ordem,
+    // A ordenacao Urgencia|Projeto saiu da tela no redesign (R1): a grade e a
+    // lateral sao sempre por urgencia. A chave `ordem` segue no ui.json e nos
+    // layouts so por compatibilidade, e e ignorada.
+    ordem: () => 'urgencia',
     densidade: () => ui.densidade,
     tema: () => ui.tema,
     acento: () => ui.acento,
@@ -338,7 +327,7 @@
     mudar,
     alternarLateral,
     definirVivas,
-    atualizarDica,
+    dicaDoNome,
     aoMudar: (fn) => ouvintes.push(fn),
     nucleos: 0,
     SEGMENTOS,
@@ -351,9 +340,7 @@
   // corrige quando o disco responder.
   aplicarTema();
   aplicarDensidade();
-  aplicarOrdem();
   aplicarLateral();
-  atualizarDica();
   desenharCarga(0);
 
   (async () => {
@@ -361,7 +348,6 @@
     ui = { ...ui, ...salvo };
     aplicarTema();
     aplicarDensidade();
-    aplicarOrdem();
     aplicarLateral();
     avisar();
 

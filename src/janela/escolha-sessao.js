@@ -19,9 +19,11 @@
 // terminal ou Claude. Com zero conversas quem sai e o "Retomar", que ai sim nao
 // tem o que oferecer.
 //
-// Quem NAO passa por aqui continua nao passando, de proposito: a paleta e o
-// botao "Nova sessao" chamam `abrirProjeto` direto, porque neles voce ja disse
-// o que queria (ver o comentario na linha do clique, em projetos.js).
+// Quem NAO passa por aqui continua nao passando, de proposito: a paleta chama
+// `abrirProjeto` direto, porque nela voce ja disse o que queria.
+//
+// Redesign R1: o campo do nome da sessao saiu da barra e veio para ca, com a
+// dica do branch real logo embaixo. Enter no campo abre a sessao nova.
 
 (() => {
   const COMANDO_RETOMAR = `${window.OrqShell.limpar()} && claude -r`;
@@ -33,6 +35,12 @@
   const btnRetomar = document.getElementById('escolha-retomar');
   const btnNova = document.getElementById('escolha-nova');
   const btnCancelar = document.getElementById('escolha-cancelar');
+  const elNome = document.getElementById('escolha-nome');
+  const elDica = document.getElementById('escolha-dica');
+
+  function atualizarDica() {
+    if (elDica) elDica.textContent = window.OrqCasca?.dicaDoNome?.(elNome?.value) || '';
+  }
 
   let projetoAtual = null;
 
@@ -64,15 +72,25 @@
     // numero 1 do CLAUDE.md, e e por isso que isto esta escrito.
     btnRetomar.hidden = !quantas;
 
+    if (elNome) elNome.value = '';
+    atualizarDica();
     elOverlay.hidden = false;
-    btnNova.focus();
+    (elNome || btnNova).focus();
     return null;
   }
 
   btnNova?.addEventListener('click', () => {
     const alvo = projetoAtual;
+    const feature = (elNome?.value || '').trim();
     fechar();
-    if (alvo) window.OrqProjetos.abrirProjeto(alvo.id);
+    if (alvo) window.OrqProjetos.abrirProjeto(alvo.id, { feature });
+  });
+
+  elNome?.addEventListener('input', atualizarDica);
+  elNome?.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Enter') return;
+    ev.preventDefault();
+    btnNova?.click();
   });
 
   btnRetomar?.addEventListener('click', () => {

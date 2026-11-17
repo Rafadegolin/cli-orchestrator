@@ -1220,27 +1220,24 @@ button:focus-visible, input:focus-visible {
   min-width: 0;
 }
 
-.campo-feature {
-  position: relative;
-  display: flex;
-  align-items: center;
-  flex: 0 1 280px;
-  min-width: 208px;
-}
-
-#nome-feature {
-  width: 100%;
+/* Redesign R1: no lugar do campo de nome, o titulo da vista e o resumo
+   ("8 abertas · 1 esperando"). Ele e quem encolhe quando falta largura. */
+#barra-titulo {
+  flex: 1 1 0;
   min-width: 0;
-  background: var(--bg2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: 9px 12px;
-  font-family: var(--mono);
-  font-size: 12.5px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+  overflow: hidden;
 }
-
-#nome-feature:focus { border-color: var(--acc); background: var(--bg3); outline: none; }
-#nome-feature::placeholder { color: var(--fg3); }
+#barra-vista { font-size: 14px; font-weight: 600; color: var(--fg); }
+#barra-resumo {
+  font-size: 11.5px;
+  color: var(--fg3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 #barra button {
   flex: 0 0 auto;
@@ -1276,16 +1273,6 @@ button.primario:hover {
 }
 
 .mais { font-size: 14px; line-height: 1; }
-
-#barra-dica {
-  flex: 1 1 0;
-  min-width: 0;
-  font-size: 11.5px;
-  color: var(--fg3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
 .barra-direita {
   flex: 0 0 auto;
@@ -2265,8 +2252,7 @@ button.primario:hover {
    elemento posicionado, e `style.order` idem. Controle que existe e nao muda
    nada e pior que controle ausente -- entao eles somem, e o espaco fica para
    os controles do mapa. */
-#app[data-modo="mapa"] #densidade,
-#app[data-modo="mapa"] #ordenacao { display: none; }
+#app[data-modo="mapa"] #densidade { display: none; }
 
 /* ================================================================ vazio */
 
@@ -3563,16 +3549,6 @@ button.primario:hover {
 .seletor-ligar:disabled, .seletor-desligar:disabled { opacity: .6; }
 
 /* =========================================================== compressao */
-
-/* A dica da toolbar e a primeira coisa a sair, como manda o doc 03: ela
-   explica o que o campo ao lado ja mostra. Sem isto ela sozinha empurra a
-   ordenacao e a densidade para a segunda linha.
-   O limite subiu de 1180 para 1320 quando os controles de modo entraram: uma
-   dica espremida em "sem no..." nao informa nada e ainda ocupa espaco. */
-@media (max-width: 1320px) {
-  #barra-dica { display: none; }
-  .campo-feature { min-width: 168px; }
-}
 
 /* O medidor de uso cede em tres degraus, do menos informativo para o mais.
    A barra de titulo tem 38px fixos e ja reserva ~140px para os botoes do

@@ -172,8 +172,8 @@ async function nodePuro() {
 
   // --- 1. a "nova sessao" de um projeto com setup ----------------------------
   const abrir = () => cdp.avaliar(`(async () => {
-    document.getElementById('nome-feature').value = ${JSON.stringify(slug)};
-    const p = await window.OrqProjetos.abrirProjeto(${JSON.stringify(proj.id)});
+    const p = await window.OrqProjetos.abrirProjeto(${JSON.stringify(proj.id)},
+      { feature: ${JSON.stringify(slug)} });
     return p ? p.id : '';
   })()`);
 
@@ -254,8 +254,7 @@ async function nodePuro() {
     window.OrqGrade.criarPainel = async (o) => { pedido = o; return null; };
     window.orq.worktreesCriar = (...a) => { criouWorktree = true; return wtCriar(...a); };
     try {
-      document.getElementById('nome-feature').value = 'sem-setup';
-      await window.OrqProjetos.abrirProjeto(${JSON.stringify(proj.id)});
+      await window.OrqProjetos.abrirProjeto(${JSON.stringify(proj.id)}, { feature: 'sem-setup' });
     } finally {
       window.OrqGrade.criarPainel = criar;
       window.orq.worktreesCriar = wtCriar;

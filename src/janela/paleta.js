@@ -74,9 +74,20 @@
         tag: 'nova',
         rotulo: `Nova sessão em ${p.nome}`,
         dica: p.git ? 'worktree' : 'sem git',
-        correr: () => window.OrqProjetos.abrirProjeto(p.id),
+        // Pelo dialogo, e nao direto: e nele que se da o nome da sessao
+        // desde que o campo saiu da barra (redesign R1).
+        correr: () => (window.OrqEscolhaSessao
+          ? window.OrqEscolhaSessao.abrir(p.id)
+          : window.OrqProjetos.abrirProjeto(p.id)),
       });
     }
+
+    lista.push({
+      tag: 'nova',
+      rotulo: 'Abrir pasta qualquer…',
+      dica: 'painel sem projeto',
+      correr: () => window.OrqGrade?.abrirPastaQualquer(),
+    });
 
     for (const p of window.OrqProjetos?.lista?.() || []) {
       lista.push({

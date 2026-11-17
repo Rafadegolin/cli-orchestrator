@@ -9,8 +9,6 @@ const porId = OrqP.painelPorId;
 
 const elGrade = document.getElementById('grade');
 const elVazio = document.getElementById('vazio');
-const elNome = document.getElementById('nome-feature');
-const btnNovo = document.getElementById('btn-novo');
 
 let seq = 0;
 let focado = null;
@@ -472,22 +470,13 @@ function desfocar() {
 
 // ------------------------------------------------------------ eventos
 
-btnNovo.addEventListener('click', async () => {
+// O antigo "Painel avulso" da barra (redesign R1: virou item da paleta):
+// escolhe uma pasta qualquer e abre um painel nela, sem projeto cadastrado.
+async function abrirPastaQualquer() {
   const cwd = await window.orq.escolherPasta();
-  if (!cwd) return;
-  const feature = elNome.value.trim();
-  elNome.value = '';
-  await criarPainel({ cwd, feature });
-});
-
-// Enter aciona a acao PRIMARIA, que e a mesma que a dica ao lado descreve.
-// Antes abria o seletor de pasta do "Painel avulso", que nao tem relacao com o
-// nome de feature que voce acabou de digitar.
-elNome.addEventListener('keydown', (ev) => {
-  if (ev.key !== 'Enter') return;
-  ev.preventDefault();
-  document.getElementById('btn-nova-sessao')?.click();
-});
+  if (!cwd) return null;
+  return criarPainel({ cwd, feature: '' });
+}
 
 // Um unico ouvinte para todos os painéis: o lote chega com todos juntos.
 window.orq.aoReceberDados((lote) => {
@@ -512,6 +501,7 @@ window.OrqGrade = {
   despertar, restaurarSessao, retomarTodas, dormindos, retratoSessao, salvarSessao,
   salvarTelas, telasLigadas, alternarTelas,
   ordenarGrade,
+  abrirPastaQualquer,
   desfocar,
   focado: () => focado,
 };

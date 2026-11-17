@@ -78,7 +78,7 @@ const TODAS_SECOES = [
         '<b>Cadastre um projeto</b> no <b>+</b> da seção PROJETOS: escolha a pasta do repositório. '
           + 'Se você tem vários, <b>Várias…</b> aceita escolher tudo de uma vez, e cada um já sai '
           + 'com sua própria faixa de portas.',
-        '<b>Digite o nome da feature</b> no campo de cima e <b>clique no projeto</b>. '
+        '<b>Clique no projeto</b>, dê um nome à sessão e confirme. '
           + 'O painel abre e o Claude sobe sozinho.',
       ]),
       aviso('Sem os hooks o app funciona, mas os status ficam parados — e é o status que faz a grade '
@@ -91,20 +91,19 @@ const TODAS_SECOES = [
     id: 'sessoes',
     titulo: 'Abrir sessões',
     blocos: [
-      p('Clicar num projeto abre um painel na pasta dele e roda o Claude. O que roda depende do campo '
-        + 'de feature:'),
+      p('Clicar num projeto abre a pergunta de como abrir. Em <b>Sessão nova</b>, o que roda depende '
+        + 'do nome que você digita ali:'),
       tabela(['Campo do nome', 'O que acontece'], [
         ['com nome', 'Roda <code>claude -w nome</code>: cria um worktree isolado. O nome é limpo '
           + 'automaticamente (acento e símbolo viram tracinho), porque ele vira nome de branch. '
-          + 'A dica ao lado do campo mostra o nome exato do worktree e do branch antes de você clicar.'],
+          + 'A dica embaixo do campo mostra o nome exato do worktree e do branch antes de você confirmar.'],
         ['vazio', 'Roda <code>claude</code> na pasta do projeto, sem worktree.'],
       ]),
       aviso('O <b>branch</b> criado se chama <code>worktree-&lt;nome&gt;</code>. Esse prefixo é do '
         + 'próprio Claude Code — a flag <code>-w</code> aceita só o nome, e não o nome do branch. '
         + 'O app mostra o resultado na dica em vez de esconder.'),
-      p('<b>Nova sessão</b> (ou <b>Enter</b> no campo de feature) abre no último projeto que você '
-        + 'usou. <b>Painel avulso</b> abre um seletor de pasta, para trabalhar em qualquer lugar '
-        + 'sem cadastrar projeto.'),
+      p('Pela <b>paleta</b> ({mod}+K) dá para abrir sessão nova em qualquer projeto, e '
+        + '<b>Abrir pasta qualquer…</b> abre um painel numa pasta sem cadastrar projeto.'),
       p('Projeto que não é repositório git aparece com a etiqueta <b>sem git</b> e nunca recebe '
         + '<code>-w</code> — worktree exige git.'),
       p('<b>Clicar num projeto pergunta o que você quer</b>: <b>Sessão nova</b>, <b>Retomar uma '
@@ -116,8 +115,7 @@ const TODAS_SECOES = [
         + 'ganha a própria faixa de portas, como qualquer painel — então o <code>PORT</code> dele '
         + 'não é o mesmo do painel do Claude da mesma feature. Na lateral ele aparece como '
         + '<b>terminal</b> e fica fora da fila de atenção: não há sessão ali para pedir nada.'),
-      p('A <b>paleta</b> e o botão <b>Nova sessão</b> não passam por essa pergunta: neles você já '
-        + 'disse o que queria.'),
+      p('<b>Enter</b> no campo do nome abre a sessão nova.'),
       p('<b>Arrastar um arquivo para cima de um terminal</b> escreve o caminho dele na caixa de '
         + 'entrada do Claude, entre aspas. Serve para documento, print, o que for. <b>Nada é '
         + 'enviado</b>: o Enter continua sendo seu, então dá para escrever a pergunta junto e um '
@@ -535,13 +533,11 @@ const TODAS_SECOES = [
   },
   {
     id: 'grade',
-    titulo: 'A grade: densidade, ordem e tema',
+    titulo: 'A grade: densidade e tema',
     blocos: [
-      p('À direita da barra de cima ficam as duas escolhas que mudam a cara da grade, e as duas '
-        + 'são lembradas entre execuções:'),
+      p('A grade é sempre ordenada por <b>urgência</b>: quem espera você vem primeiro. À direita '
+        + 'da barra de cima fica a densidade, lembrada entre execuções:'),
       tabela(['Controle', 'O que faz'], [
-        ['Urgência / Projeto', 'Ordena a grade e a lista de sessões. Em <b>Urgência</b>, quem espera '
-          + 'vem primeiro; em <b>Projeto</b>, agrupa por repositório.'],
         ['1 · 2 · 3', 'Quantas colunas. Cada linha de painéis ocupa a <b>altura visível inteira</b> '
           + 'da janela; o que não cabe numa linha rola para baixo. Na 3 o rótulo de status some e a '
           + 'bolinha assume.'],
@@ -550,8 +546,8 @@ const TODAS_SECOES = [
           + 'exemplo dois terminais grandes lado a lado e dois pequenos dividindo a terceira coluna.'],
       ]),
       aviso('O personalizado é um <b>molde por posição</b>, e não um tamanho preso a uma sessão: ele '
-        + 'guarda "o primeiro painel é grande, o terceiro é pequeno". Com a ordenação por '
-        + '<b>Urgência</b> a forma da tela fica parada, mas quem ocupa o slot grande muda conforme os '
+        + 'guarda "o primeiro painel é grande, o terceiro é pequeno". Como a grade é ordenada por '
+        + 'urgência, a forma da tela fica parada, mas quem ocupa o slot grande muda conforme os '
         + 'status mudam. Para redefinir, procure <b>layout</b> na paleta.'),
       p('O botão de tema fica na barra de título, ao lado da busca. O <b>terminal continua escuro '
         + 'nos dois temas</b>: código monoespaçado sobre fundo claro atrapalha a leitura.'),
@@ -699,7 +695,7 @@ const TODAS_SECOES = [
         ['Esc', 'Fecha o que estiver aberto por cima'],
         ['1 2 3', 'Densidade da grade: 1, 2 ou 3 colunas'],
         ['4', 'O slot personalizado (a quarta pílula da barra)'],
-        ['Enter', 'No campo de feature, o mesmo que <b>Nova sessão</b>'],
+        ['Enter', 'No campo do nome da sessão, abre a sessão nova'],
       ]),
       p('As teclas <b>1</b> a <b>4</b> são ignoradas enquanto você digita num campo de '
         + 'texto ou dentro de um terminal — só valem quando o teclado não está em uso.'),

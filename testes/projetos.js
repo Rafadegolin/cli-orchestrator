@@ -290,16 +290,15 @@ function lerArquivo() {
   // --- abertura a partir do projeto -------------------------------------
   const id = await cdp.avaliar(`window.OrqProjetos.lista()[0].id`);
   const painel = JSON.parse(await cdp.avaliar(`(async () => {
-    document.getElementById('nome-feature').value = 'feat de teste';
+    // O nome chega por parametro desde o redesign R1 (o campo saiu da barra e
+    // mora no dialogo de abrir sessao).
     const p = await window.OrqProjetos.abrirProjeto(${JSON.stringify(id)},
-      { comandoInicial: 'echo ORQ_COMANDO_INICIAL_OK' });
+      { comandoInicial: 'echo ORQ_COMANDO_INICIAL_OK', feature: 'feat de teste' });
     return JSON.stringify({ id: p.id, cwd: p.cwd, feature: p.feature });
   })()`));
   checar('painel abriu na pasta do projeto',
     painel.cwd.replace(/\\/g, '/').toLowerCase() === RAIZ_URL.toLowerCase(), painel.cwd);
   checar('feature do painel foi sanitizada', painel.feature === 'feat-de-teste', painel.feature);
-  checar('campo de feature foi limpo apos abrir',
-    await cdp.avaliar(`document.getElementById('nome-feature').value`) === '', '');
 
   await esperar(4000);
   const buffer = await cdp.avaliar(`(() => {

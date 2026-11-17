@@ -158,19 +158,17 @@
 
     <main id="principal">
       <div id="barra">
-        <!-- Sem prefixo: o nome que voce digita e o nome inteiro. O `feat/` que
-             ficava aqui era decoracao do prototipo e nunca chegou a branch
-             nenhum -- quem nomeia o branch e o `claude -w`. -->
-        <div class="campo-feature">
-          <input id="nome-feature" type="text" placeholder="nome da sessão" spellcheck="false" />
+        <!-- Redesign R1: o campo de nome, "Nova sessao" e "Painel avulso" sairam
+             (nao eram usados). A sessao nasce pelo "+" do projeto na lateral ou
+             pela paleta, e o nome e digitado no dialogo de abrir sessao. -->
+        <div id="barra-titulo">
+          <span id="barra-vista">Todas as sessões</span>
+          <span id="barra-resumo" class="mono"></span>
         </div>
-        <button id="btn-nova-sessao" class="primario"><span class="mais">+</span>Nova sessão</button>
-        <button id="btn-novo">Painel avulso</button>
         <!-- O rotulo encolhe porque a barra tem orcamento de LARGURA, e estourar
              custa altura de terminal: ela e `flex-wrap: wrap`, e uma segunda
              linha tira ~56px de todo painel. Ver a regra no estilo.css. -->
         <button id="btn-dupla" title="Uma feature em dois repositórios: cria as duas worktrees e abre uma sessão que enxerga as duas"><span class="so-largo">Implementação dupla</span><span class="so-estreito">Dupla</span></button>
-        <span id="barra-dica"></span>
 
         <div class="barra-direita">
           <div id="modos" class="pilulas">
@@ -178,10 +176,6 @@
             <button data-modo="mapa" title="Mapa com as ligações desenhadas">Mapa</button>
           </div>
           <button id="btn-visao" hidden title="Alternar entre painéis e cartões">Visão geral</button>
-          <div id="ordenacao" class="pilulas">
-            <button data-ordem="urgencia" class="ativa">Urgência</button>
-            <button data-ordem="projeto">Projeto</button>
-          </div>
           <div id="densidade" class="pilulas">
             <button data-cols="1" class="mono" title="1 coluna">1</button>
             <button data-cols="2" class="mono ativa" title="2 colunas">2</button>
@@ -549,6 +543,12 @@
     <div class="modal-caixa">
       <h2 id="escolha-titulo">Abrir sessão</h2>
       <p class="modal-explica" id="escolha-explica"></p>
+      <!-- O nome da sessao morava num campo da barra ate o redesign (R1).
+           Aqui ele fica ao lado da escolha que o usa, com a dica do branch
+           real embaixo. Vazio = roda na pasta do projeto, sem worktree. -->
+      <label class="modal-rotulo" for="escolha-nome">Nome da sessão nova</label>
+      <input id="escolha-nome" class="scripts-campo" type="text" placeholder="ex.: auth-refresh" spellcheck="false" />
+      <p class="modal-explica mono" id="escolha-dica"></p>
       <div class="modal-acoes">
         <!-- Abre um shell na pasta do projeto e NAO sobe o Claude: para rodar
              o dev server, git, o que for, sem gastar token. -->

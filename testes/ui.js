@@ -397,13 +397,15 @@ async function arrastarAlca(cdp, id, dx, dy) {
   // pode reorganizar a grade.
   await cdp.avaliar(`window.OrqCasca.mudar({ densidade: 2 })`);
   await esperar(300);
-  await cdp.avaliar(`(() => { document.getElementById('nome-feature').focus();
+  // Um campo qualquer: o da barra saiu no redesign (R1).
+  await cdp.avaliar(`(() => { const i = document.createElement('input'); i.id = 'ui-campo-teste';
+    document.body.append(i); i.focus();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true })); return 'ok'; })()`);
   await esperar(300);
   checar('digito com foco num campo de texto e ignorado',
     await cdp.avaliar(`window.OrqCasca.densidade()`) === 2, '');
 
-  await cdp.avaliar(`(() => { document.getElementById('nome-feature').blur(); document.body.focus();
+  await cdp.avaliar(`(() => { document.getElementById('ui-campo-teste').remove(); document.body.focus();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '3', bubbles: true })); return 'ok'; })()`);
   await esperar(400);
   checar('e fora dele muda a densidade',
@@ -589,12 +591,13 @@ async function arrastarAlca(cdp, id, dx, dy) {
   checar('e a ordem do style.order e a que aparece na tela',
     urgencia.porPosicao.join() === esperadoUrgencia, urgencia.porPosicao.join());
 
+  // A ordenacao por projeto saiu no redesign (R1): uma preferencia antiga
+  // `ordem: 'projeto'` no ui.json nao pode mais mudar a grade.
   await cdp.avaliar(`window.OrqCasca.mudar({ ordem: 'projeto' })`);
   await esperar(600);
   const porProjeto = JSON.parse(await naTela());
-  checar('alternar para Projeto reordena, ignorando a urgencia',
-    porProjeto.porPosicao.join() === 'ui-a-espera-velha,ui-b-trabalha,ui-c-revisar,ui-d-espera-nova',
-    porProjeto.porPosicao.join());
+  checar('ordem antiga "projeto" no ui.json e ignorada: segue por urgencia',
+    porProjeto.porPosicao.join() === esperadoUrgencia, porProjeto.porPosicao.join());
   await cdp.avaliar(`window.OrqCasca.mudar({ ordem: 'urgencia' })`);
   await esperar(500);
 
@@ -1137,8 +1140,6 @@ async function arrastarAlca(cdp, id, dx, dy) {
   // Tem de ser em CAPTURA: o xterm reescreve Alt+Seta para Ctrl+Seta e manda ao
   // PTY, entao em fase de bolha o byte ja teria ido embora e o cursor do Claude
   // andaria junto.
-  await cdp.avaliar(`window.OrqCasca.mudar({ ordem: 'projeto' })`);
-  await esperar(400);
   const nav = JSON.parse(await cdp.avaliar(`(async () => {
     const p = window.OrqPainel.painelPorId.get(${JSON.stringify(foco['foco-a'])});
     p.focar();
@@ -1161,7 +1162,6 @@ async function arrastarAlca(cdp, id, dx, dy) {
     nav.cresceu === 0, JSON.stringify(nav));
 
   await zerarGrade(cdp);
-  await cdp.avaliar(`window.OrqCasca.mudar({ ordem: 'urgencia' })`);
 
   // --- 14b. TODO botao de overlay, nos dois temas --------------------------
   //
@@ -1394,20 +1394,16 @@ async function arrastarAlca(cdp, id, dx, dy) {
   //
   // O `feat/` que ficava no campo era decoracao do prototipo e nunca chegou a
   // branch nenhum: quem nomeia e o `claude -w`, sempre como `worktree-<nome>`.
-  const campo = JSON.parse(await cdp.avaliar(`(() => {
-    const i = document.getElementById('nome-feature');
-    i.value = 'auth refresh';
-    i.dispatchEvent(new Event('input'));
-    const dica = document.getElementById('barra-dica').textContent;
-    i.value = '';
-    i.dispatchEvent(new Event('input'));
-    return JSON.stringify({
-      dica,
-      vazia: document.getElementById('barra-dica').textContent,
-      prefixo: Boolean(document.querySelector('.campo-feature .prefixo')),
-    });
-  })()`));
-  checar('nao ha mais prefixo no campo', campo.prefixo === false, '');
+  // Desde o redesign (R1) o campo mora no dialogo de abrir sessao, e a dica sai
+  // do mesmo `dicaDoNome` do casca.js.
+  const campo = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    dica: window.OrqCasca.dicaDoNome('auth refresh'),
+    vazia: window.OrqCasca.dicaDoNome(''),
+    campoNaBarra: Boolean(document.getElementById('nome-feature')),
+    campoNoDialogo: Boolean(document.querySelector('#escolha-sessao #escolha-nome')),
+  })`));
+  checar('o campo de nome saiu da barra e mora no dialogo de abrir sessao',
+    !campo.campoNaBarra && campo.campoNoDialogo, JSON.stringify(campo));
   checar('e a dica cita o nome real do branch',
     campo.dica.includes('worktree-auth-refresh') && !campo.dica.includes('feat/'), campo.dica);
   checar('sem nome, a dica diz que nao havera worktree',
@@ -1533,8 +1529,10 @@ async function arrastarAlca(cdp, id, dx, dy) {
     dormindo: window.OrqGrade.dormindos().length,
     comPty: [...window.OrqGrade.painelPorId.values()].filter(p => !p.dormindo).length,
   })`));
-  checar('aplicar traz tema, densidade e ordenacao de volta',
-    aplicado.tema === 'claro' && aplicado.densidade === 3 && aplicado.ordem === 'projeto',
+  // A ordem fica fixa em urgencia desde o redesign (R1): o layout ainda guarda a
+  // chave, mas ela nao manda mais na grade.
+  checar('aplicar traz tema e densidade de volta (a ordem segue por urgencia)',
+    aplicado.tema === 'claro' && aplicado.densidade === 3 && aplicado.ordem === 'urgencia',
     JSON.stringify(aplicado));
   checar('e os painéis voltam DORMINDO, sem subir PTY sozinho',
     aplicado.paineis === 2 && aplicado.dormindo === 2 && aplicado.comPty === 0,
@@ -1730,11 +1728,10 @@ async function arrastarAlca(cdp, id, dx, dy) {
   // Densidade e ordenacao nao fazem nada no mapa, entao nao ficam na tela.
   const controles = JSON.parse(await cdp.avaliar(`JSON.stringify({
     densidade: getComputedStyle(document.getElementById('densidade')).display,
-    ordenacao: getComputedStyle(document.getElementById('ordenacao')).display,
     visao: document.getElementById('btn-visao').hidden,
   })`));
   checar('no mapa somem os controles que nao fazem nada nele',
-    controles.densidade === 'none' && controles.ordenacao === 'none' && controles.visao === false,
+    controles.densidade === 'none' && controles.visao === false,
     JSON.stringify(controles));
 
   // Voltar para a grade devolve tudo, inclusive o tamanho do terminal.

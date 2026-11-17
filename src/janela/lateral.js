@@ -187,24 +187,11 @@ function rotuloDe(c) {
   return ROTULO[c.status] || c.status;
 }
 
-// NAO se chama `projetoDe`: projetos.js ja declara uma funcao com esse nome no
-// mesmo escopo global compartilhado, e a ultima avaliada vence em silencio.
-// Foi assim que a ordenacao por projeto quebrou -- este arquivo acabava
-// chamando a de projetos.js, que espera um caminho e nao um card.
-function nomeProjetoDe(c) {
-  return window.OrqProjetos?.projetoDe?.(c.cwd)?.nome || '';
-}
-
-// Ordem da GRADE e da lista de sessoes: as duas seguem a mesma escolha, porque
-// procurar uma sessao em duas ordenacoes diferentes ao mesmo tempo e pior que
-// nao ordenar.
+// Ordem da GRADE e da lista de sessoes: sempre por urgencia. A ordenacao por
+// projeto saiu no redesign (R1) -- a lateral ja agrupa por projeto, e uma
+// segunda ordenacao na grade so duplicava isso.
 function ordenadas() {
-  const porProjeto = window.OrqCasca?.ordem() === 'projeto';
   return [...cards.values()].sort((a, b) => {
-    if (porProjeto) {
-      return nomeProjetoDe(a).localeCompare(nomeProjetoDe(b))
-        || a.feature.localeCompare(b.feature);
-    }
     const d = pesoDe(a) - pesoDe(b);
     if (d !== 0) return d;
     // Dentro do mesmo peso, quem esta parado ha mais tempo vem primeiro.
@@ -242,6 +229,16 @@ function redesenhar() {
     return c.status !== 'encerrada' && !(p && p.dormindo);
   }).length;
   window.OrqCasca?.definirVivas(vivas);
+
+  // O resumo ao lado do titulo da barra (redesign R1): "8 abertas · 1 esperando".
+  const elResumoBarra = document.getElementById('barra-resumo');
+  if (elResumoBarra) {
+    const esperando = filaAtencao().length;
+    elResumoBarra.textContent = lista.length
+      ? `${lista.length} ${lista.length === 1 ? 'aberta' : 'abertas'}`
+        + (esperando ? ` · ${esperando} esperando` : '')
+      : '';
+  }
 
   elLista.replaceChildren(...lista.map((c) => {
     const painel = window.OrqPainel.painelPorId.get(c.id);
