@@ -144,7 +144,7 @@ let janela = null;
 // CSS -- tem de ser dita ao Electron. Os valores sao os mesmos tokens --bg1 e
 // --fg2 de cada tema, e trocar de tema chama setTitleBarOverlay.
 const CORES_TITULO = {
-  escuro: { color: '#0d1014', symbolColor: '#a3adba' },
+  escuro: { color: '#0f1216', symbolColor: '#a6b0bc' },
   claro: { color: '#ffffff', symbolColor: '#4d5661' },
 };
 

@@ -163,19 +163,22 @@ async function arrastarAlca(cdp, id, dx, dy) {
       .map(c => c.getAttribute('fill').toLowerCase());
     return JSON.stringify({
       ehSvg: svg?.tagName.toLowerCase(),
-      paineis: svg?.querySelectorAll('rect[rx]').length,
+      janelas: svg?.querySelectorAll('rect[rx]').length,
+      janelasVazio: vazio?.querySelectorAll('rect[rx]').length,
       bolinhas: cores(svg),
-      vazioIgual: JSON.stringify(cores(vazio)) === JSON.stringify(cores(svg)),
+      bolinhasVazio: cores(vazio),
     });
   })()`));
   checar('a marca do cabecalho e um svg', marca.ehSvg === 'svg', marca.ehSvg);
-  // Quatro painéis (mais o fundo) e as quatro bolinhas de status, na ordem do
-  // icone: esperando, rodando, terminou, dormindo.
-  checar('ela desenha os quatro painéis do icone', marca.paineis === 5, String(marca.paineis));
-  checar('com as quatro cores de status',
-    JSON.stringify(marca.bolinhas) === JSON.stringify(['#ffb454', '#3ddc97', '#7aa2f7', '#7d8690']),
-    JSON.stringify(marca.bolinhas));
-  checar('e a marca da tela vazia e a mesma', marca.vazioIgual, '');
+  // O icone C (redesign R0): na variante pequena, fundo + duas janelas e a
+  // bolinha ambar de "esperando voce"; na grande (tela vazia), tres janelas
+  // empilhadas com a mesma bolinha ambar na da frente.
+  checar('a marca pequena desenha o fundo e duas janelas', marca.janelas === 3, String(marca.janelas));
+  checar('com a bolinha ambar de esperando',
+    JSON.stringify(marca.bolinhas) === JSON.stringify(['#ffb454']), JSON.stringify(marca.bolinhas));
+  checar('a marca da tela vazia empilha tres janelas', marca.janelasVazio === 4, String(marca.janelasVazio));
+  checar('e comeca pela mesma bolinha ambar', marca.bolinhasVazio[0] === '#ffb454',
+    JSON.stringify(marca.bolinhasVazio));
 
   // --- 2c. o atalho recusa fora de app empacotado ------------------------
   //
@@ -1302,14 +1305,18 @@ async function arrastarAlca(cdp, id, dx, dy) {
   // A checagem VARRE o documento em vez de conferir uma lista: assim o proximo
   // overlay entra sozinho, e nao ha lista para alguem esquecer de atualizar --
   // que foi exatamente como as duas primeiras passaram.
-  const fechares = JSON.parse(await cdp.avaliar(`JSON.stringify(
-    [...document.querySelectorAll('[id$="-fechar"]')].map(e => {
+  // O raio esperado e o do token --r-md (redesign R0), lido do app rodando: um
+  // numero cravado aqui viraria mentira na proxima mudanca de token.
+  const { raio, fechares } = JSON.parse(await cdp.avaliar(`JSON.stringify({
+    raio: getComputedStyle(document.documentElement).getPropertyValue('--r-md').trim(),
+    fechares: [...document.querySelectorAll('[id$="-fechar"]')].map(e => {
       const s = getComputedStyle(e);
       return { id: e.id, borda: s.borderRadius };
-    }))`));
+    }),
+  })`));
   checar('todo botao de fechar tem estilo, e ha mais de um',
-    fechares.length >= 4 && fechares.every((f) => f.borda === '8px'),
-    JSON.stringify(fechares.filter((f) => f.borda !== '8px')) + ` (${fechares.length} botoes)`);
+    !!raio && fechares.length >= 4 && fechares.every((f) => f.borda === raio),
+    `raio ${raio}: ` + JSON.stringify(fechares.filter((f) => f.borda !== raio)) + ` (${fechares.length} botoes)`);
   if (hist.tabela) {
     checar('com as colunas que respondem "valeu a pena?"',
       hist.colunas.includes('Trabalhando') && hist.colunas.includes('Esperando você')

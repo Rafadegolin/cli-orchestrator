@@ -14,18 +14,22 @@
      feio, mas legivel. De quebra, as barras de rolagem acompanham o tema. */
   color-scheme: dark;
 
+  /* Redesign premium (R0): superficies um pouco mais neutras e um degrau a
+     mais (--bg4, trilho de interruptor e hover forte). */
   --bg0: #0a0c0f;
-  --bg1: #0d1014;
-  --bg2: #12161b;
-  --bg3: #171d24;
-  --line: #1e242c;
-  --line2: #2b333d;
+  --bg1: #0f1216;
+  --bg2: #14181d;
+  --bg3: #1a1f26;
+  --bg4: #222831;
+  --line: #1f252d;
+  --line2: #2b323c;
   --fg: #e8ecf2;
-  --fg2: #a3adba;
+  --fg2: #a6b0bc;
   /* Clareado do #68727e do doc 02: no valor original ele dava 3,9:1 sobre
      --bg1 e 3,5:1 sobre --bg3, e carrega metadado de 10px -- texto pequeno,
-     onde AA exige 4,5:1 e nao da desconto. Medido em `npm run teste:ui`. */
-  --fg3: #7d8690;
+     onde AA exige 4,5:1 e nao da desconto. Medido em `npm run teste:ui`.
+     No redesign, #808994: 5,3:1 sobre --bg1 e 4,7:1 sobre --bg3. */
+  --fg3: #808994;
   --acc: #3ddc97;
   --accd: rgba(61, 220, 151, .10);
   --acc-texto: #06231a;
@@ -60,6 +64,16 @@
   --proj-9: #38bdf8;
   --proj-10: #f87171;
 
+  /* RAIO. Antes eram 14 valores literais espalhados (2 a 22px); agora cinco
+     degraus: chip, botao, campo/cartao pequeno, cartao, overlay -- e a pilula.
+     Nao muda com o tema, entao so mora aqui. */
+  --r-xs: 5px;
+  --r-sm: 7px;
+  --r-md: 9px;
+  --r-lg: 12px;
+  --r-xl: 14px;
+  --r-pill: 999px;
+
   --ui: 'Space Grotesk', system-ui, 'Segoe UI', sans-serif;
   /* Segoe UI Symbol no fim porque as setas e o simbolo de tema (U+2194,
      U+263E) estao fora dos subsets latin que vendorizamos. */
@@ -73,6 +87,7 @@ html.claro {
   --bg1: #ffffff;
   --bg2: #f6f7f9;
   --bg3: #eceff3;
+  --bg4: #e2e6ec;
   --line: #e0e4ea;
   --line2: #ccd2db;
   --fg: #121619;
@@ -129,6 +144,19 @@ html, body {
 
 .mono { font-family: var(--mono); }
 
+/* Icones de linha (icones.js): herdam a cor do texto, 16px por padrao. */
+.ico {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ico-s { width: 14px; height: 14px; }
+
 button, input { font-family: inherit; color: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible {
@@ -142,7 +170,7 @@ button:focus-visible, input:focus-visible {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: var(--line2);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
@@ -220,7 +248,7 @@ button:focus-visible, input:focus-visible {
   height: 26px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   background: none;
   color: var(--fg3);
 }
@@ -272,7 +300,7 @@ button:focus-visible, input:focus-visible {
   font-size: 9.5px;
   color: var(--fg3);
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 1px 5px;
 }
 
@@ -294,7 +322,7 @@ button:focus-visible, input:focus-visible {
   margin-left: 6px;
   padding: 3px 8px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--bg2);
 }
 
@@ -361,7 +389,7 @@ button:focus-visible, input:focus-visible {
   overflow: hidden;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   padding: 4px 8px 4px 10px;
   color: var(--fg3);
   font-size: 11.5px;
@@ -380,7 +408,7 @@ button:focus-visible, input:focus-visible {
   flex: 0 0 auto;
   font-size: 9.5px;
   border: 1px solid var(--line2);
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   padding: 1px 4px;
 }
 
@@ -392,7 +420,7 @@ button:focus-visible, input:focus-visible {
   flex: 0 0 auto;
   width: 26px;
   height: 24px;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--bg2);
   color: var(--fg2);
@@ -502,7 +530,7 @@ button:focus-visible, input:focus-visible {
   font-weight: 700;
   color: var(--bg0);
   background: var(--warn);
-  border-radius: 20px;
+  border-radius: var(--r-pill);
   padding: 1px 6px;
 }
 
@@ -510,7 +538,7 @@ button:focus-visible, input:focus-visible {
   margin-left: auto;
   width: 20px;
   height: 20px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid var(--line);
   background: var(--bg2);
   color: var(--fg2);
@@ -537,7 +565,7 @@ button:focus-visible, input:focus-visible {
   gap: 9px;
   background: var(--warnd);
   border: 1px solid var(--warn-linha);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 9px 10px;
   margin-bottom: 6px;
   cursor: pointer;
@@ -574,7 +602,7 @@ button:focus-visible, input:focus-visible {
   gap: 9px;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 9px 10px;
   margin-bottom: 6px;
   cursor: pointer;
@@ -616,7 +644,7 @@ button:focus-visible, input:focus-visible {
   align-items: center;
   gap: 9px;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: var(--r-md);
   padding: 7px 8px;
   cursor: pointer;
   transition: background .14s ease;
@@ -644,7 +672,7 @@ button:focus-visible, input:focus-visible {
   justify-content: center;
   background: none;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   color: var(--fg3);
   font-size: 11px;
   padding: 0;
@@ -684,7 +712,7 @@ button:focus-visible, input:focus-visible {
 
 .cor-opcao {
   height: 34px;
-  border-radius: 9px;
+  border-radius: var(--r-md);
   border: 2px solid transparent;
   padding: 0;
 }
@@ -722,7 +750,7 @@ button:focus-visible, input:focus-visible {
   height: 30px;
   padding: 2px;
   border: 1px solid var(--line2);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--bg2);
   cursor: pointer;
 }
@@ -756,7 +784,7 @@ button:focus-visible, input:focus-visible {
 .fontes-previa {
   margin-bottom: 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   overflow: hidden;
 }
 .fontes-previa-ui { padding: 9px 12px; font-family: var(--ui); color: var(--fg); background: var(--bg2); }
@@ -789,7 +817,7 @@ button:focus-visible, input:focus-visible {
   font-size: 9.5px;
   color: var(--fg3);
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 1px 5px;
 }
 
@@ -815,7 +843,7 @@ button:focus-visible, input:focus-visible {
   font-size: 9.5px;
   color: var(--warn);
   background: var(--warnd);
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 1px 5px;
   cursor: pointer;
 }
@@ -826,7 +854,7 @@ button:focus-visible, input:focus-visible {
   flex: 0 0 auto;
   width: 18px;
   height: 18px;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   border: 1px solid transparent;
   background: none;
   color: var(--fg3);
@@ -852,7 +880,7 @@ button:focus-visible, input:focus-visible {
    e nao escondido no `+` do cabecalho da secao. */
 .projeto-vazio {
   border: 1px dashed var(--line2);
-  border-radius: 11px;
+  border-radius: var(--r-lg);
   padding: 12px;
   margin-bottom: 8px;
 }
@@ -868,7 +896,7 @@ button:focus-visible, input:focus-visible {
   width: 100%;
   background: var(--accd);
   border: 1px solid var(--acc);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   color: var(--acc);
   font-size: 11.5px;
   font-weight: 600;
@@ -913,7 +941,7 @@ button:focus-visible, input:focus-visible {
   color: var(--fg3);
   background: none;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 1px 5px;
 }
 
@@ -946,7 +974,7 @@ button:focus-visible, input:focus-visible {
   color: var(--warn);
   background: var(--warnd);
   border: 1px solid var(--warn-linha);
-  border-radius: 9px;
+  border-radius: var(--r-md);
   padding: 9px 10px;
   margin: 0 0 8px 11px;
 }
@@ -957,7 +985,7 @@ button:focus-visible, input:focus-visible {
   color: var(--warn);
   background: none;
   border: 1px solid var(--warn-linha);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 3px 8px;
 }
 
@@ -983,7 +1011,7 @@ button:focus-visible, input:focus-visible {
   color: var(--fg3);
   background: none;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 2px 7px;
 }
 
@@ -1000,7 +1028,7 @@ button:focus-visible, input:focus-visible {
   gap: 9px;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 9px;
+  border-radius: var(--r-md);
   padding: 8px;
   margin-bottom: 4px;
   cursor: pointer;
@@ -1093,7 +1121,7 @@ button:focus-visible, input:focus-visible {
   gap: 8px;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--r-md);
   color: var(--fg2);
   font-size: 12px;
   padding: 8px 10px;
@@ -1126,7 +1154,7 @@ button:focus-visible, input:focus-visible {
   flex: 0 0 26px;
   width: 26px;
   height: 15px;
-  border-radius: 20px;
+  border-radius: var(--r-pill);
   padding: 2px;
   display: flex;
   justify-content: flex-start;
@@ -1205,7 +1233,7 @@ button:focus-visible, input:focus-visible {
   min-width: 0;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 9px 12px;
   font-family: var(--mono);
   font-size: 12.5px;
@@ -1219,7 +1247,7 @@ button:focus-visible, input:focus-visible {
   white-space: nowrap;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   color: var(--fg2);
   font-size: 12.5px;
   padding: 9px 12px;
@@ -1233,7 +1261,7 @@ button.primario {
   gap: 8px;
   background: var(--acc);
   border: none;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   color: var(--acc-texto);
   font-size: 12.5px;
   font-weight: 700;
@@ -1270,13 +1298,13 @@ button.primario:hover {
   display: flex;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--r-md);
   padding: 2px;
 }
 
 .pilulas button {
   border: none;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   font-size: 11px;
   padding: 5px 10px;
   background: transparent;
@@ -1346,7 +1374,7 @@ button.primario:hover {
      em 924px da painéis de 200px, e o que cabe ali nao tem nada a ver com o
      tamanho da tela. */
   container-type: inline-size;
-  border-radius: 14px;
+  border-radius: var(--r-xl);
   overflow: hidden;
   background: var(--bg1);
   border: 1px solid var(--line);
@@ -1433,7 +1461,7 @@ button.primario:hover {
   font-size: 10px;
   color: var(--fg3);
   background: var(--bg3);
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 2px 6px;
   white-space: nowrap;
   overflow: hidden;
@@ -1473,7 +1501,7 @@ button.primario:hover {
   font-size: 10px;
   color: var(--info);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 2px 6px;
   white-space: nowrap;
 }
@@ -1483,7 +1511,7 @@ button.primario:hover {
 .painel-ligacoes {
   font-family: var(--mono);
   font-size: 10px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 2px 7px;
   white-space: nowrap;
   max-width: 130px;
@@ -1512,7 +1540,7 @@ button.primario:hover {
   flex: 0 0 auto;
   font-size: 9px;
   line-height: 1;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 3px 6px;
   background: transparent;
   border: 1px solid var(--line);
@@ -1525,7 +1553,7 @@ button.primario:hover {
   flex: 0 0 auto;
   font-family: var(--mono);
   font-size: 10px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 2px 7px;
   white-space: nowrap;
   background: transparent;
@@ -1544,7 +1572,7 @@ button.primario:hover {
 .painel-fila {
   font-family: var(--mono);
   font-size: 10px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 2px 7px;
   white-space: nowrap;
   background: var(--warnd);
@@ -1567,7 +1595,7 @@ button.primario:hover {
   flex: 0 0 20px;
   width: 20px;
   height: 20px;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   border: 1px solid transparent;
   background: none;
   color: var(--fg3);
@@ -1596,7 +1624,7 @@ button.primario:hover {
   color: var(--info);
   background: none;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 2px 6px;
   white-space: nowrap;
   overflow: hidden;
@@ -1615,7 +1643,7 @@ button.primario:hover {
   color: var(--fg2);
   background: none;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 2px 6px;
   white-space: nowrap;
   overflow: hidden;
@@ -1639,7 +1667,7 @@ button.primario:hover {
   color: var(--fg2);
   background: none;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 2px 6px;
   white-space: nowrap;
   overflow: hidden;
@@ -1744,7 +1772,7 @@ button.primario:hover {
   max-width: 180px;
   padding: 3px 4px 3px 9px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   font-family: var(--mono);
   font-size: 11px;
   cursor: pointer;
@@ -1761,7 +1789,7 @@ button.primario:hover {
   color: var(--termfg);
   background: var(--term);
   border: 1px solid var(--acc);
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 1px 4px;
 }
 
@@ -1772,7 +1800,7 @@ button.primario:hover {
   flex: 0 0 auto;
   background: none;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   color: var(--termfg);
   font-family: var(--mono);
   font-size: 11px;
@@ -1809,7 +1837,7 @@ button.primario:hover {
   color: var(--termfg);
   background: var(--term);
   border: 1px solid color-mix(in srgb, var(--termfg) 26%, transparent);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 3px 7px;
 }
 .notas-busca.sem-achado .notas-busca-campo { border-color: var(--danger); }
@@ -1830,7 +1858,7 @@ button.primario:hover {
   height: 24px;
   background: none;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   color: var(--termfg);
   font-family: var(--ui);
   font-size: 12px;
@@ -1882,7 +1910,7 @@ button.primario:hover {
 .notas-texto ol { margin: .2em 0; padding-left: 1.6em; }
 .notas-texto code {
   padding: 0 3px;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   background: color-mix(in srgb, var(--termfg) 14%, transparent);
   font-family: inherit;
 }
@@ -1938,7 +1966,7 @@ button.primario:hover {
 .rodape-aprovar {
   background: var(--warn);
   border: none;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   color: var(--warn-texto);
   font-size: 11px;
   font-weight: 700;
@@ -1950,7 +1978,7 @@ button.primario:hover {
 .rodape-ver {
   background: none;
   border: 1px solid var(--warn-linha);
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   color: var(--warn);
   font-size: 11px;
   padding: 5px 10px;
@@ -2025,7 +2053,7 @@ button.primario:hover {
   gap: 10px;
   padding: 9px 12px;
   border: 1px solid var(--line2);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   box-shadow: var(--shadow);
 }
 
@@ -2065,7 +2093,7 @@ button.primario:hover {
 .dormindo-retomar, .dormindo-remover {
   background: var(--accd);
   border: 1px solid var(--acc);
-  border-radius: 9px;
+  border-radius: var(--r-md);
   color: var(--acc);
   font-size: 12px;
   font-weight: 700;
@@ -2224,7 +2252,7 @@ button.primario:hover {
   white-space: nowrap;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--r-md);
   color: var(--fg3);
   font-size: 11px;
   padding: 6px 10px;
@@ -2293,7 +2321,7 @@ button.primario:hover {
 .vazio-acoes button:not(.primario) {
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   color: var(--fg2);
   font-size: 12.5px;
   padding: 10px 16px;
@@ -2328,7 +2356,7 @@ button.primario:hover {
   background: var(--glass);
   backdrop-filter: blur(6px);
   border: 1px solid var(--line2);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   padding: 11px 18px;
   font-size: 12.5px;
   color: var(--fg);
@@ -2381,7 +2409,7 @@ button.primario:hover {
   background: var(--glass);
   backdrop-filter: blur(6px);
   border: 1px solid var(--line2);
-  border-radius: 16px;
+  border-radius: var(--r-xl);
   overflow: hidden;
   box-shadow: var(--shadow);
   animation: orqPop .2s ease;
@@ -2412,7 +2440,7 @@ button.primario:hover {
   display: flex;
   align-items: center;
   gap: 11px;
-  border-radius: 9px;
+  border-radius: var(--r-md);
   padding: 10px 12px;
   cursor: pointer;
   color: var(--fg);
@@ -2424,7 +2452,7 @@ button.primario:hover {
   flex: 0 0 auto;
   font-size: 10px;
   border: 1px solid var(--line2);
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 2px 6px;
 }
 
@@ -2459,7 +2487,7 @@ button.primario:hover {
   flex-direction: column;
   background: var(--bg1);
   border: 1px solid var(--line2);
-  border-radius: 18px;
+  border-radius: var(--r-xl);
   overflow: hidden;
   box-shadow: var(--shadow);
   animation: orqPop .24s ease;
@@ -2477,7 +2505,7 @@ button.primario:hover {
   resize: vertical;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 10px 12px;
   color: var(--fg);
   font-family: var(--mono);
@@ -2498,7 +2526,7 @@ button.primario:hover {
 .enviar-atalhos button {
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   color: var(--fg2);
   font-size: 11px;
   padding: 5px 10px;
@@ -2513,7 +2541,7 @@ button.primario:hover {
   align-items: center;
   gap: 10px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--r-md);
   padding: 8px 10px;
   margin-bottom: 5px;
   cursor: pointer;
@@ -2558,7 +2586,7 @@ button.primario:hover {
   flex-direction: column;
   background: var(--bg1);
   border: 1px solid var(--line2);
-  border-radius: 18px;
+  border-radius: var(--r-xl);
   overflow: hidden;
   box-shadow: var(--shadow);
   animation: orqPop .24s ease;
@@ -2602,7 +2630,7 @@ button.primario:hover {
   margin-bottom: 14px;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 0 10px;
   color: var(--fg);
   font-size: 12px;
@@ -2644,7 +2672,7 @@ button.primario:hover {
   font-size: 10.5px;
   color: var(--fg3);
   border: 1px solid var(--line2);
-  border-radius: 999px;
+  border-radius: var(--r-pill);
   padding: 1px 8px;
 }
 
@@ -2712,7 +2740,7 @@ button.primario:hover {
 
 .uso-grande {
   height: 8px;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   background: var(--line);
   overflow: hidden;
   margin-bottom: 18px;
@@ -2721,7 +2749,7 @@ button.primario:hover {
 .uso-grande i {
   display: block;
   height: 100%;
-  border-radius: 4px;
+  border-radius: var(--r-xs);
   background: var(--acc);
 }
 
@@ -2778,7 +2806,7 @@ button.primario:hover {
   gap: 4px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--bg2);
 }
 
@@ -2800,7 +2828,7 @@ button.primario:hover {
   padding: 10px 12px;
   border: 1px solid var(--warn-linha);
   background: var(--warnd);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   font-size: 12px;
   color: var(--fg2);
   line-height: 1.55;
@@ -2817,7 +2845,7 @@ button.primario:hover {
   flex-direction: column;
   background: var(--bg1);
   border: 1px solid var(--line2);
-  border-radius: 18px;
+  border-radius: var(--r-xl);
   overflow: hidden;
   box-shadow: var(--shadow);
   animation: orqPop .24s ease;
@@ -2844,7 +2872,7 @@ button.primario:hover {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 2px 8px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   padding: 7px 9px;
   cursor: pointer;
 }
@@ -2908,7 +2936,7 @@ button.primario:hover {
   padding: 8px 10px;
   border: 1px solid var(--line2);
   border-left: 3px solid var(--info);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   background: var(--bg1);
   color: var(--fg);
   font-family: var(--ui);
@@ -2929,7 +2957,7 @@ button.primario:hover {
   min-height: 56px;
   padding: 7px 9px;
   border: 1px solid var(--line2);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   background: var(--bg2);
   color: var(--fg);
   font-family: var(--ui);
@@ -2945,7 +2973,7 @@ button.primario:hover {
 .diff-editor-acoes button:not(.primario) {
   background: none;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-md);
   color: var(--fg2);
   padding: 6px 12px;
   font-size: 12px;
@@ -3014,7 +3042,7 @@ button.primario:hover {
   font-size: 9.5px;
   color: var(--acc);
   background: var(--accd);
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 2px 6px;
 }
 
@@ -3029,7 +3057,7 @@ button.primario:hover {
   color: var(--fg3);
   background: none;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 2px 7px;
 }
 
@@ -3051,7 +3079,7 @@ button.primario:hover {
 .limpeza-acoes button:not(.primario) {
   background: none;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   color: var(--fg2);
   font-size: 12px;
   padding: 8px 14px;
@@ -3067,7 +3095,7 @@ button.primario:hover {
   max-width: 92vw;
   background: var(--bg1);
   border: 1px solid var(--line2);
-  border-radius: 18px;
+  border-radius: var(--r-xl);
   padding: 22px;
   box-shadow: var(--shadow);
   animation: orqPop .24s ease;
@@ -3107,7 +3135,7 @@ button.primario:hover {
   min-width: 0;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 10px 12px;
   font-family: var(--mono);
   font-size: 11.5px;
@@ -3123,7 +3151,7 @@ button.primario:hover {
   margin-bottom: 14px;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 9px 12px;
   font-family: var(--mono);
   font-size: 11.5px;
@@ -3144,7 +3172,7 @@ button.primario:hover {
   flex: 0 0 auto;
   background: var(--bg3);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   color: var(--fg2);
   font-size: 12px;
   padding: 0 14px;
@@ -3160,7 +3188,7 @@ button.primario:hover {
 
 .modal-faixa {
   flex: 1;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 9px;
   font-size: 11.5px;
   background: var(--bg2);
@@ -3207,7 +3235,7 @@ button.primario:hover {
 .modal-acoes button:not(.primario) {
   background: none;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   color: var(--fg2);
   font-size: 12.5px;
   padding: 11px 18px;
@@ -3226,7 +3254,7 @@ button.primario:hover {
   flex-direction: column;
   background: var(--bg1);
   border: 1px solid var(--line2);
-  border-radius: 18px;
+  border-radius: var(--r-xl);
   overflow: hidden;
   box-shadow: var(--shadow);
   animation: orqPop .24s ease;
@@ -3254,7 +3282,7 @@ button.primario:hover {
   margin-left: auto;
   width: 26px;
   height: 26px;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--bg2);
   color: var(--fg2);
@@ -3285,7 +3313,7 @@ button.primario:hover {
   width: 100%;
   text-align: left;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   font-size: 12.5px;
   padding: 8px 10px;
   background: transparent;
@@ -3339,7 +3367,7 @@ button.primario:hover {
   font-family: var(--mono);
   font-size: 11.5px;
   background: var(--bg3);
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 1px 5px;
   color: var(--fg);
 }
@@ -3408,7 +3436,7 @@ button.primario:hover {
   color: var(--fg);
   background: var(--bg3);
   border: 1px solid var(--line2);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 3px 8px;
 }
 
@@ -3431,7 +3459,7 @@ button.primario:hover {
   flex-direction: column;
   background: var(--bg1);
   border: 1px solid var(--line2);
-  border-radius: 18px;
+  border-radius: var(--r-xl);
   padding: 22px;
   box-shadow: var(--shadow);
   animation: orqPop .24s ease;
@@ -3462,7 +3490,7 @@ button.primario:hover {
   text-align: left;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 10px 12px;
   margin-bottom: 6px;
   color: var(--fg);
@@ -3510,7 +3538,7 @@ button.primario:hover {
    A regra da casa, que estes dois violavam: fundo e cor SEMPRE juntos. */
 .seletor-ligar, .seletor-desligar {
   flex: 0 0 auto;
-  border-radius: 8px;
+  border-radius: var(--r-md);
   font-size: 11px;
   font-weight: 700;
   padding: 6px 14px;
@@ -3600,7 +3628,7 @@ button.primario:hover {
   padding: 5px;
   background: var(--bg2);
   border: 1px solid var(--line2);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   box-shadow: 0 12px 30px rgba(0, 0, 0, .38);
 }
 
@@ -3608,7 +3636,7 @@ button.primario:hover {
   justify-content: flex-start;
   border: 0;
   background: transparent;
-  border-radius: 7px;
+  border-radius: var(--r-sm);
   padding: 8px 11px;
   font-size: 12px;
   color: var(--fg);
@@ -3628,7 +3656,7 @@ button.primario:hover {
   min-width: 0;
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   padding: 10px 12px;
   color: var(--fg);
   font-size: 12px;
@@ -3671,7 +3699,7 @@ button.primario:hover {
   color: var(--fg2);
   background: var(--bg2);
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--r-md);
   padding: 8px 11px;
 }
 

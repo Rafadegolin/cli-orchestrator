@@ -26,23 +26,19 @@
     </button>
 
     <div class="marca">
-      <!-- A MESMA marca do icone do app: quatro painéis, cada um com a bolinha
-           do seu status. Ela e desenhada aqui em vez de vir do icone.png porque
+      <!-- A MESMA marca do icone do app (o "C": terminais empilhados), na
+           variante pequena -- uma janela so, com o prompt e a bolinha ambar.
+           Ela e desenhada aqui em vez de vir do icone.png porque
            18px de PNG reduzido fica sujo -- e porque o icone tem de existir
            tambem quando o app roda do codigo, onde nao ha .ico empacotado.
            As cores sao literais de proposito: logo nao muda com o tema. -->
       <svg class="marca-icone" viewBox="0 0 24 24" aria-hidden="true">
-        <rect width="24" height="24" rx="7" fill="#0d1014"/>
-        <g fill="#212932">
-          <rect x="3.6" y="3.6" width="7.6" height="7.6" rx="2.2"/>
-          <rect x="12.8" y="3.6" width="7.6" height="7.6" rx="2.2"/>
-          <rect x="3.6" y="12.8" width="7.6" height="7.6" rx="2.2"/>
-          <rect x="12.8" y="12.8" width="7.6" height="7.6" rx="2.2"/>
-        </g>
-        <circle cx="6.2" cy="6.2" r="1.15" fill="#ffb454"/>
-        <circle cx="15.4" cy="6.2" r="1.15" fill="#3ddc97"/>
-        <circle cx="6.2" cy="15.4" r="1.15" fill="#7aa2f7"/>
-        <circle cx="15.4" cy="15.4" r="1.15" fill="#7d8690"/>
+        <rect width="24" height="24" rx="5.3" fill="#171c22"/>
+        <rect x="7.4" y="4.1" width="12.5" height="8.4" rx="1.7" fill="#262d36"/>
+        <rect x="4.1" y="7.7" width="15.8" height="12.2" rx="2.2" fill="#0b0e12" stroke="#3d4652" stroke-width="1"/>
+        <path d="M7.4 11.8l2.4 2.2-2.4 2.2" fill="none" stroke="#3ddc97" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M11.5 16.3h3.6" stroke="#c8d3e0" stroke-width="1.7" stroke-linecap="round"/>
+        <circle cx="17" cy="10.6" r="1.3" fill="#ffb454"/>
       </svg>
       <span class="marca-nome">Orquestrador</span>
       <span class="mono" id="lateral-versao"></span>
@@ -200,31 +196,19 @@
         <div id="grade"></div>
 
         <div id="vazio">
-          <!-- A mesma marca do cabecalho, no tamanho em que as linhas de texto
-               dos painéis ainda se leem -- e ai ela vira a promessa da tela:
-               quatro sessoes, cada uma com o seu status. -->
+          <!-- O icone C no tamanho grande: tres terminais empilhados, o da frente
+               com o prompt e a bolinha ambar de "esperando voce". A marca do
+               cabecalho e a variante pequena do mesmo desenho. -->
           <svg class="vazio-marca" viewBox="0 0 24 24" aria-hidden="true">
-            <rect width="24" height="24" rx="7" fill="#0d1014"/>
-            <g fill="#212932">
-              <rect x="3.6" y="3.6" width="7.6" height="7.6" rx="2.2"/>
-              <rect x="12.8" y="3.6" width="7.6" height="7.6" rx="2.2"/>
-              <rect x="3.6" y="12.8" width="7.6" height="7.6" rx="2.2"/>
-              <rect x="12.8" y="12.8" width="7.6" height="7.6" rx="2.2"/>
-            </g>
-            <g fill="#39434e">
-              <rect x="5.1" y="8" width="4.6" height=".62" rx=".31"/>
-              <rect x="5.1" y="9.4" width="3.1" height=".62" rx=".31"/>
-              <rect x="14.3" y="8" width="4.6" height=".62" rx=".31"/>
-              <rect x="14.3" y="9.4" width="3.1" height=".62" rx=".31"/>
-              <rect x="5.1" y="17.2" width="4.6" height=".62" rx=".31"/>
-              <rect x="5.1" y="18.6" width="3.1" height=".62" rx=".31"/>
-              <rect x="14.3" y="17.2" width="4.6" height=".62" rx=".31"/>
-              <rect x="14.3" y="18.6" width="3.1" height=".62" rx=".31"/>
-            </g>
-            <circle cx="6.2" cy="6.2" r="1.15" fill="#ffb454"/>
-            <circle cx="15.4" cy="6.2" r="1.15" fill="#3ddc97"/>
-            <circle cx="6.2" cy="15.4" r="1.15" fill="#7aa2f7"/>
-            <circle cx="15.4" cy="15.4" r="1.15" fill="#7d8690"/>
+            <rect width="24" height="24" rx="5.3" fill="#171c22"/>
+            <rect x="7" y="4.8" width="12.5" height="9.1" rx="1.7" fill="#151a20" stroke="#2b323c" stroke-width=".3"/>
+            <rect x="5.8" y="7" width="12.5" height="9.1" rx="1.7" fill="#181d24" stroke="#323a45" stroke-width=".3"/>
+            <rect x="4.6" y="9.4" width="13.4" height="10.1" rx="1.8" fill="#0b0e12" stroke="#3d4652" stroke-width=".3"/>
+            <path d="M7 14.6l1.7 1.4-1.7 1.4" fill="none" stroke="#3ddc97" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M10.1 17.5h4.1" stroke="#c8d3e0" stroke-width="1" stroke-linecap="round"/>
+            <circle cx="6.5" cy="11.3" r=".65" fill="#ffb454"/>
+            <circle cx="16.6" cy="8.6" r=".6" fill="#3ddc97"/>
+            <circle cx="17.8" cy="6.5" r=".6" fill="#7aa2f7"/>
           </svg>
           <div class="vazio-texto">
             <h2>Nenhuma sessão aberta</h2>
@@ -598,6 +582,7 @@
 <script src="../../node_modules/@xterm/addon-canvas/lib/addon-canvas.js"></script>
 <!-- Primeiro de todos: os outros montam comando de shell no arranque. -->
 <script src="shell.js"></script>
+<script src="icones.js"></script>
 <script src="casca.js"></script>
 <script src="copiar.js"></script>
 <script src="painel.js"></script>

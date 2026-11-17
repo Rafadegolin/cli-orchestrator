@@ -9,9 +9,6 @@
 // para fazer tudo aqui sem ImageMagick, sem `iconutil` (que so existe no Mac) e
 // sem biblioteca grafica -- o mesmo comando roda nos dois sistemas.
 //
-// O desenho e a propria ideia do app: quatro painéis numa grade, cada um com a
-// bolinha de status no cabecalho.
-//
 // O tamanho e PARAMETRO, e nao mais uma constante de modulo: o macOS usa 512 no
 // Dock e no Finder, e um 256 esticado ali aparece borrado. Todas as medidas do
 // desenho sao multiplicadas pela escala, entao 256 continua saindo exatamente
@@ -23,100 +20,109 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-const COR = {
-  fundo: [0x14, 0x16, 0x1a],
-  painel: [0x1b, 0x1e, 0x24],
-  borda: [0x2c, 0x31, 0x3a],
-  cabecalho: [0x22, 0x26, 0x2e],
-  esperando: [0xe5, 0xc0, 0x7b],
-  rodando: [0x98, 0xc3, 0x79],
-  terminou: [0x61, 0xaf, 0xef],
-  parado: [0x6b, 0x72, 0x80],
-  texto: [0x3a, 0x41, 0x4d],
-};
+// O desenho e o icone "C" do redesign premium: tres janelas de terminal
+// empilhadas, a da frente com o prompt verde e a bolinha ambar de "esperando
+// voce". Coordenadas num quadrado de 200 unidades, levadas a N pixels.
+//
+// Abaixo de 64px as tres janelas viram mingau, entao existe uma VARIANTE
+// SIMPLIFICADA (uma janela so, traco grosso) -- e o ICO passa a carregar as
+// duas: o Windows escolhe a entrada do tamanho que vai desenhar (16 na barra de
+// titulo, 32 na barra de tarefas, 48 no Explorer) em vez de reduzir o 256.
+//
+// Agora com anti-aliasing: cada pixel e amostrado 4x4 vezes e as formas sao
+// funcoes de distancia (SDF). Sem isso as bordas arredondadas saiam serrilhadas.
+
+const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+
+// --- funcoes de distancia: negativo = dentro
+function dRet(px, py, x, y, w, h, r) {
+  const dx = Math.abs(px - (x + w / 2)) - (w / 2 - r);
+  const dy = Math.abs(py - (y + h / 2)) - (h / 2 - r);
+  return Math.hypot(Math.max(dx, 0), Math.max(dy, 0)) + Math.min(Math.max(dx, dy), 0) - r;
+}
+function dSeg(px, py, ax, ay, bx, by, larg) {
+  const vx = bx - ax, vy = by - ay;
+  const t = Math.max(0, Math.min(1, ((px - ax) * vx + (py - ay) * vy) / (vx * vx + vy * vy)));
+  return Math.hypot(px - (ax + t * vx), py - (ay + t * vy)) - larg / 2;
+}
+const dCirc = (px, py, cx, cy, r) => Math.hypot(px - cx, py - cy) - r;
+
+// Uma camada: { d(px,py) -> distancia, cor(px,py) -> [r,g,b], a }.
+const solida = (c) => () => hex(c);
+function janela(x, y, w, h, r, fundo, borda, traco) {
+  return [
+    { d: (px, py) => dRet(px, py, x, y, w, h, r), cor: solida(fundo), a: 1 },
+    { d: (px, py) => Math.abs(dRet(px, py, x, y, w, h, r)) - traco / 2, cor: solida(borda), a: 1 },
+  ];
+}
+function gradienteV(y0, y1, c0, c1) {
+  const a = hex(c0), b = hex(c1);
+  return (px, py) => {
+    const t = Math.max(0, Math.min(1, (py - y0) / (y1 - y0)));
+    return a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  };
+}
+
+const CAMADAS_COMPLETO = [
+  { d: (x, y) => dRet(x, y, 8, 8, 184, 184, 44), cor: gradienteV(8, 192, '#1f262f', '#0b0d10'), a: 1 },
+  { d: (x, y) => Math.abs(dRet(x, y, 8.5, 8.5, 183, 183, 43.5)) - 0.5, cor: solida('#ffffff'), a: 0.08 },
+  ...janela(58, 40, 104, 76, 14, '#151a20', '#2b323c', 2.5),
+  ...janela(48, 58, 104, 76, 14, '#181d24', '#323a45', 2.5),
+  ...janela(38, 78, 112, 84, 15, '#0b0e12', '#3d4652', 2.5),
+  { d: (x, y) => dCirc(x, y, 138, 72, 5), cor: solida('#3ddc97'), a: 1 },
+  { d: (x, y) => dCirc(x, y, 148, 54, 5), cor: solida('#7aa2f7'), a: 1 },
+  { d: (x, y) => dCirc(x, y, 55, 95, 6), cor: solida('#ffb454'), a: 1 },
+  { d: (x, y) => Math.min(dSeg(x, y, 58, 122, 72, 134, 8), dSeg(x, y, 72, 134, 58, 146, 8)), cor: solida('#3ddc97'), a: 1 },
+  { d: (x, y) => dSeg(x, y, 84, 146, 118, 146, 8), cor: solida('#c8d3e0'), a: 1 },
+];
+
+const CAMADAS_SIMPLES = [
+  { d: (x, y) => dRet(x, y, 4, 4, 192, 192, 44), cor: solida('#171c22'), a: 1 },
+  { d: (x, y) => dRet(x, y, 62, 34, 104, 70, 14), cor: solida('#262d36'), a: 1 },
+  ...janela(34, 64, 132, 102, 18, '#0b0e12', '#3d4652', 8),
+  { d: (x, y) => Math.min(dSeg(x, y, 62, 98, 82, 116, 14), dSeg(x, y, 82, 116, 62, 134, 14)), cor: solida('#3ddc97'), a: 1 },
+  { d: (x, y) => dSeg(x, y, 96, 136, 126, 136, 14), cor: solida('#c8d3e0'), a: 1 },
+  { d: (x, y) => dCirc(x, y, 142, 88, 11), cor: solida('#ffb454'), a: 1 },
+];
 
 // ---------------------------------------------------------------- desenho
 
 // Devolve a tela RGBA (4 bytes por pixel) de um icone NxN.
 function desenharEm(N) {
+  const camadas = N < 64 ? CAMADAS_SIMPLES : CAMADAS_COMPLETO;
   const tela = Buffer.alloc(N * N * 4);
-  // Todas as medidas abaixo foram escolhidas para 256; `k` as leva para
-  // qualquer tamanho sem mexer no desenho.
-  const k = N / 256;
-  const m = (v) => Math.round(v * k);
-
-  function pintar(x, y, cor, alfa = 255) {
-    if (x < 0 || y < 0 || x >= N || y >= N) return;
-    const i = (y * N + x) * 4;
-    tela[i] = cor[0];
-    tela[i + 1] = cor[1];
-    tela[i + 2] = cor[2];
-    tela[i + 3] = alfa;
-  }
-
-  function retangulo(x0, y0, w, h, cor) {
-    for (let y = y0; y < y0 + h; y++) {
-      for (let x = x0; x < x0 + w; x++) pintar(x, y, cor);
-    }
-  }
-
-  // Cantos arredondados: fora do raio nos quatro cantos, nao pinta.
-  function retanguloRedondo(x0, y0, w, h, r, cor) {
-    for (let y = y0; y < y0 + h; y++) {
-      for (let x = x0; x < x0 + w; x++) {
-        const dx = Math.min(x - x0, x0 + w - 1 - x);
-        const dy = Math.min(y - y0, y0 + h - 1 - y);
-        if (dx < r && dy < r) {
-          const d = Math.hypot(r - dx, r - dy);
-          if (d > r) continue;
+  const k = 200 / N;
+  const S = 4;
+  for (let py = 0; py < N; py++) {
+    for (let px = 0; px < N; px++) {
+      let r = 0, g = 0, b = 0, a = 0;
+      for (let sy = 0; sy < S; sy++) {
+        for (let sx = 0; sx < S; sx++) {
+          const x = (px + (sx + 0.5) / S) * k;
+          const y = (py + (sy + 0.5) / S) * k;
+          // Composicao "over" em premultiplicado, de tras para frente.
+          let cr = 0, cg = 0, cb = 0, ca = 0;
+          for (const c of camadas) {
+            if (c.d(x, y) > 0) continue;
+            const [lr, lg, lb] = c.cor(x, y);
+            cr = lr * c.a + cr * (1 - c.a);
+            cg = lg * c.a + cg * (1 - c.a);
+            cb = lb * c.a + cb * (1 - c.a);
+            ca = c.a + ca * (1 - c.a);
+          }
+          r += cr; g += cg; b += cb; a += ca;
         }
-        pintar(x, y, cor);
       }
+      const n = S * S;
+      const i = (py * N + px) * 4;
+      const alfa = a / n;
+      // De premultiplicado para direto, que e o que o PNG guarda.
+      tela[i] = alfa ? Math.round(r / n / alfa) : 0;
+      tela[i + 1] = alfa ? Math.round(g / n / alfa) : 0;
+      tela[i + 2] = alfa ? Math.round(b / n / alfa) : 0;
+      tela[i + 3] = Math.round(alfa * 255);
     }
   }
-
-  function circulo(cx, cy, r, cor) {
-    for (let y = cy - r; y <= cy + r; y++) {
-      for (let x = cx - r; x <= cx + r; x++) {
-        if (Math.hypot(x - cx, y - cy) <= r) pintar(x, y, cor);
-      }
-    }
-  }
-
-  // Fundo com canto arredondado, no tom do app.
-  retanguloRedondo(0, 0, N, N, m(44), COR.fundo);
-
-  const margem = m(26);
-  const vao = m(12);
-  const larg = Math.floor((N - margem * 2 - vao) / 2);
-  const alt = larg;
-  const topo = Math.floor((N - (alt * 2 + vao)) / 2);
-
-  const status = [COR.esperando, COR.rodando, COR.terminou, COR.parado];
-
-  for (let i = 0; i < 4; i++) {
-    const col = i % 2;
-    const lin = Math.floor(i / 2);
-    const x = margem + col * (larg + vao);
-    const y = topo + lin * (alt + vao);
-
-    retanguloRedondo(x, y, larg, alt, m(10), COR.borda);
-    retanguloRedondo(x + m(2), y + m(2), larg - m(4), alt - m(4), m(9), COR.painel);
-
-    // Cabecalho do painel com a bolinha de status.
-    retanguloRedondo(x + m(2), y + m(2), larg - m(4), m(22), m(9), COR.cabecalho);
-    retangulo(x + m(2), y + m(16), larg - m(4), m(8), COR.cabecalho);
-    circulo(x + m(15), y + m(13), m(5), status[i]);
-
-    // Linhas de "texto" no corpo, sugerindo saida de terminal.
-    const larguras = [0.62, 0.44, 0.74, 0.36];
-    for (let l = 0; l < 4; l++) {
-      const ly = y + m(36) + l * m(13);
-      if (ly + m(5) > y + alt - m(8)) break;
-      retangulo(x + m(12), ly, Math.floor((larg - m(24)) * larguras[l]), m(5), COR.texto);
-    }
-  }
-
   return tela;
 }
 
@@ -172,24 +178,29 @@ function montarPng(tela, N) {
 
 // ------------------------------------------------------------------ ICO
 
-function montarIco(png) {
+// Varias entradas PNG num ICO so: [[tamanho, png], ...]. Largura e altura 0
+// no diretorio significam 256.
+function montarIco(entradas) {
   const cabecalho = Buffer.alloc(6);
   cabecalho.writeUInt16LE(0, 0); // reservado
   cabecalho.writeUInt16LE(1, 2); // tipo 1 = icone
-  cabecalho.writeUInt16LE(1, 4); // uma imagem
+  cabecalho.writeUInt16LE(entradas.length, 4);
 
-  const entrada = Buffer.alloc(16);
-  entrada[0] = 0; // largura 0 significa 256
-  entrada[1] = 0; // altura 0 significa 256
-  entrada[2] = 0; // sem paleta
-  entrada[3] = 0; // reservado
-  entrada.writeUInt16LE(1, 4);  // planos
-  entrada.writeUInt16LE(32, 6); // bits por pixel
-  entrada.writeUInt32BE(0, 8);
-  entrada.writeUInt32LE(png.length, 8);
-  entrada.writeUInt32LE(6 + 16, 12); // offset dos dados
-
-  return Buffer.concat([cabecalho, entrada, png]);
+  let offset = 6 + 16 * entradas.length;
+  const diretorio = entradas.map(([n, png]) => {
+    const e = Buffer.alloc(16);
+    e[0] = n >= 256 ? 0 : n;
+    e[1] = n >= 256 ? 0 : n;
+    e[2] = 0; // sem paleta
+    e[3] = 0; // reservado
+    e.writeUInt16LE(1, 4);  // planos
+    e.writeUInt16LE(32, 6); // bits por pixel
+    e.writeUInt32LE(png.length, 8);
+    e.writeUInt32LE(offset, 12);
+    offset += png.length;
+    return e;
+  });
+  return Buffer.concat([cabecalho, ...diretorio, ...entradas.map(([, png]) => png)]);
 }
 
 // ----------------------------------------------------------------- ICNS
@@ -218,15 +229,16 @@ function montarIcns(entradas) {
 
 // ------------------------------------------------------------------ saida
 
-const png256 = montarPng(desenharEm(256), 256);
-const png512 = montarPng(desenharEm(512), 512);
+const png = (n) => montarPng(desenharEm(n), n);
+const png256 = png(256);
+const png512 = png(512);
 
-const ico = montarIco(png256);
+const ico = montarIco([16, 24, 32, 48, 64, 128].map((n) => [n, png(n)]).concat([[256, png256]]));
 const icns = montarIcns([['ic08', png256], ['ic09', png512]]);
 
 fs.writeFileSync(path.join(__dirname, 'icone.ico'), ico);
 fs.writeFileSync(path.join(__dirname, 'icone.png'), png256);
 fs.writeFileSync(path.join(__dirname, 'icone.icns'), icns);
 
-console.log(`icone.ico  ${ico.length} bytes (PNG 256x256 de ${png256.length})`);
+console.log(`icone.ico  ${ico.length} bytes (16 a 256; abaixo de 64 a variante simplificada)`);
 console.log(`icone.icns ${icns.length} bytes (256 + 512)`);
