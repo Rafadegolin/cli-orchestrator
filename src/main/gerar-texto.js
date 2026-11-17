@@ -72,7 +72,13 @@ function gerar(pasta, modo, entrada, { env = process.env, ms = MS_GERAR } = {}) 
   return new Promise((resolve) => {
     let filho;
     try {
-      filho = execFile(bin, [...prefixo, '-p', '--output-format', 'text', '--allowedTools', ''], {
+      // `--no-session-persistence`: sem ela o `-p` grava uma conversa na pasta
+      // da worktree, e o proximo `claude -c` dali (Retomar, comentario do diff)
+      // continuaria a conversa do "Gerar" em vez da sessao de trabalho.
+      // `--tools ''` desliga as ferramentas; `--allowedTools` e so lista de
+      // permissao, e o modelo ainda podia ler arquivos. A lista variadica fica
+      // por ULTIMO para nao engolir outra flag.
+      filho = execFile(bin, [...prefixo, '-p', '--output-format', 'text', '--no-session-persistence', '--tools', ''], {
         cwd: pasta,
         env,
         encoding: 'utf8',

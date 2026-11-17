@@ -599,7 +599,11 @@ ipcMain.handle('git:gerar', async (_e, { id, modo = 'commit', issue = '' } = {})
 ipcMain.handle('branch:pr', async (_e, id) => {
   const alvo = await branches.paraAcao(id);
   if (!alvo || !alvo.repo) return { ok: false, semGithub: true };
-  const pr = branches.agora().find((x) => x.id === id)?.pr;
+  let pr = branches.agora().find((x) => x.id === id)?.pr;
+  // Painel recem-aberto ou restaurado so leu a parte LOCAL: sem PR no estado
+  // pode ser so que o GitHub ainda nao foi perguntado. Pergunta (com o piso de
+  // sempre) antes de dizer que nao ha PR.
+  if (!pr) pr = (await branches.atualizar(id).catch(() => null))?.pr;
   if (!pr) return { ok: true, nenhum: true };
   return github.detalhesPr({ ...alvo.repo, numero: pr.numero });
 });
@@ -614,13 +618,18 @@ ipcMain.handle('branch:criarPr', async (_e, { id, titulo, corpo, base, rascunho 
     if (!p.ok) return p;
     alvo = await branches.paraAcao(id);
   }
+  // O painel pode ter fechado durante o dialogo do push.
+  if (!alvo || !alvo.local.ok) return { ok: false, texto: 'A sessao deste painel nao existe mais.' };
   if (!alvo.repo) return { ok: false, texto: 'O remoto desta branch nao e do GitHub.' };
   const e = alvo.local;
   const head = e.upstream ? e.upstream.slice(e.remoto.length + 1) : e.branch;
   const r = await github.criarPr({
     ...alvo.repo, head, base: String(base || e.base || '').trim() || e.base, titulo, corpo, rascunho,
   });
-  if (r.ok) branches.atualizar(id, { forcar: true }).catch(() => {});
+  // Esperado, e nao disparado: a janela abre a aba do PR logo depois, e o
+  // `branch:pr` le o numero deste estado -- sem esperar, ela diria "nenhum PR"
+  // com o toast de "PR criado" na tela.
+  if (r.ok) await branches.atualizar(id, { forcar: true }).catch(() => {});
   if (!r.ok && r.acesso === false) {
     r.urlManual = github.urlNovoPr(alvo.repo.dono, alvo.repo.repo, base || e.base, head);
   }
@@ -634,6 +643,7 @@ ipcMain.handle('branch:mesclar', async (_e, { id, numero, metodo = 'squash', sha
   const d = await github.detalhesPr({ ...alvo.repo, numero });
   if (!d.ok) return { ok: false, texto: d.texto || 'Nao consegui ler o PR.' };
   if (d.estado !== 'aberto') return { ok: false, texto: `O PR #${numero} nao esta aberto.` };
+  if (!d.checksLidos) return { ok: false, texto: 'Nao consegui ler os checks do PR agora (limite do GitHub?). Tente de novo.' };
   const falhas = d.checks.filter((c) => c.situacao === 'falhou');
   if (falhas.length) return { ok: false, texto: `${falhas.length} check(s) falhando: ${falhas.map((c) => c.nome).join(', ')}.` };
   if (!d.mesclavel) return { ok: false, texto: `O GitHub ainda nao deixa mesclar (${d.estadoMescla || 'conflito ou checks pendentes'}).` };
@@ -917,7 +927,9 @@ ipcMain.handle('orq:desligar', () => {
 // no disco). E dela que o `flow:abrir` tira os campos: o renderer manda o ID, e
 // nunca o pedido montado -- tudo que chega ao `externo.atender` veio do Flow,
 // como pelo /abrir.
-let inboxUltima = new Map();
+// A ultima lista lida de CADA escopo, trocada inteira a cada leitura: issue que
+// saiu da lista (fechada, desatribuida, fora do ciclo) deixa de abrir.
+const inboxUltima = { minhas: new Map(), ciclo: new Map() };
 // Uma consulta em voo POR escopo (as suas e o ciclo), coalescida.
 const inboxEmVoo = new Map();
 
@@ -925,10 +937,12 @@ async function lerInbox(escopo = 'minhas') {
   const cred = flowCredencial.ler();
   if (!cred) return { ok: false, erro: 'desconectado', texto: 'conecte o app ao Flow com um token pessoal' };
   const r = await flow.buscarInbox({ ...cred, escopo });
-  if (!r.ok) return { ok: false, erro: r.erro, texto: r.texto };
-  // As duas listas (as suas e o ciclo) alimentam o MESMO mapa: o `flow:abrir`
-  // acha a issue clicada em qualquer uma das abas.
-  for (const i of r.issues) inboxUltima.set(i.id, i);
+  if (!r.ok) {
+    // Token recusado: nada do que foi lido com ele continua valendo.
+    if (r.erro === 'token') { inboxUltima.minhas = new Map(); inboxUltima.ciclo = new Map(); }
+    return { ok: false, erro: r.erro, texto: r.texto };
+  }
+  inboxUltima[escopo === 'ciclo' ? 'ciclo' : 'minhas'] = new Map(r.issues.map((i) => [i.id, i]));
   // A descricao fica no main: a lista nao a mostra, e ela so e usada no clique.
   const issues = flow.anotar(r.issues, projetos.listar())
     .map(({ description, ...resto }) => ({ ...resto, temDescricao: Boolean(String(description || '').trim()) }));
@@ -951,7 +965,8 @@ ipcMain.handle('flow:conectar', async (_e, { base, token } = {}) => {
 
 ipcMain.handle('flow:desconectar', () => {
   flowCredencial.apagar();
-  inboxUltima = new Map();
+  inboxUltima.minhas = new Map();
+  inboxUltima.ciclo = new Map();
   return { ok: true };
 });
 
@@ -964,7 +979,8 @@ ipcMain.handle('flow:issues', (_e, escopo) => {
 });
 
 ipcMain.handle('flow:abrir', async (_e, id) => {
-  const issue = inboxUltima.get(String(id || ''));
+  const chave = String(id || '');
+  const issue = inboxUltima.minhas.get(chave) || inboxUltima.ciclo.get(chave);
   if (!issue) return { ok: false, texto: 'a lista ficou velha — atualize e tente de novo' };
   const { status, corpo } = await externo.atender(flow.paraPedido(issue), { canal: 'inbox' });
   return { ...corpo, ok: status >= 200 && status < 300 && corpo.ok !== false };

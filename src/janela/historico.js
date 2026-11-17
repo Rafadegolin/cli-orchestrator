@@ -232,6 +232,7 @@
   let pagina = 0;
   let itens = [];
   let total = 0;
+  let haMais = false;
   let aberta = '';            // arquivo expandido
   let seq = 0;
 
@@ -256,7 +257,14 @@
   filtros.append(seletor, caixaBusca, elContagem);
   const elLista = criar('div', 'hist-lista');
   elLista.id = 'hist-lista';
-  const btnMais = botao('Mostrar mais sessões', 'hist-mais', () => { pagina += 1; carregarSessoes(false); });
+  const btnMais = botao('Mostrar mais sessões', 'hist-mais', () => {
+    // Desligado ate a pagina chegar: dois cliques pediam a 1 e a 2, o `seq`
+    // descartava a 1, e trinta sessoes sumiam da lista sem aviso.
+    if (btnMais.disabled) return;
+    btnMais.disabled = true;
+    pagina += 1;
+    carregarSessoes(false);
+  });
   elSessoes.append(filtros, elLista, btnMais);
 
   function opcoesDeEscopo() {
@@ -298,6 +306,8 @@
     if (minha !== seq) return;
     itens = doZero ? r.itens : itens.concat(r.itens);
     total = r.total;
+    haMais = Boolean(r.haMais);
+    btnMais.disabled = false;
     desenharSessoes();
   }
 
@@ -308,7 +318,7 @@
 
   function desenharSessoes() {
     elContagem.textContent = itens.length ? `${itens.length} de ${total} sessões` : '';
-    btnMais.hidden = itens.length >= total || !itens.length;
+    btnMais.hidden = !haMais || !itens.length;
     if (!itens.length) {
       elLista.replaceChildren(criar('div', 'pagina-cartao inbox-estado-vazio',
         busca ? 'Nenhuma sessão com esta busca.' : 'Nenhuma conversa do Claude Code nestes projetos ainda.'));
@@ -376,8 +386,26 @@
     }
     const comando = `${window.OrqShell.limpar()} && claude --resume ${it.sessionId}${fork ? ' --fork-session' : ''}`;
     const feature = window.OrqProjetos?.slugFeature?.(it.branch || it.titulo || 'retomada').slice(0, 40) || 'retomada';
+    // Ja ha um painel nesta pasta: retomar ali de novo poria dois processos
+    // gravando no mesmo transcrito. Foca o que existe.
+    const aberto = !fork && window.OrqLigacoes?.painelEm?.(it.cwd);
+    if (aberto && aberto.comandoInicial && aberto.comandoInicial.includes(it.sessionId)) {
+      window.OrqGrade.focarPainel(aberto.id);
+      window.OrqToast?.mostrar('Esta conversa já está aberta num painel.');
+      return;
+    }
     window.OrqVistas.ir('sessoes');
     window.OrqGrade.criarPainel({ cwd: it.cwd, feature, comandoInicial: comando })
+      .then((painel) => {
+        // O fork e um EVENTO: o `comandoInicial` persiste e o `despertar()`
+        // o repete, e cada retomada faria um fork novo da conversa ORIGINAL,
+        // perdendo o que se fez no fork. O que fica salvo e continuar a
+        // conversa mais recente desta pasta -- que e o fork.
+        if (fork && painel) {
+          painel.comandoInicial = `${window.OrqShell.limpar()} && claude -c`;
+          window.OrqGrade.salvarSessao();
+        }
+      })
       .catch(() => window.OrqToast?.mostrar('Não consegui abrir o painel nesta pasta (ela ainda existe?).'));
   }
 

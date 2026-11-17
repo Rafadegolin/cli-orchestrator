@@ -458,7 +458,8 @@ const TODAS_SECOES = [
       p('A página <b>Issues</b>, na navegação da lateral (ou <b>{mod}+Shift+I</b>), '
         + 'lista em tabela as issues do Pronix Flow <b>abertas e atribuídas a você</b> — as em '
         + 'progresso primeiro, depois as a fazer e o backlog — e abre a sessão de qualquer uma '
-        + 'com um clique. É o mesmo resultado do <b>Abrir no Claude</b>, sem trocar de janela.'),
+        + 'com um clique. A aba <b>Ciclo atual</b> mostra todas as issues do ciclo dos times, de '
+        + 'qualquer pessoa, com responsáveis e labels. É o mesmo resultado do <b>Abrir no Claude</b>, sem trocar de janela.'),
       passos([
         '<b>Crie um token pessoal no Flow</b>, em Configurações → <b>Tokens de API</b>. Ele '
           + 'aparece uma vez só: copie na hora. O botão <b>Criar um token no Flow</b> do '

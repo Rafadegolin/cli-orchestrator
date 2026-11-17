@@ -26,6 +26,24 @@
   let mensagem = '';
   let prForm = { titulo: '', corpo: '', base: '', rascunho: false, tocado: false };
   let seq = 0;
+  let seqPr = 0;
+
+  // Toda acao que espera o main: marca `ocupado`, passa o id do alvo DESTE
+  // instante (quem chama confere se o foco mudou), e solta o `ocupado` sempre --
+  // uma rejeicao do IPC nao pode deixar o painel com os botoes desligados.
+  async function ocupar(nome, fn) {
+    if (ocupado || !alvo) return;
+    ocupado = nome;
+    desenhar();
+    try {
+      await fn(alvo);
+    } catch (err) {
+      window.OrqToast?.mostrar(`Falhou: ${String(err && err.message || err).slice(0, 160)}`);
+    } finally {
+      ocupado = '';
+      desenhar();
+    }
+  }
   let ocupado = '';
 
   function criar(tag, classe, texto) {
@@ -127,11 +145,13 @@
   async function carregarAba() {
     if (!aberto || !alvo) return;
     if (aba === 'pr') {
-      const minha = ++seq;
+      // Contador PROPRIO: com o mesmo `seq` da leitura dos arquivos, abrir a
+      // aba no meio dela descartava os arquivos e o painel ficava em "Lendo o git…".
+      const minha = ++seqPr;
       pr = { carregando: true };
       desenhar();
       const r = await window.orq.branchPr(alvo);
-      if (minha !== seq) return;
+      if (minha !== seqPr) return;
       pr = r;
       desenhar();
     }
@@ -202,16 +222,15 @@
     const rotMsg = criar('div', 'insp-rotulo');
     const lab = criar('label', '', 'Mensagem do commit');
     lab.htmlFor = 'insp-mensagem';
-    const gerar = botao('', 'insp-botao insp-botao-p', async () => {
-      ocupado = 'gerar';
-      desenhar();
+    const gerar = botao('', 'insp-botao insp-botao-p', () => ocupar('gerar', async (id) => {
       const p = painelAlvo();
-      const r = await window.orq.gitGerar({ id: alvo, modo: 'commit', issue: p?.issue?.identificador || '' });
-      ocupado = '';
+      const r = await window.orq.gitGerar({ id, modo: 'commit', issue: p?.issue?.identificador || '' });
+      // O texto e DESTA sessao: se o foco mudou durante os ate 90s, nao cai
+      // na caixa da outra.
+      if (alvo !== id) return;
       if (r.ok) mensagem = r.texto;
       else window.OrqToast?.mostrar(r.texto || 'Não deu para gerar.');
-      desenhar();
-    });
+    }));
     gerar.append(window.OrqIcones.svg('gerar', 'ico-s'), document.createTextNode(ocupado === 'gerar' ? 'Gerando…' : 'Gerar'));
     gerar.disabled = Boolean(ocupado);
     gerar.title = 'Escreve a mensagem com o Claude Code em segundo plano (custa alguns centavos de tokens)';
@@ -226,22 +245,18 @@
 
     const n = arquivos.filter((a) => marcados.has(a.caminho)).length;
     const acoes = criar('div', 'insp-acoes');
-    const commitar = (push) => async () => {
-      ocupado = 'commit';
-      desenhar();
-      const r = await window.orq.gitCommit({ id: alvo, mensagem, arquivos: [...marcados], push });
-      ocupado = '';
+    const commitar = (push) => () => ocupar('commit', async (id) => {
+      const r = await window.orq.gitCommit({ id, mensagem, arquivos: [...marcados], push });
       if (r.ok) {
-        mensagem = '';
+        if (alvo === id) mensagem = '';
         window.OrqToast?.mostrar(`Commit ${r.sha} com ${r.arquivos} ${r.arquivos === 1 ? 'arquivo' : 'arquivos'}`
           + (r.push && r.push.ok ? ' e push feito' : ''));
         if (r.push && !r.push.ok && !r.push.cancelado) window.OrqToast?.mostrar(r.push.texto);
         await carregar(true);
       } else {
         window.OrqToast?.mostrar(r.texto || 'O commit não foi feito.');
-        desenhar();
       }
-    };
+    });
     const bCommit = botao(ocupado === 'commit' ? 'Commitando…' : `Commit de ${n} ${n === 1 ? 'arquivo' : 'arquivos'}`,
       'insp-botao insp-primario', commitar(false));
     bCommit.id = 'insp-commit';
@@ -317,15 +332,12 @@
     const form = criar('div', 'insp-form');
     const cab = criar('div', 'insp-rotulo');
     cab.append(criar('span', 'insp-form-titulo', 'Novo pull request'));
-    const gerar = botao('', 'insp-botao insp-botao-p', async () => {
-      ocupado = 'gerar-pr';
-      desenhar();
-      const r = await window.orq.gitGerar({ id: alvo, modo: 'pr', issue: p?.issue?.identificador || '' });
-      ocupado = '';
+    const gerar = botao('', 'insp-botao insp-botao-p', () => ocupar('gerar-pr', async (id) => {
+      const r = await window.orq.gitGerar({ id, modo: 'pr', issue: p?.issue?.identificador || '' });
+      if (alvo !== id) return;
       if (r.ok) { prForm.titulo = r.titulo; prForm.corpo = r.corpo; prForm.tocado = true; }
       else window.OrqToast?.mostrar(r.texto || 'Não deu para gerar.');
-      desenhar();
-    });
+    }));
     gerar.append(window.OrqIcones.svg('gerar', 'ico-s'), document.createTextNode(ocupado === 'gerar-pr' ? 'Gerando…' : 'Gerar'));
     gerar.disabled = Boolean(ocupado);
     gerar.title = 'Título e descrição pelo Claude Code em segundo plano (custa alguns centavos de tokens)';
@@ -357,14 +369,12 @@
 
     const precisaPush = !l.upstream || l.semPush;
     const criarPr = botao(ocupado === 'pr' ? 'Criando…' : (precisaPush ? 'Push e criar PR' : 'Criar PR'),
-      'insp-botao insp-primario insp-largo', async () => {
-        ocupado = 'pr';
-        desenhar();
-        const r = await window.orq.branchCriarPr({ id: alvo, titulo: prForm.titulo, corpo: prForm.corpo,
+      'insp-botao insp-primario insp-largo', () => ocupar('pr', async (id) => {
+        const r = await window.orq.branchCriarPr({ id, titulo: prForm.titulo, corpo: prForm.corpo,
           base: prForm.base, rascunho: prForm.rascunho });
-        ocupado = '';
         if (r.ok) {
           window.OrqToast?.mostrar(`PR #${r.numero} criado`);
+          if (alvo !== id) return;
           prForm = { titulo: '', corpo: '', base: '', rascunho: false, tocado: false };
           aba = 'pr';
           await carregar(true);
@@ -376,8 +386,7 @@
         } else if (!r.cancelado && r.texto) {
           window.OrqToast?.mostrar(r.texto);
         }
-        desenhar();
-      });
+      }));
     criarPr.id = 'insp-criar-pr';
     criarPr.disabled = Boolean(ocupado);
     form.append(cab, campoTitulo, campoCorpo, linhaBase, campoBase, rascunho, criarPr);
@@ -438,7 +447,7 @@
         const simbolo = { ok: '✓', falhou: '✗', pendente: '◌', pulado: '–' }[c.situacao];
         l.append(criar('span', 'insp-check-sim', simbolo), criar('span', 'insp-check-nome', c.nome),
           criar('span', 'insp-check-tempo mono', c.segundos != null ? `${Math.floor(c.segundos / 60)}m ${c.segundos % 60}s` : ''));
-        if (c.situacao === 'falhou') {
+        if (c.situacao === 'falhou' && c.id) {
           l.append(botao('log', 'insp-link', async () => {
             const r = await window.orq.branchLogCheck({ id: alvo, checkId: c.id });
             c.log = r.ok ? r.linhas : [r.texto];
@@ -474,7 +483,18 @@
         metodo.append(o);
       }
       const mesclar = botao(`Mesclar em ${pr.base}`, 'insp-botao insp-primario', async () => {
+        // Sem credencial a API nao mescla: e o que a nota abaixo promete, e o
+        // dialogo de confirmacao seria para um merge que nao ia acontecer.
+        if (!pr.temToken && pr.url) {
+          window.orq.abrirExterno(pr.url);
+          return;
+        }
         const r = await window.orq.branchMesclar({ id: alvo, numero: pr.numero, metodo: metodo.value, sha: pr.sha });
+        if (r.acesso === false && pr.url) {
+          window.OrqToast?.mostrar('Sem permissão para mesclar pela API: abrindo o GitHub.');
+          window.orq.abrirExterno(pr.url);
+          return;
+        }
         if (r.ok) {
           window.OrqToast?.mostrar(`PR #${pr.numero} mesclado. A worktree fica pronta para arquivar.`);
           carregar(true);

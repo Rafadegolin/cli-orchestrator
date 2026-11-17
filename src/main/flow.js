@@ -11,7 +11,7 @@
 // worktree e prefill.
 //
 // O token e PESSOAL (`pfx_...`, criado em Configuracoes -> Tokens de API no
-// Flow) e so le as issues de quem o criou. Quem o guarda e o
+// Flow) e so LE: as issues de quem o criou e as do ciclo atual dos times. Quem o guarda e o
 // `flow-credencial.js`, cifrado pelo `safeStorage`; aqui ele chega por
 // parametro e morre na chamada: nao vai para retorno, erro nem log.
 //

@@ -68,6 +68,28 @@ const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8',
   checar('commitsAFrente lista o commit novo', commits.length === 1 && commits[0].assunto === 'muda a e o novo',
     JSON.stringify(commits));
 
+  // Caminho com caracteres de glob: `[id].tsx` e um padrao que casa `i.tsx`.
+  fs.rmSync(path.join(raiz, 'outro.txt'));
+  git(raiz, 'checkout', '-q', '--', 'b.txt');
+  fs.writeFileSync(path.join(raiz, '[id].tsx'), 'pagina\n');
+  fs.writeFileSync(path.join(raiz, 'i.tsx'), 'outra\n');
+  const glob = await worktrees.commitar(raiz, { mensagem: 'so a pagina', arquivos: ['[id].tsx'] });
+  const noGlob = git(raiz, 'show', '--name-only', '--format=', 'HEAD').split(/\r?\n/);
+  checar('caminho com [ ] e literal: nao leva o i.tsx desmarcado',
+    glob.ok && JSON.stringify(noGlob) === '["[id].tsx"]', JSON.stringify({ glob, noGlob }));
+  fs.rmSync(path.join(raiz, 'i.tsx'));
+
+  // Rename indexado: o nome antigo tem de sair no MESMO commit.
+  git(raiz, 'mv', 'a.txt', 'renomeado.txt');
+  const stR = await worktrees.statusArquivos(raiz);
+  const ren = stR.arquivos.find((a) => a.caminho === 'renomeado.txt');
+  checar('o status traz o nome antigo do rename', ren && ren.tipo === 'R' && ren.antigo === 'a.txt', JSON.stringify(stR.arquivos));
+  const rr = await worktrees.commitar(raiz, { mensagem: 'renomeia', arquivos: ['renomeado.txt'] });
+  const sobrou = git(raiz, 'status', '--porcelain');
+  checar('o commit do rename leva a remocao do antigo', rr.ok && sobrou === '' && !fs.existsSync(path.join(raiz, 'a.txt'))
+    && git(raiz, 'ls-tree', '--name-only', 'HEAD').split(/\r?\n/).includes('renomeado.txt')
+    && !git(raiz, 'ls-tree', '--name-only', 'HEAD').split(/\r?\n/).includes('a.txt'), JSON.stringify({ rr, sobrou }));
+
   // ------------------------------------------------------------ GitHub
   const TOKEN = 'ghp_SEGREDO_QUE_NAO_PODE_VAZAR';
   const lerCredencial = async () => TOKEN;

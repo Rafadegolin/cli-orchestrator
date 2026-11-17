@@ -29,6 +29,9 @@ const POR_PAGINA = 30;
 const CONCORRENCIA = 4;
 const ARQ_CACHE = 'transcritos.json';
 const MAX_CACHE = 2000;
+// Sobe quando o `resumir()` muda: sem isso, um transcrito parado seguiria
+// servido com o resumo da regra antiga para sempre (mtime e tamanho iguais).
+const VERSAO_CACHE = 2;
 
 let cache = null; // caminho -> { mtimeMs, size, resumo }
 let gravarDepois = null;
@@ -36,8 +39,10 @@ let gravarDepois = null;
 function lerCache() {
   if (cache) return cache;
   cache = new Map();
-  const salvo = arquivo.lerJson(arquivo.caminho(ARQ_CACHE), null);
-  if (salvo && Array.isArray(salvo.itens)) {
+  // `lerJson`/`gravarJson` recebem o NOME: o caminho montado aqui de novo
+  // dobrava a pasta, a gravacao falhava calada e o cache nunca existiu.
+  const salvo = arquivo.lerJson(ARQ_CACHE, null);
+  if (salvo && salvo.versao === VERSAO_CACHE && Array.isArray(salvo.itens)) {
     for (const it of salvo.itens) if (it && it.caminho) cache.set(it.caminho, it);
   }
   return cache;
@@ -47,7 +52,7 @@ function agendarGravacao() {
   clearTimeout(gravarDepois);
   gravarDepois = setTimeout(() => {
     const itens = [...lerCache().values()].sort((a, b) => b.mtimeMs - a.mtimeMs).slice(0, MAX_CACHE);
-    try { arquivo.gravarJson(arquivo.caminho(ARQ_CACHE), { itens }); } catch { /* cache e so atalho */ }
+    try { arquivo.gravarJson(ARQ_CACHE, { versao: VERSAO_CACHE, itens }); } catch { /* cache e so atalho */ }
   }, 2000);
   if (gravarDepois.unref) gravarDepois.unref();
 }
@@ -211,10 +216,10 @@ function resumoComCache({ caminho, stat }) {
   const visto = c.get(caminho);
   if (visto && visto.mtimeMs === stat.mtimeMs && visto.size === stat.size) return visto.resumo;
   const resumo = resumir(caminho, stat);
-  if (resumo) {
-    c.set(caminho, { caminho, mtimeMs: stat.mtimeMs, size: stat.size, resumo });
-    agendarGravacao();
-  }
+  // Tambem o que nao deu para resumir: sem esse cache negativo, um arquivo
+  // ilegivel seria relido a cada listagem.
+  c.set(caminho, { caminho, mtimeMs: stat.mtimeMs, size: stat.size, resumo: resumo || null });
+  agendarGravacao();
   return resumo;
 }
 
@@ -228,6 +233,7 @@ async function listar({ projetos = [], busca = '', pagina = 0, aoProgresso } = {
   const itens = [];
   let casados = 0;
   let feitos = 0;
+  let parouCedo = false;
 
   for (let i = 0; i < todos.length; i += CONCORRENCIA) {
     const lote = todos.slice(i, i + CONCORRENCIA);
@@ -243,11 +249,14 @@ async function listar({ projetos = [], busca = '', pagina = 0, aoProgresso } = {
     await new Promise((ok) => setImmediate(ok));
     // Sem busca, a pagina pedida ja esta completa: nao ha por que resumir o
     // resto agora (o total vem da contagem de arquivos).
-    if (!termo && itens.length >= POR_PAGINA) break;
+    if (!termo && itens.length >= POR_PAGINA) { parouCedo = i + CONCORRENCIA < todos.length; break; }
   }
   return {
     itens,
     total: termo ? casados : todos.length,
+    // O total sem busca conta arquivos, e alguns nao viram sessao (ilegiveis):
+    // quem decide se ha outra pagina e isto, nao `itens >= total`.
+    haMais: termo ? casados > inicio + itens.length : parouCedo,
     pagina: Math.max(0, Number(pagina) || 0),
     porPagina: POR_PAGINA,
   };

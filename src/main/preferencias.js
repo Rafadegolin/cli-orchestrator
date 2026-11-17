@@ -171,7 +171,7 @@ function normalizar(bruto) {
 // Uma linha, ate 1000 caracteres, sem caractere de controle: o texto vai para a
 // caixa do Claude pelo bracketed paste, e uma quebra viraria Enter num shell.
 function textoRevisao(v) {
-  const t = String(v || '').replace(/[ -]/g, ' ').trim();
+  const t = String(v || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
   return t.slice(0, 1000);
 }
 

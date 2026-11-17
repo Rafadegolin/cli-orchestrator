@@ -462,8 +462,11 @@
   function fechar() {
     elPaleta.hidden = true;
     // Devolve o teclado para o painel focado, senao a proxima tecla se perde.
+    // So na grade: `focarPainel` volta para a vista de sessoes, e fechar a
+    // paleta numa pagina (Issues, Historico, Configuracoes) a jogaria fora.
     const id = window.OrqGrade?.focado?.();
-    if (id) window.OrqGrade.focarPainel(id);
+    const naGrade = !window.OrqVistas || window.OrqVistas.atual() === 'sessoes';
+    if (id && naGrade) window.OrqGrade.focarPainel(id);
   }
 
   function alternar() {

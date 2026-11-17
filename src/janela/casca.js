@@ -110,9 +110,15 @@
   // Recolher a lateral alarga a grade, entao TODO terminal precisa refluir. Nada
   // e chamado aqui: o ResizeObserver de cada painel ja pega a mudanca de largura
   // com o debounce dele, que e exatamente o mesmo caminho da troca de densidade.
+  // O modo aberto que o Ctrl+B devolve (aberta ou compacta): recolher a
+  // compacta e abrir de novo nao pode perde-la.
+  let lateralAberta = 'aberta';
+
   function aplicarLateral() {
     const fechada = ui.lateral === 'fechada';
-    elApp.dataset.lateral = fechada ? 'fechada' : 'aberta';
+    if (!fechada) lateralAberta = ui.lateral === 'compacta' ? 'compacta' : 'aberta';
+    // O valor inteiro, e nao so fechada/aberta: o CSS da compacta casa por ele.
+    elApp.dataset.lateral = fechada ? 'fechada' : lateralAberta;
     if (!btnLateral) return;
     const mod = window.OrqShell.MOD;
     btnLateral.title = fechada
@@ -268,7 +274,7 @@
   btnTema.addEventListener('click', () => mudar({ tema: ui.tema === 'claro' ? 'escuro' : 'claro' }));
 
   function alternarLateral() {
-    mudar({ lateral: ui.lateral === 'fechada' ? 'aberta' : 'fechada' });
+    mudar({ lateral: ui.lateral === 'fechada' ? lateralAberta : 'fechada' });
     return ui.lateral;
   }
 

@@ -33,7 +33,14 @@
       }
     }, true);
     window.addEventListener('blur', fechar);
-    window.addEventListener('scroll', fechar, true);
+    // Rolagem de fora fecha o menu (ele ficaria solto na tela), mas nao a do
+    // proprio terminal: um painel imprimindo saida rola a cada linha e fecharia
+    // o menu antes do clique.
+    window.addEventListener('scroll', (ev) => {
+      const alvo = ev.target;
+      if (alvo && alvo.closest && alvo.closest('.xterm')) return;
+      fechar();
+    }, true);
     return el;
   }
 

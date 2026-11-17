@@ -208,6 +208,19 @@ function motivoGithub(r) {
 
 const caminhoRepo = (dono, repo) => `/repos/${encodeURIComponent(dono)}/${encodeURIComponent(repo)}`;
 
+// Os status de commit (API antiga, ainda usada por CI de fora do Actions), no
+// mesmo formato dos checks. Sem `id`: nao ha log para buscar por aqui.
+function listarStatus(corpo) {
+  const lista = Array.isArray(corpo && corpo.statuses) ? corpo.statuses : [];
+  return lista.map((st) => ({
+    id: null,
+    nome: String(st.context || 'status').slice(0, 120),
+    situacao: st.state === 'success' ? 'ok' : (st.state === 'pending' ? 'pendente' : 'falhou'),
+    segundos: null,
+    url: typeof st.target_url === 'string' ? st.target_url : '',
+  }));
+}
+
 function listarChecks(corpo) {
   const runs = Array.isArray(corpo && corpo.check_runs) ? corpo.check_runs : [];
   return runs.map((c) => {
@@ -248,9 +261,16 @@ async function detalhesPr({ dono, repo, numero }, { buscar = fetch, lerCredencia
 
   const sha = p.head && p.head.sha ? p.head.sha : '';
   let checks = [];
+  // `checksLidos`: se o GitHub NAO respondeu os checks (limite de taxa, 5xx),
+  // lista vazia nao quer dizer "nada falhando" -- e o merge tem de recusar.
+  let checksLidos = false;
   if (sha) {
     const c = await getComFallback(`${base}/commits/${encodeURIComponent(sha)}/check-runs?per_page=100`, token, buscar);
+    // O CI que reporta pela API de STATUS (e nao pela de checks) tambem conta.
+    const s = await getComFallback(`${base}/commits/${encodeURIComponent(sha)}/status`, token, buscar);
+    checksLidos = c.status === 200 && s.status === 200;
     if (c.status === 200) checks = listarChecks(c.corpo);
+    if (s.status === 200) checks = checks.concat(listarStatus(s.corpo));
   }
 
   return {
@@ -269,6 +289,7 @@ async function detalhesPr({ dono, repo, numero }, { buscar = fetch, lerCredencia
     aprovacoes: estados.filter((e) => e === 'APPROVED').length,
     mudancasPedidas: estados.filter((e) => e === 'CHANGES_REQUESTED').length,
     checks,
+    checksLidos,
     temToken: Boolean(token),
   };
 }

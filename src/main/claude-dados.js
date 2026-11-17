@@ -31,10 +31,11 @@ function pastaProjetos() {
 }
 
 // O Claude guarda os transcritos em `projects/<caminho-codificado>/`, e a
-// codificacao (conferida em 19 pastas reais desta maquina) troca `:`, `\`, `/`
-// e `.` por `-`.
+// codificacao troca todo caractere que nao e letra ASCII ou digito por `-`. As
+// 19 pastas conferidas aqui so tinham `:`, `\`, `/` e `.`, e a regra antiga (so
+// esses quatro) errava projeto com espaco, `_` ou acento no caminho.
 function pastaDoProjeto(caminho) {
-  return path.join(pastaProjetos(), path.resolve(String(caminho)).replace(/[:\\/.]/g, '-'));
+  return path.join(pastaProjetos(), path.resolve(String(caminho)).replace(/[^A-Za-z0-9]/g, '-'));
 }
 
 // Quantas conversas o Claude ja guardou para uma pasta.

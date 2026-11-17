@@ -101,6 +101,33 @@ fatia saiu num commit proprio, em branches empilhadas `redesign-r0-fundacao` ...
   devolver `id`. Ctrl+B recolhe para um **trilho de 56px** (nao mais `display: none`); `lateral`
   aceita `'compacta'`.
 
+**O que a revisao de 17/11/2026 achou, e a regra que cada um deixou:**
+
+- **Caminho do git e PADRAO, nao nome**: `commit --only -- '[id].tsx'` levava junto o `i.tsx` que
+  ninguem marcou. Todo `add`/`commit`/`reset` do `commitar` vai com `--literal-pathspecs`. E o
+  rename indexado leva o nome ANTIGO no mesmo commit (`statusArquivos` devolve `antigo`), senao
+  vira copia.
+- **`arquivo.lerJson`/`gravarJson` recebem o NOME**, nao o caminho: o `transcritos.js` passava
+  `arquivo.caminho(...)`, a pasta dobrava, a gravacao falhava calada e o cache nunca existiu. O
+  cache tem `VERSAO_CACHE` (suba ao mudar o `resumir()`) e guarda tambem o arquivo ilegivel.
+  A pagina pergunta `haMais`, e nao `itens >= total` (o total conta arquivo que nao vira sessao).
+- **"Gerar" roda com `--no-session-persistence --tools ''`**: sem a primeira, o `-p` gravava uma
+  conversa na worktree e o `claude -c` seguinte continuava a do "Gerar"; `--allowedTools ''` nao
+  desliga ferramenta nenhuma.
+- **Merge recusa sem checks lidos** (`checksLidos`): lista vazia por limite de taxa nao e "nada
+  falhando". Os status de commit (API antiga) entram junto dos check-runs. Sem token, "Mesclar"
+  abre o GitHub em vez de confirmar um merge que nao ia acontecer.
+- **"Retomar em sessao nova" (`--fork-session`) e evento**: o `comandoInicial` salvo vira
+  `claude -c` depois da partida, senao cada `despertar()` fazia um fork novo da conversa original.
+- **Acao assincrona do painel Git passa pelo `ocupar()`** do `inspetor.js`: id capturado antes do
+  `await` (o texto do "Gerar" nao cai na caixa da sessao que voce focou depois) e `finally`.
+- **`data-lateral` leva o valor inteiro** (`compacta` nunca chegava ao CSS), fechar a paleta numa
+  pagina nao volta para a grade, e o menu "⋯" nao fecha com a rolagem de um terminal imprimindo.
+- **`pastaDoProjeto` troca todo nao alfanumerico por `-`**, como o CLI (a regra antiga so trocava
+  `:` `\` `/` `.`, e projeto com espaco ou `_` no caminho ficava sem historico).
+- **Arquivo com byte de controle cru e binario para o git** (diff inteiro, CRLF gravado no blob):
+  o `preferencias.js` tinha `\x00-\x1f` literais na regex. Escreva o escape.
+
 **Ainda nao provado contra o mundo real** (so com `fetch` falso e `claude` falso): criar PR e mesclar
 no GitHub, e o "Gerar". Rodar uma vez num repositorio de teste antes de confiar.
 
@@ -982,7 +1009,8 @@ Flow empurrava pelo `/abrir`.
 
 `GET <origem>/api/orquestrador/issues` com `Authorization: Bearer pfx_…`, branch
 `feature/orquestrador-inbox` do pronix-flow (item 30 do CLAUDE.md de la). O token e **pessoal**,
-criado em Configuracoes -> Tokens de API no Flow, e so le as issues de quem o criou: o guard dele vale
+criado em Configuracoes -> Tokens de API no Flow, e so le (as issues de quem o criou e, desde o
+TECH-3802, todas as do ciclo atual dos times do workspace): o guard dele vale
 so naquela rota, e o `JwtAuthGuard` global de la nao foi tocado. O Flow guarda so o sha256. A
 resposta traz `repo`, `branch`, `issue`, `title`, `url` e `description` com **os mesmos nomes do
 payload do `/abrir`** -- e isso que permite o resto desta secao.

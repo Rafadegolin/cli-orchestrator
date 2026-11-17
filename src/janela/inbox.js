@@ -110,8 +110,8 @@
     const cartao = criar('div', 'pagina-cartao inbox-conectar');
     const titulo = criar('h2', 'inbox-conectar-titulo', 'Conectar ao Pronix Flow');
     const explica = criar('p', 'modal-explica',
-      'Cole um token pessoal do Flow (Configurações → Tokens de API). Ele só lê as issues '
-      + 'atribuídas a você, e fica guardado cifrado neste computador.');
+      'Cole um token pessoal do Flow (Configurações → Tokens de API). Ele só lê: as issues '
+      + 'atribuídas a você e as do ciclo atual dos times do workspace. Fica guardado cifrado neste computador.');
 
     const campoBase = criar('input', 'scripts-campo');
     campoBase.id = 'inbox-base';

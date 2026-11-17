@@ -1363,12 +1363,15 @@ async function statusArquivos(dir) {
     const xy = p.slice(0, 2);
     const caminho = p.slice(3);
     let tipo = '?';
+    let antigo = '';
     if (xy === '??') tipo = '?';
-    else if (xy.includes('R')) { tipo = 'R'; i += 1; } // o nome antigo vem no item seguinte
+    // O nome antigo vem no item seguinte, e TEM de ir junto no commit: sem
+    // ele o `--only` grava so o arquivo novo e o rename vira uma copia.
+    else if (xy.includes('R')) { tipo = 'R'; antigo = partes[i + 1] || ''; i += 1; }
     else if (xy.includes('D')) tipo = 'D';
     else if (xy.includes('A')) tipo = 'A';
     else tipo = 'M';
-    arquivos.push({ caminho, tipo, mais: null, menos: null });
+    arquivos.push({ caminho, tipo, mais: null, menos: null, ...(antigo ? { antigo } : {}) });
   }
 
   const ns = await gitLento(dir, ['diff', 'HEAD', '--numstat']);
@@ -1423,13 +1426,17 @@ async function commitar(dir, { mensagem, arquivos } = {}) {
 
   const novos = lista.filter((c) => alterados.get(c).tipo === '?');
   if (novos.length) {
-    const add = await gitLento(dir, ['add', '--', ...novos]);
+    const add = await gitLento(dir, ['--literal-pathspecs', 'add', '--', ...novos]);
     if (!add.ok) return { ok: false, texto: `Nao consegui adicionar os arquivos novos: ${add.erro}` };
   }
 
-  const r = await gitLento(dir, ['commit', '--only', '-m', msg, '--', ...lista], { ms: MS_COMMIT });
+  // `--literal-pathspecs`: sem ele o git le cada caminho como PADRAO, e um
+  // `[id].tsx` marcado levava junto o `i.tsx` que ninguem marcou.
+  const antigos = lista.map((c) => alterados.get(c).antigo).filter(Boolean);
+  const r = await gitLento(dir, ['--literal-pathspecs', 'commit', '--only', '-m', msg, '--', ...lista, ...antigos],
+    { ms: MS_COMMIT });
   if (!r.ok) {
-    if (novos.length) await gitLento(dir, ['reset', '-q', '--', ...novos]);
+    if (novos.length) await gitLento(dir, ['--literal-pathspecs', 'reset', '-q', '--', ...novos]);
     // Sem os avisos de fim de linha do git (CRLF), que nao explicam nada.
     const linhas = String(r.erro).split(/\r?\n/).map((l) => l.trim())
       .filter((l) => l && !/^(warning:|Command failed:)/i.test(l));

@@ -285,7 +285,7 @@
           f.append('Conta do Flow ', chip(flow.conectado ? 'conectada' : 'desconectada', flow.conectado ? 'ok' : ''));
           return f;
         })(),
-        flow.base ? `${flow.base} · token cifrado neste computador` : 'Um token pessoal lê as issues atribuídas a você.',
+        flow.base ? `${flow.base} · token cifrado neste computador` : 'Um token pessoal lê as issues atribuídas a você e as do ciclo atual.',
         flow.conectado
           ? botao('Desconectar', 'cfg-botao cfg-botao-fraco', async () => { await window.orq.flowDesconectar(); desenhar(); })
           : botao('Conectar…', 'cfg-botao', () => window.OrqVistas.ir('issues')),
