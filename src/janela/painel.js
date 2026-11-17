@@ -205,6 +205,13 @@ class Painel {
     this.elBranch.hidden = true;
     this.elBranch.addEventListener('click', (ev) => {
       ev.stopPropagation();
+      // Redesign R7: o chip abre o painel Git desta sessao (push, PR, checks e
+      // merge moram la). Sem o painel carregado, cai no menu antigo.
+      if (window.OrqInspetor) {
+        const temPr = window.OrqBranch?.de?.(this.id)?.pr;
+        window.OrqInspetor.abrirPara(this.id, temPr ? 'pr' : 'git');
+        return;
+      }
       const r = this.elBranch.getBoundingClientRect();
       window.OrqBranch?.abrirMenu(this.id, r.left, r.bottom + 4);
     });

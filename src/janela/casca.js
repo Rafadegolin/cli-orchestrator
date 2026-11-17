@@ -44,6 +44,7 @@
     personalizado: { cols: 3, alturaLinha: 160, celulas: [] },
     textoRevisao: '',
     git: { base: '', rascunho: false },
+    inspetor: 'fechado',
   };
   const ouvintes = [];
 

@@ -2913,6 +2913,257 @@ button.primario:hover {
 }
 #btn-config:hover { background: var(--bg3); color: var(--fg); }
 
+/* ======================================================= painel Git (R7) */
+
+/* A direita do #principal, 340px tirados da grade -- o ResizeObserver de cada
+   painel ja reajusta o terminal, com o debounce de sempre. Fechado por padrao.
+   Some nas paginas (Issues, Configuracoes): ele e da sessao focada. */
+#inspetor {
+  flex: 0 0 340px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg1);
+  border-left: 1px solid var(--line);
+}
+#inspetor[hidden],
+#app:not([data-vista="sessoes"]) #inspetor { display: none; }
+
+#btn-inspetor {
+  width: 28px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg2);
+}
+#btn-inspetor:hover { background: var(--bg3); color: var(--fg); }
+#btn-inspetor.ativo { background: var(--bg3); color: var(--fg); }
+
+.insp-topo {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 46px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+.insp-abas { display: flex; gap: 2px; }
+.insp-quem {
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: right;
+  padding: 0 6px;
+  font-size: 11px;
+  color: var(--fg3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.insp-icob {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg3);
+}
+.insp-icob:hover { background: var(--bg3); color: var(--fg); }
+.insp-aba.ativa { background: var(--bg3); color: var(--fg); }
+
+.insp-corpo {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.insp-branch-nome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--fg);
+}
+.insp-branch-nome .ico { color: var(--fg3); }
+.insp-branch-sub { margin-top: 3px; padding-left: 22px; font-size: 11.5px; color: var(--fg3); }
+
+.insp-rotulo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--fg3);
+}
+.insp-contagem { letter-spacing: 0; text-transform: none; font-weight: 500; }
+.insp-mais { color: var(--acc); }
+.insp-menos { color: var(--danger); }
+
+.insp-lista {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+.insp-arquivo,
+.insp-commit,
+.insp-check-linha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11.5px;
+}
+.insp-lista > :last-child { border-bottom: 0; }
+.insp-arquivo { cursor: pointer; }
+.insp-arquivo:hover { background: var(--bg2); }
+.insp-arquivo input { accent-color: var(--acc); margin: 0; }
+.insp-tipo { width: 10px; font-family: var(--mono); font-size: 10.5px; font-weight: 600; }
+.insp-tipo-M { color: var(--warn); }
+.insp-tipo-A, .insp-tipo-novo { color: var(--acc); }
+.insp-tipo-D { color: var(--danger); }
+.insp-tipo-R { color: var(--info); }
+.insp-arquivo-nome { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.insp-arquivo-linhas { color: var(--fg3); font-size: 10.5px; }
+
+.insp-sha { color: var(--info); font-size: 11px; }
+.insp-commit-assunto { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.insp-commit-quando { color: var(--fg3); font-size: 10.5px; white-space: nowrap; }
+
+.insp-campo {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line2);
+  background: var(--bg0);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+.insp-campo:focus { border-color: var(--acc); }
+.insp-area { resize: vertical; line-height: 1.5; }
+.insp-metodo { width: auto; flex: 0 0 auto; height: 32px; padding: 0 8px; }
+
+.insp-acoes { display: flex; gap: 8px; }
+.insp-botao {
+  height: 32px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line2);
+  background: var(--bg2);
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.insp-botao:hover:not(:disabled) { border-color: var(--fg3); }
+.insp-botao:disabled { opacity: .5; cursor: default; }
+.insp-acoes .insp-botao { flex: 1 1 0; }
+.insp-primario { background: var(--acc); color: var(--acc-texto); border-color: transparent; font-weight: 600; }
+.insp-primario:hover:not(:disabled) { filter: brightness(1.08); border-color: transparent; }
+.insp-botao-p { height: 24px; padding: 0 8px; font-size: 11.5px; letter-spacing: 0; text-transform: none; }
+.insp-largo { width: 100%; height: 36px; }
+
+.insp-nota { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--fg3); }
+.insp-nota-inline { letter-spacing: 0; text-transform: none; font-weight: 400; }
+
+.insp-aviso {
+  padding: 11px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line2);
+  background: var(--bg2);
+}
+.insp-aviso-titulo { font-weight: 600; font-size: 12.5px; }
+.insp-aviso-texto { margin-top: 3px; font-size: 12px; line-height: 1.45; color: var(--fg2); }
+.insp-aviso-espera { background: var(--warnd); border-color: var(--warn-linha); }
+.insp-aviso-falha { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+
+.insp-form { display: flex; flex-direction: column; gap: 10px; }
+.insp-form-titulo { font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--fg); }
+.insp-check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--fg2); }
+.insp-check input { accent-color: var(--acc); }
+
+.insp-pr-titulo { margin-top: 6px; font-size: 14px; font-weight: 600; line-height: 1.35; }
+.insp-pr-cab .insp-branch-sub { padding-left: 0; }
+.insp-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line2);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--fg2);
+}
+.insp-chip-ok { color: var(--acc); background: var(--accd); border-color: color-mix(in srgb, var(--acc) 34%, transparent); }
+.insp-chip-info { color: var(--info); border-color: color-mix(in srgb, var(--info) 34%, transparent); }
+.insp-link {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  padding: 0 2px;
+  color: var(--fg2);
+  font-size: 11.5px;
+  letter-spacing: 0;
+  text-transform: none;
+  text-decoration: underline;
+}
+.insp-link:hover { color: var(--fg); }
+
+.insp-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.insp-card { padding: 9px; border: 1px solid var(--line); border-radius: var(--r-md); }
+.insp-card-rotulo { font-size: 9.5px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--fg3); }
+.insp-card-valor { margin-top: 3px; font-size: 12.5px; font-weight: 600; }
+
+.insp-check-sim { width: 12px; text-align: center; }
+.insp-check-ok .insp-check-sim { color: var(--acc); }
+.insp-check-falhou .insp-check-sim { color: var(--danger); }
+.insp-check-pendente .insp-check-sim { color: var(--warn); }
+.insp-check-pulado { color: var(--fg3); }
+.insp-check-nome { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.insp-check-tempo { font-size: 10.5px; color: var(--fg3); }
+.insp-check-linha .insp-link { margin-left: 0; }
+.insp-log {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 180px;
+  overflow: auto;
+  background: var(--term);
+  color: var(--termfg);
+  font-size: 10.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  border-bottom: 1px solid var(--line);
+}
+
 /* ================================================================ vazio */
 
 #vazio {

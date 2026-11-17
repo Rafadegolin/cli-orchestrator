@@ -1442,11 +1442,13 @@ async function commitar(dir, { mensagem, arquivos } = {}) {
 // Os commits da branch que ainda nao estao na base (para a aba Git do painel).
 async function commitsAFrente(dir, base, max = 20) {
   if (!base) return [];
-  const r = await gitLento(dir, ['log', `${base}..HEAD`, `-${max}`, '--format=%h%x1f%s%x1f%cr']);
+  const r = await gitLento(dir, ['log', `${base}..HEAD`, `-${max}`, '--format=%h%x1f%s%x1f%ct']);
   if (!r.ok) return [];
+  // `em` em milissegundos: a tela formata em portugues (o %cr sai na lingua do
+  // git, que aqui quase sempre e ingles).
   return r.saida.split(/\r?\n/).filter(Boolean).map((l) => {
     const [sha, assunto, quando] = l.split('\x1f');
-    return { sha, assunto, quando };
+    return { sha, assunto, em: Number(quando) * 1000 };
   });
 }
 
