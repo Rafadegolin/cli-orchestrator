@@ -687,7 +687,7 @@ document.getElementById('nav-sessoes')?.addEventListener('click', () => {
   if (window.OrqVistas && window.OrqVistas.atual() !== 'sessoes') window.OrqVistas.ir('sessoes');
   else document.getElementById('conteudo')?.scrollTo({ top: 0, behavior: 'smooth' });
 });
-document.getElementById('nav-historico')?.addEventListener('click', () => window.OrqHistorico?.abrir());
+document.getElementById('nav-historico')?.addEventListener('click', () => window.OrqHistorico?.abrirSessoes());
 
 window.OrqLateral = {
   registrar, remover, definirStatus, pularParaMaisAntigo, cards, ordenadas, mostrarAtualizacao,

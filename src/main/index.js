@@ -26,6 +26,7 @@ const branches = require('./branches');
 const telas = require('./telas');
 const github = require('./github');
 const gerarTexto = require('./gerar-texto');
+const transcritos = require('./transcritos');
 const avisos = require('./avisos');
 const registro = require('./registro');
 const externo = require('./externo');
@@ -1326,6 +1327,14 @@ ipcMain.on('telas:apagar', (_e, { cwd, feature } = {}) => telas.apagar(cwd, feat
 
 ipcMain.handle('historico:resumo', () => historico.resumo());
 ipcMain.handle('historico:metricas', () => historico.metricas());
+// As conversas do Claude Code (redesign R8). So leitura, e o caminho do
+// detalhe e conferido dentro da pasta do CLI pelo proprio transcritos.js.
+ipcMain.handle('historico:sessoes', (_e, filtro) => transcritos.listar({
+  projetos: Array.isArray(filtro?.projetos) ? filtro.projetos.map(String).slice(0, 100) : [],
+  busca: String(filtro?.busca || '').slice(0, 200),
+  pagina: Number(filtro?.pagina) || 0,
+}));
+ipcMain.handle('historico:sessao', (_e, arquivo) => transcritos.detalhe(arquivo));
 
 // Os quatro numeros do medidor do topo. `detalhe` traz junto a tabela por
 // projeto, que e grande e so o overlay precisa.

@@ -3164,6 +3164,136 @@ button.primario:hover {
   border-bottom: 1px solid var(--line);
 }
 
+/* ================================================== pagina de historico (R8) */
+
+#historico .pagina-conteudo { max-width: 1100px; }
+
+.hist-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.hist-seletor {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line2);
+  background: var(--bg2);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+}
+.hist-busca {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.hist-grupo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0 8px 2px;
+  font-weight: 600;
+}
+.hist-grupo:first-child { margin-top: 0; }
+.hist-grupo-qtd {
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: var(--r-pill);
+  background: var(--bg3);
+  color: var(--fg2);
+}
+
+.hist-sessao { border-bottom: 1px solid var(--line); }
+.hist-cartao > .hist-sessao:last-child { border-bottom: 0; }
+.hist-sessao-cab {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.hist-sessao-cab:hover { background: var(--bg2); }
+.hist-sessao.aberta .hist-sessao-cab { background: var(--bg3); }
+.hist-sessao-titulo { font-size: 13.5px; font-weight: 600; color: var(--fg); }
+.hist-sessao-resumo {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--fg2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hist-sessao-resumo b { color: var(--fg); font-weight: 600; }
+.hist-sessao-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--fg3);
+}
+
+.hist-detalhe { padding: 4px 16px 16px 16px; background: var(--bg3); }
+.hist-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.hist-turnos { display: flex; flex-direction: column; gap: 8px; }
+.hist-turno {
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line2);
+  background: var(--bg1);
+}
+.hist-turno-voce { background: var(--bg2); }
+.hist-turno-quem {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--fg3);
+  margin-bottom: 4px;
+}
+.hist-turno-texto { font-size: 12.5px; line-height: 1.5; color: var(--fg2); white-space: pre-wrap; }
+
+.hist-mais {
+  display: block;
+  margin: 14px auto 0 auto;
+  height: 32px;
+  padding: 0 16px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line2);
+  background: transparent;
+  color: var(--fg2);
+  font-size: 12.5px;
+}
+.hist-mais:hover { color: var(--fg); border-color: var(--fg3); }
+
+/* Barras por dia nas metricas: CSS puro, a ultima na cor do assunto. */
+.hist-barras {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 30px;
+  margin-top: 8px;
+}
+.hist-barra { flex: 1 1 0; border-radius: 2px; background: var(--bg4); min-height: 2px; }
+.hist-barra-espera { background: var(--warn); }
+.hist-barra-info { background: var(--info); }
+.hist-barra-ok { background: var(--acc); }
+
 /* ================================================================ vazio */
 
 #vazio {

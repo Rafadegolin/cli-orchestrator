@@ -27,6 +27,7 @@
     "teste:config-ui": "node testes/config-ui.js",
     "teste:git-painel": "node testes/git-painel.js",
     "teste:inspetor-ui": "node testes/inspetor-ui.js",
+    "teste:transcritos": "node testes/transcritos.js",
     "teste:copiar": "node testes/copiar.js",
     "teste:revisao": "node testes/revisao.js",
     "teste:diff-comentar": "node testes/diff-comentar.js",

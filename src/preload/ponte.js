@@ -185,6 +185,8 @@ contextBridge.exposeInMainWorld('orq', {
   metricas: () => ipcRenderer.invoke('app:metricas'),
   historico: () => ipcRenderer.invoke('historico:resumo'),
   historicoMetricas: () => ipcRenderer.invoke('historico:metricas'),
+  historicoSessoes: (filtro) => ipcRenderer.invoke('historico:sessoes', filtro),
+  historicoSessao: (arquivo) => ipcRenderer.invoke('historico:sessao', arquivo),
 
   // Uso do Claude Code. `uso()` traz so os quatro numeros do medidor do topo;
   // `usoDetalhe()` traz tambem a tabela por projeto, e por isso e sob demanda.
