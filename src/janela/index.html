@@ -77,7 +77,7 @@
       <!-- Redesign R2: navegacao no topo. Os ids #btn-inbox e #btn-notas sao os
            de antes (o inbox.js e o notas.js ligam o clique neles). -->
       <nav id="lateral-nav">
-        <button id="nav-sessoes" class="nav-item ativo" data-ico="grade">
+        <button id="nav-sessoes" class="nav-item ativo" data-ico="grade" data-vista="sessoes">
           <span class="nav-rotulo">Sessões</span>
           <span id="nav-sessoes-qtd" class="nav-qtd mono"></span>
         </button>
@@ -171,6 +171,9 @@
 
       <div id="conteudo">
         <div id="grade"></div>
+        <!-- Redesign R4: as paginas (Issues, Historico, Configuracoes) moram aqui,
+             irmas da grade. Trocar de vista esconde a grade, nunca a recria. -->
+        <div id="paginas"></div>
 
         <div id="vazio">
           <!-- O icone C no tamanho grande: tres terminais empilhados, o da frente
@@ -569,6 +572,7 @@
 <script src="casca.js"></script>
 <script src="copiar.js"></script>
 <script src="menu.js"></script>
+<script src="vistas.js"></script>
 <script src="painel.js"></script>
 <script src="branch.js"></script>
 <script src="fila.js"></script>

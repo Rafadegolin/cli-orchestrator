@@ -2339,6 +2339,93 @@ button.primario:hover {
    os controles do mapa. */
 #app[data-modo="mapa"] #densidade { display: none; }
 
+/* ================================================================ vistas */
+
+/* Redesign R4: a grade e as paginas dividem o #conteudo. Fora da vista de
+   sessoes a grade e o vazio somem -- `display: none`, nunca recriados: o
+   `ajustar()` do painel pula tamanho 0, entao o PTY nao encolhe, e a saida
+   fica no buffer da Fase 6.1 ate a grade voltar. */
+#app:not([data-vista="sessoes"]) #grade,
+#app:not([data-vista="sessoes"]) #vazio,
+#app:not([data-vista="sessoes"]) .barra-direita,
+#app:not([data-vista="sessoes"]) #barra-resumo { display: none !important; }
+
+#paginas { min-height: 0; }
+
+.pagina {
+  min-height: 100%;
+  box-sizing: border-box;
+}
+
+/* Pagina de tela cheia (Configuracoes): cobre a lateral e a barra, e traz o
+   proprio "Voltar ao app". */
+#app[data-tela-cheia] #lateral,
+#app[data-tela-cheia] #barra { display: none; }
+#app[data-tela-cheia] #conteudo { padding: 0; }
+
+/* Cabecalho comum das paginas. */
+.pagina-topo {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.pagina-titulo {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+}
+.pagina-sub { font-size: 12.5px; color: var(--fg3); }
+.pagina-espaco { flex: 1 1 0; }
+
+.pagina-cartao {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg1);
+  overflow: hidden;
+}
+
+/* Botao pequeno de icone das paginas (atualizar, abrir fora...). */
+.pagina-icob {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg2);
+}
+.pagina-icob:hover { background: var(--bg3); color: var(--fg); }
+
+/* Segmentado das paginas (abas). */
+.segmentado {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--r-md);
+  background: var(--bg0);
+  border: 1px solid var(--line);
+}
+.segmentado button {
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg3);
+  font-size: 12.5px;
+}
+.segmentado button:hover { color: var(--fg2); }
+.segmentado button.ativa {
+  background: var(--bg3);
+  color: var(--fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+}
+
 /* ================================================================ vazio */
 
 #vazio {

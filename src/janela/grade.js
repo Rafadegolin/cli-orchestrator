@@ -456,7 +456,11 @@ function marcarFocado() {
 
 function focarPainel(id) {
   const p = porId.get(id);
-  if (p) p.focar();
+  if (!p) return;
+  // Focar uma sessao a partir de uma pagina (Issues, Historico...) volta para
+  // a grade: o painel tem de estar na tela para receber o teclado (R4).
+  window.OrqVistas?.ir('sessoes');
+  p.focar();
 }
 
 // Solta o foco. Enquanto ha painel focado ele nao sai do lugar (`fixarFocado`),

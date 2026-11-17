@@ -684,7 +684,8 @@ for (const el of document.querySelectorAll('#lateral [data-ico]')) {
 // "Sessoes" e a vista da grade. Enquanto as paginas (R4) nao existem, o clique
 // leva a grade ao topo; Issues, Historico e Notas abrem o que ja existia.
 document.getElementById('nav-sessoes')?.addEventListener('click', () => {
-  document.getElementById('conteudo')?.scrollTo({ top: 0, behavior: 'smooth' });
+  if (window.OrqVistas && window.OrqVistas.atual() !== 'sessoes') window.OrqVistas.ir('sessoes');
+  else document.getElementById('conteudo')?.scrollTo({ top: 0, behavior: 'smooth' });
 });
 document.getElementById('nav-historico')?.addEventListener('click', () => window.OrqHistorico?.abrir());
 
