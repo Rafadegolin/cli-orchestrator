@@ -176,6 +176,35 @@ function falso(status, corpo, { json = true } = {}) {
   checar('rede fora vira erro, nao excecao', !rede.ok && rede.erro === 'rede', JSON.stringify(rede));
   checar('nem a mensagem do erro de rede vaza o token', !JSON.stringify(rede).includes(TOKEN));
 
+  // ------------------------------------------------- o ciclo atual (TECH-3802)
+
+  const doCiclo = flow.normalizarInbox({ scope: 'cycle', issues: [doFlow({
+    assignees: [{ name: 'Bia' }, { name: 'Caio' }],
+    labels: [{ name: 'bug', color: '#f00' }, { name: 'x', color: 'red; background:url(x)' }],
+    cycle: { number: 12, name: 'Novembro' },
+    mine: false,
+  })] });
+  igual('o escopo do ciclo e reconhecido', doCiclo.escopo, 'ciclo');
+  const ic = doCiclo.issues[0];
+  igual('responsaveis viram nomes', ic.responsaveis, ['Bia', 'Caio']);
+  igual('cor de label que nao e hex e descartada (vira CSS)', ic.labels, [{ nome: 'bug', cor: '#f00' }, { nome: 'x', cor: '' }]);
+  igual('o ciclo vem com numero e nome', ic.ciclo, { numero: 12, nome: 'Novembro' });
+  igual('mine:false vira minha:false', ic.minha, false);
+  const antiga = flow.normalizarInbox({ issues: [doFlow()] }).issues[0];
+  checar('Flow de antes: sem campos novos, e "minha" verdadeira',
+    antiga.minha === true && antiga.responsaveis.length === 0 && antiga.ciclo === null, JSON.stringify(antiga));
+
+  const okCiclo = falso(200, { user: { name: 'Ana', email: 'a@x' }, scope: 'cycle', issues: [doFlow()] });
+  const rc = await flow.buscarInbox({ base: '', token: TOKEN, escopo: 'ciclo', buscar: okCiclo });
+  checar('o ciclo pede ?escopo=ciclo', rc.ok && okCiclo.chamadas[0].url.endsWith(`${flow.CAMINHO}?escopo=ciclo`),
+    okCiclo.chamadas[0].url);
+  const velho = await flow.buscarInbox({ base: '', token: TOKEN, escopo: 'ciclo',
+    buscar: falso(200, { user: {}, issues: [doFlow()] }) });
+  checar('Flow que ignora o escopo NAO tem a lista dele mostrada como ciclo',
+    !velho.ok && velho.erro === 'versao', JSON.stringify(velho));
+  const recusa = await flow.buscarInbox({ base: '', token: TOKEN, escopo: 'ciclo', buscar: falso(400, {}) });
+  checar('400 no escopo do ciclo vira "versao"', !recusa.ok && recusa.erro === 'versao', JSON.stringify(recusa));
+
   console.log(falhas === 0 ? '\nINBOX_OK' : `\nINBOX_FALHOU (${falhas})`);
   process.exit(falhas === 0 ? 0 : 1);
 })().catch((e) => { console.error('ERRO', e.stack || e.message); process.exit(3); });

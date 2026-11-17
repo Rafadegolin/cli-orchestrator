@@ -918,18 +918,21 @@ ipcMain.handle('orq:desligar', () => {
 // nunca o pedido montado -- tudo que chega ao `externo.atender` veio do Flow,
 // como pelo /abrir.
 let inboxUltima = new Map();
-let inboxEmVoo = null;
+// Uma consulta em voo POR escopo (as suas e o ciclo), coalescida.
+const inboxEmVoo = new Map();
 
-async function lerInbox() {
+async function lerInbox(escopo = 'minhas') {
   const cred = flowCredencial.ler();
   if (!cred) return { ok: false, erro: 'desconectado', texto: 'conecte o app ao Flow com um token pessoal' };
-  const r = await flow.buscarInbox(cred);
+  const r = await flow.buscarInbox({ ...cred, escopo });
   if (!r.ok) return { ok: false, erro: r.erro, texto: r.texto };
-  inboxUltima = new Map(r.issues.map((i) => [i.id, i]));
+  // As duas listas (as suas e o ciclo) alimentam o MESMO mapa: o `flow:abrir`
+  // acha a issue clicada em qualquer uma das abas.
+  for (const i of r.issues) inboxUltima.set(i.id, i);
   // A descricao fica no main: a lista nao a mostra, e ela so e usada no clique.
   const issues = flow.anotar(r.issues, projetos.listar())
     .map(({ description, ...resto }) => ({ ...resto, temDescricao: Boolean(String(description || '').trim()) }));
-  return { ok: true, usuario: r.usuario, base: cred.base, issues };
+  return { ok: true, usuario: r.usuario, base: cred.base, escopo: r.escopo, issues };
 }
 
 ipcMain.handle('flow:situacao', () => flowCredencial.situacao());
@@ -954,9 +957,10 @@ ipcMain.handle('flow:desconectar', () => {
 
 // Coalescida: abrir a inbox e voltar para a janela no mesmo segundo fazem UMA
 // consulta, nao duas.
-ipcMain.handle('flow:issues', () => {
-  if (!inboxEmVoo) inboxEmVoo = lerInbox().finally(() => { inboxEmVoo = null; });
-  return inboxEmVoo;
+ipcMain.handle('flow:issues', (_e, escopo) => {
+  const e = escopo === 'ciclo' ? 'ciclo' : 'minhas';
+  if (!inboxEmVoo.has(e)) inboxEmVoo.set(e, lerInbox(e).finally(() => { inboxEmVoo.delete(e); }));
+  return inboxEmVoo.get(e);
 });
 
 ipcMain.handle('flow:abrir', async (_e, id) => {

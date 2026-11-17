@@ -35,7 +35,8 @@ const TOKEN_VALIDO = /^pfx_[A-Za-z0-9_-]{20,200}$/;
 const MAX_DESCRICAO = 4000;
 const MARCA_CORTE = '\n\n[…descrição truncada — a issue completa está no Flow]';
 
-const MAX_ISSUES = 200;
+// O teto do Flow para o escopo do ciclo (MAX_CYCLE_ISSUES, TECH-3802).
+const MAX_ISSUES = 300;
 
 // A origem do Flow, ou '' quando nao serve.
 //
@@ -92,6 +93,22 @@ function normalizarIssue(b) {
     prioridade: texto(b.priority, 20),
     time: { chave: texto(b.team && b.team.key, 20), nome: texto(b.team && b.team.name, 80) },
     atualizada: texto(b.updatedAt, 40),
+    // Campos do TECH-3802 no Flow. Um Flow de antes nao os manda: lista vazia,
+    // sem ciclo, e `minha` verdadeira (a inbox antiga so tinha as suas).
+    responsaveis: (Array.isArray(b.assignees) ? b.assignees : []).slice(0, 10)
+      .map((a) => texto(a && a.name, 80)).filter(Boolean),
+    labels: (Array.isArray(b.labels) ? b.labels : []).slice(0, 10)
+      .map((l) => ({
+        nome: texto(l && l.name, 40),
+        // A cor vira estilo na tela: so `#rgb`/`#rrggbb`, nada que abra outra
+        // declaracao de CSS.
+        cor: /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(String(l && l.color)) ? String(l.color) : '',
+      }))
+      .filter((l) => l.nome),
+    ciclo: b.cycle && Number.isFinite(b.cycle.number)
+      ? { numero: b.cycle.number, nome: texto(b.cycle.name, 80) }
+      : null,
+    minha: b.mine !== false,
   };
 }
 
@@ -103,6 +120,7 @@ function normalizarInbox(corpo) {
     : { nome: '', email: '' };
   return {
     usuario,
+    escopo: c.scope === 'cycle' ? 'ciclo' : 'minhas',
     issues: lista.slice(0, MAX_ISSUES).map(normalizarIssue).filter(Boolean),
   };
 }
@@ -139,14 +157,17 @@ function anotar(issues, projetos) {
 
 // O GET. Devolve `{ ok, usuario, issues }` ou `{ ok: false, erro, texto }`,
 // nunca estoura -- e nunca carrega o token, nem no erro.
-async function buscarInbox({ base, token, buscar = fetch } = {}) {
+// `escopo`: 'minhas' (o padrao, o contrato original) ou 'ciclo' -- todas as
+// issues do ciclo ativo de cada time, de qualquer pessoa (TECH-3802 no Flow).
+async function buscarInbox({ base, token, escopo = 'minhas', buscar = fetch } = {}) {
   const origem = normalizarBase(base);
   if (!origem) return { ok: false, erro: 'url', texto: 'endereço do Flow inválido (use https)' };
   if (!tokenValido(token)) return { ok: false, erro: 'token', texto: 'isso não parece um token do Flow (pfx_…)' };
+  const doCiclo = escopo === 'ciclo';
 
   let r;
   try {
-    r = await buscar(`${origem}${CAMINHO}`, {
+    r = await buscar(`${origem}${CAMINHO}${doCiclo ? '?escopo=ciclo' : ''}`, {
       headers: { Authorization: `Bearer ${String(token).trim()}`, Accept: 'application/json' },
       signal: AbortSignal.timeout(MS_API),
     });
@@ -161,13 +182,24 @@ async function buscarInbox({ base, token, buscar = fetch } = {}) {
   if (r.status === 404) {
     return { ok: false, erro: 'versao', texto: 'este Flow ainda não tem a inbox do orquestrador' };
   }
+  // O Flow de antes do TECH-3802 ignora a query e devolve as suas; o de depois
+  // que nao conhece o escopo responde 400. Os dois casos dizem a mesma coisa.
+  if (doCiclo && r.status === 400) {
+    return { ok: false, erro: 'versao', texto: 'este Flow ainda não tem a lista do ciclo atual' };
+  }
   if (!r.ok) return { ok: false, erro: 'servidor', texto: `o Flow respondeu ${r.status}` };
 
   let corpo;
   try { corpo = await r.json(); } catch {
     return { ok: false, erro: 'formato', texto: 'a resposta do Flow não é JSON' };
   }
-  return { ok: true, ...normalizarInbox(corpo) };
+  const inbox = normalizarInbox(corpo);
+  // Pediu o ciclo e veio a lista antiga (Flow de antes do TECH-3802, que
+  // ignora a query): mostrar as suas como se fossem o ciclo seria mentir.
+  if (doCiclo && inbox.escopo !== 'ciclo') {
+    return { ok: false, erro: 'versao', texto: 'este Flow ainda não tem a lista do ciclo atual' };
+  }
+  return { ok: true, ...inbox };
 }
 
 // ------------------------------------------- devolutiva ao solicitante

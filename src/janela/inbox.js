@@ -31,6 +31,9 @@
   let filtroProjeto = TODOS;
   let filtroTexto = '';
   let filtroEstado = TODOS;
+  // 'minhas' (as atribuidas a voce, o contrato original) ou 'ciclo': todas as
+  // issues do ciclo ativo de cada time, de qualquer pessoa (TECH-3802 no Flow).
+  let escopo = 'minhas';
 
   // Por que uma issue nao abre. O texto mora aqui, e nao no main, porque e
   // rotulo de tela -- o main diz o CODIGO, que e o mesmo do /abrir.
@@ -228,7 +231,21 @@
       `${i.repo || 'sem repositório'} · ${i.branch} ${destino}`);
     const status = criar('div', 'inbox-status');
     status.hidden = true;
-    tdTitulo.append(titulo, meta, status);
+    tdTitulo.append(titulo, meta);
+    // As labels do Flow, com a cor dele num ponto (o texto fica no token do
+    // app, para o contraste nao depender da cor que alguem escolheu la).
+    if ((i.labels || []).length) {
+      const labels = criar('div', 'inbox-labels');
+      for (const l of i.labels) {
+        const chip = criar('span', 'inbox-label');
+        const ponto = criar('span', 'inbox-label-cor');
+        if (l.cor) ponto.style.background = l.cor;
+        chip.append(ponto, document.createTextNode(l.nome));
+        labels.append(chip);
+      }
+      tdTitulo.append(labels);
+    }
+    tdTitulo.append(status);
 
     const tdProjeto = criar('td', 'inbox-col-projeto');
     if (i.projeto) {
@@ -243,6 +260,18 @@
     const tdEstado = criar('td', 'inbox-col-estado');
     tdEstado.append(criar('span', `inbox-pill inbox-pill-${tomDoEstado(i.estado?.tipo)}`,
       i.estado?.nome || i.estado?.tipo || ''));
+
+    // Responsaveis: a inicial de cada um, com o nome no title. A sua vem
+    // marcada -- no escopo do ciclo e o que diz "esta e minha" de relance.
+    const tdResp = criar('td', 'inbox-col-resp');
+    for (const nome of (i.responsaveis || []).slice(0, 3)) {
+      const av = criar('span', 'inbox-avatar', nome.trim().charAt(0).toUpperCase());
+      av.title = nome;
+      tdResp.append(av);
+    }
+    if ((i.responsaveis || []).length > 3) tdResp.append(criar('span', 'inbox-avatar-mais', `+${i.responsaveis.length - 3}`));
+    if (!(i.responsaveis || []).length) tdResp.append(criar('span', 'inbox-sem-projeto', '—'));
+    if (escopo === 'ciclo' && i.minha) tdResp.append(criar('span', 'inbox-minha', 'você'));
 
     const tdQuando = criar('td', 'inbox-col-quando', quando(i.atualizada));
 
@@ -266,7 +295,7 @@
     }
     tdAcoes.append(acoes);
 
-    tr.append(tdId, tdTitulo, tdProjeto, tdEstado, tdQuando, tdAcoes);
+    tr.append(tdId, tdTitulo, tdProjeto, tdResp, tdEstado, tdQuando, tdAcoes);
     return tr;
   }
 
@@ -298,7 +327,7 @@
       });
       abas.append(b);
     };
-    aba(TODOS, 'Atribuídas a mim', issues.length);
+    aba(TODOS, 'Todas', issues.length);
     for (const e of estados) {
       aba(e, e, issues.filter((i) => (i.estado?.nome || i.estado?.tipo) === e).length);
     }
@@ -339,12 +368,12 @@
     caixaBusca.append(busca);
 
     const filtros = criar('div', 'inbox-filtros');
-    filtros.append(abas, seletor, caixaBusca);
+    filtros.append(seletorEscopo(), abas, seletor, caixaBusca);
 
     const tabela = criar('table', 'inbox-tabela');
     const thead = criar('thead');
     const cab = criar('tr');
-    for (const t of ['ID', 'Título / contexto', 'Projeto', 'Estado', 'Atualizada', '']) cab.append(criar('th', '', t));
+    for (const t of ['ID', 'Título / contexto', 'Projeto', 'Resp.', 'Estado', 'Atualizada', '']) cab.append(criar('th', '', t));
     thead.append(cab);
     const lista = criar('tbody');
     lista.id = 'inbox-lista';
@@ -357,12 +386,14 @@
       const vazio = (texto) => {
         const tr = criar('tr');
         const td = criar('td', 'inbox-vazio', texto);
-        td.colSpan = 6;
+        td.colSpan = 7;
         tr.append(td);
         return tr;
       };
       if (!issues.length) {
-        lista.replaceChildren(vazio('Nenhuma issue aberta atribuída a você.'));
+        lista.replaceChildren(vazio(escopo === 'ciclo'
+          ? 'Nenhuma issue no ciclo atual dos times deste workspace.'
+          : 'Nenhuma issue aberta atribuída a você.'));
       } else if (!itens.length) {
         lista.replaceChildren(vazio('Nenhuma issue com este filtro.'));
       } else {
@@ -403,7 +434,7 @@
     if (!forcar && Date.now() - lidaEm < MS_PISO) return;
     const minha = (seq += 1);
     if (!ultima) mensagem('Lendo as issues do Flow…');
-    const r = await window.orq.flowIssues();
+    const r = await window.orq.flowIssues(escopo);
     // Ultima-chamada-vence, e nada a desenhar com a pagina fechada.
     if (minha !== seq || elInbox.hidden) return;
     lidaEm = Date.now();
@@ -429,9 +460,35 @@
     const cartao = criar('div', 'pagina-cartao inbox-estado-vazio');
     cartao.append(
       criar('p', '', (r && r.texto) || 'não deu para ler o Flow'),
-      botao('Tentar de novo', '', () => atualizar(true)),
+      // Flow sem a lista do ciclo: o caminho de volta e a lista de sempre.
+      escopo === 'ciclo' && r && r.erro === 'versao'
+        ? botao('Ver as atribuídas a mim', '', () => mudarEscopo('minhas'))
+        : botao('Tentar de novo', '', () => atualizar(true)),
     );
     elCorpo.replaceChildren(cartao);
+  }
+
+  // As suas ou o ciclo inteiro. Trocar relê do Flow (o piso nao vale: e outra
+  // lista) e volta os filtros de estado ao comeco.
+  function mudarEscopo(novo) {
+    if (novo === escopo) return;
+    escopo = novo;
+    filtroEstado = TODOS;
+    ultima = null;
+    atualizar(true);
+  }
+
+  function seletorEscopo() {
+    const g = criar('div', 'segmentado inbox-escopo');
+    g.setAttribute('role', 'group');
+    g.setAttribute('aria-label', 'Quais issues');
+    for (const [valor, rotulo] of [['minhas', 'Atribuídas a mim'], ['ciclo', 'Ciclo atual']]) {
+      const b = botao(rotulo, valor === escopo ? 'ativa' : '', () => mudarEscopo(valor));
+      b.dataset.escopo = valor;
+      b.setAttribute('aria-pressed', String(valor === escopo));
+      g.append(b);
+    }
+    return g;
   }
 
   // Chamado pela vista ao aparecer.

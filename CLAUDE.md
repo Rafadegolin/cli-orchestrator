@@ -109,8 +109,14 @@ lote confirmam no `OrqConfirmar` (`confirmar.js`), com a previa do `worktrees:pr
 portoes do `triarLote`, os ignorados que vao junto e o script). Foco nasce no Cancelar. Os handlers
 `worktrees:arquivar`/`arquivarVarias` ignoram o `confirmar` e seguem revalidando tudo antes de apagar.
 
-**Ficou de fora, de proposito:** a pagina de Issues so le as issues atribuidas a voce:
-"abertas do time", labels e responsavel dependem de mudar a API do Flow (pedido registrado).
+**A pagina de Issues tem duas listas** ("Atribuidas a mim | Ciclo atual"). A segunda pede
+`GET /api/orquestrador/issues?escopo=ciclo` (branch `feature/TECH-3802` do pronix-flow): TODAS as issues
+do ciclo ativo de cada time, de qualquer pessoa, com responsaveis, labels e `mine` (a sua leva o
+selo "voce"). Sem `escopo` o Flow responde como sempre, entao versao antiga do app nao muda nada.
+Flow de antes do TECH-3802 ignora a query e devolveria as SUAS: o `buscarInbox` confere o `scope` da
+resposta e diz "este Flow ainda nao tem a lista do ciclo" em vez de mostrar as suas como se fossem o
+ciclo. As duas listas alimentam o mesmo mapa do `flow:abrir`, e a consulta e coalescida por escopo.
+A cor da label e do Flow e vira estilo: so `#rgb`/`#rrggbb` passa.
 
 ## Proximos passos: Fase 10
 

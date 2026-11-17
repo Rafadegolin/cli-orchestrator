@@ -33,7 +33,9 @@ let aceitar = TOKEN;
 let pedidosAoFlow = 0;
 
 const servidor = http.createServer((req, res) => {
-  if (req.method !== 'GET' || req.url !== '/api/orquestrador/issues') {
+  const [rota, query] = req.url.split('?');
+  const doCiclo = query === 'escopo=ciclo';
+  if (req.method !== 'GET' || rota !== '/api/orquestrador/issues' || (query && !doCiclo)) {
     res.writeHead(404).end();
     return;
   }
@@ -54,8 +56,22 @@ const servidor = http.createServer((req, res) => {
     updatedAt: '2026-10-01T10:00:00.000Z',
     ...over,
   });
+  if (doCiclo) {
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({
+      user: { name: 'Pessoa de Teste', email: 'teste@x.com' },
+      scope: 'cycle',
+      issues: [
+        issue({ id: 'ok', issue: 'INBOX-77', description: DESCRICAO, assignees: [{ name: 'Pessoa de Teste' }], mine: true,
+          state: { name: 'Em progresso', type: 'STARTED' } }),
+        issue({ id: 'colega', issue: 'INBOX-90', branch: 'feature/INBOX-90', mine: false,
+          assignees: [{ name: 'Bia' }], labels: [{ name: 'bug', color: '#e5484d' }] }),
+      ],
+    }));
+    return;
+  }
   res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({
     user: { name: 'Pessoa de Teste', email: 'teste@x.com' },
+    scope: 'mine',
     issues: [
       issue({ id: 'ok', issue: 'INBOX-77', description: DESCRICAO, state: { name: 'Em progresso', type: 'STARTED' } }),
       issue({ id: 'sem-repo', issue: 'INBOX-78', repo: null, branch: 'feature/INBOX-78' }),
@@ -170,6 +186,22 @@ const painelDaWt = `[...window.OrqPainel.painelPorId.values()].filter((p) => (p.
   checar('a busca casa pelo identificador, sem caixa',
     JSON.stringify((await linhas(cdp)).map((x) => x.id)) === '["outro"]');
   await cdp.avaliar(`(() => { const b = document.getElementById('inbox-busca'); b.value = ''; b.dispatchEvent(new Event('input')); })()`);
+
+  // --------------------------------------- o ciclo atual (TECH-3802 no Flow)
+  await cdp.avaliar(`document.querySelector('.inbox-escopo [data-escopo="ciclo"]').click()`);
+  for (let t = 0; t < 40 && !(JSON.stringify((await linhas(cdp)).map((x) => x.id)) === '["ok","colega"]'); t++) await esperar(125);
+  const ciclo = await cdp.avaliar(`JSON.stringify({
+    ativa: document.querySelector('.inbox-escopo [data-escopo="ciclo"]').classList.contains('ativa'),
+    voce: [...document.querySelectorAll('#inbox-lista .inbox-linha')].map((l) => Boolean(l.querySelector('.inbox-minha'))),
+    label: document.querySelector('[data-id="colega"] .inbox-label') ? document.querySelector('[data-id="colega"] .inbox-label').textContent : '',
+    avatar: document.querySelector('[data-id="colega"] .inbox-avatar') ? document.querySelector('[data-id="colega"] .inbox-avatar').title : '',
+  })`).then(JSON.parse);
+  checar('a aba Ciclo atual lista as issues do time inteiro', ciclo.ativa, JSON.stringify(ciclo));
+  checar('so a sua vem marcada "você"', JSON.stringify(ciclo.voce) === '[true,false]', JSON.stringify(ciclo.voce));
+  checar('a label e o responsavel do colega aparecem', ciclo.label === 'bug' && ciclo.avatar === 'Bia', JSON.stringify(ciclo));
+  await cdp.avaliar(`document.querySelector('.inbox-escopo [data-escopo="minhas"]').click()`);
+  for (let t = 0; t < 40 && !((await linhas(cdp)).length === 3); t++) await esperar(125);
+  checar('voltar para Atribuídas a mim traz a lista de antes', (await linhas(cdp)).length === 3);
 
   // --------------------------------------- abrir, pelo caminho do /abrir
   //

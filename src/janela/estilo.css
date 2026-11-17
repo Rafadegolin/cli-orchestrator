@@ -3393,6 +3393,46 @@ li.confirmar-item-aviso .confirmar-item-sub { color: var(--warn); }
 #confirmar .modal-acoes button.confirmar-perigo:hover { filter: brightness(1.08); }
 html.claro #confirmar .modal-acoes button.confirmar-perigo { color: #ffffff; }
 
+/* Issues: escopo do ciclo, responsaveis e labels (TECH-3802 no Flow). */
+.inbox-col-resp { white-space: nowrap; }
+.inbox-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--bg1);
+  background: var(--bg3);
+  color: var(--fg2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.inbox-avatar-mais { margin-left: 8px; font-size: 11px; color: var(--fg3); }
+.inbox-minha {
+  margin-left: 10px;
+  padding: 1px 6px;
+  border-radius: var(--r-xs);
+  background: var(--accd);
+  color: var(--acc);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.inbox-labels { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.inbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--line2);
+  font-size: 11px;
+  color: var(--fg2);
+}
+.inbox-label-cor { width: 7px; height: 7px; border-radius: 50%; background: var(--fg3); }
+
 /* ================================================================ vazio */
 
 #vazio {

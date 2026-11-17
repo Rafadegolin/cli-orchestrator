@@ -105,7 +105,7 @@ contextBridge.exposeInMainWorld('orq', {
   flowSituacao: () => ipcRenderer.invoke('flow:situacao'),
   flowConectar: (dados) => ipcRenderer.invoke('flow:conectar', dados),
   flowDesconectar: () => ipcRenderer.invoke('flow:desconectar'),
-  flowIssues: () => ipcRenderer.invoke('flow:issues'),
+  flowIssues: (escopo) => ipcRenderer.invoke('flow:issues', escopo),
   // So o ID: os campos do pedido saem da lista que o main leu do Flow.
   flowAbrir: (id) => ipcRenderer.invoke('flow:abrir', id),
   // Devolutiva ao solicitante: o main le a issue no Flow e devolve o prompt
