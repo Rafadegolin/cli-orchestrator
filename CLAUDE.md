@@ -30,8 +30,11 @@ comando de barra, o que permite ligar duas sessoes **sem reiniciar** nenhuma del
 reinicio), o 10.4 (inbox do Flow) e o 10.6 (workers criados por uma sessao). Ficam duas medicoes
 numa sessao real, marcadas "a medir" no 10.2 e no 10.5. Ver a secao "Proximos passos" logo abaixo.
 
-**A proxima onda (pedida em 29/10/2026, depois da v0.1.46): aproximar o app do Orca**, em duas
-frentes, ainda sem plano:
+**O redesign premium (17/11/2026) esta implementado**, em onze fatias (R0-R10) -- ver a secao "O
+redesign premium" logo abaixo. O canvas aprovado e https://claude.ai/artifact/DMBwu4wePnZYioZyHtCLQv.
+
+**A onda anterior (pedida em 29/10/2026, depois da v0.1.46): aproximar o app do Orca**, em duas
+frentes -- que o redesign entregou:
 
 1. **Como as sessoes aparecem nos projetos** -- mais intuitivo e mais bonito. Hoje a lateral separa
    a lista de sessoes (cards por status) da arvore de projetos e worktrees.
@@ -42,6 +45,68 @@ Comecar por um estudo do Orca ([github.com/stablyai/orca](https://github.com/sta
 [onorca.dev](https://onorca.dev/)) contra o que o app ja tem, e planejar por partes, como a Fase 10.
 A credencial do GitHub continua sendo a do `git credential fill` (decisao do 10.3), sem token novo
 para colar, e a regra da Fase 10 vale: montar em cima do que o CLI e o git oferecem.
+
+## O redesign premium (R0-R10)
+
+Pedido em 17/11/2026: "torna-lo um produto mais premium", com a estrutura do Orca e as cores do
+sistema de temas do app. Desenhado num canvas (12 telas) e aprovado antes de qualquer codigo; cada
+fatia saiu num commit proprio, em branches empilhadas `redesign-r0-fundacao` ... `redesign-r10-docs`.
+
+**Decisoes do usuario que mudam regra antiga -- nao reabrir:**
+
+- **Sairam da barra** "Nova sessao", "Painel avulso", o campo de nome e a ordenacao Urgencia|Projeto
+  ("literalmente nao sao usados"). A grade e a lateral sao **sempre por urgencia**; a chave `ordem`
+  continua no `ui.json` e nos layouts so por compatibilidade, ignorada (`OrqCasca.ordem()` devolve
+  `'urgencia'`). O nome da sessao mora no dialogo de abrir sessao, e `abrirProjeto` recebe
+  `{ feature }`. "Abrir pasta qualquer…" (o antigo avulso) ficou na paleta.
+- **Saiu o bloco "Esperando voce"** (e o "Pronto para revisar"): a propria linha da sessao acende em
+  ambar (`.sessao-esperando`) e o tempo vai num selo. `filaAtencao()` e o Ctrl+Enter nao mudaram.
+- **O commit e feito pelo app** (painel Git). Isto REVE a decisao do 10.3 ("commit fica com o
+  agente") e a regra do `worktrees.js` de nao mexer no indice: o indice so muda por clique, e so nos
+  arquivos marcados (`commitar`, com `--only`; nunca `--amend`/`--no-verify`/`-a`; add de nao
+  rastreado desfeito se o commit for recusado).
+- **Merge pelo app**, com dialogo nativo, recusando checks falhando e conferindo o `sha` do head que
+  estava na tela (o GitHub responde 409 se andou).
+- **"Gerar"** (mensagem de commit e descricao de PR) roda `claude -p` em segundo plano
+  (`gerar-texto.js`): prompt pela ENTRADA PADRAO (o diff no argumento encostaria no limite de linha do
+  Windows), um por pasta, 90s, env limpo da sessao-pai (`terminais.envLimpo`, agora exportado). O
+  teste troca o binario por `ORQ_CLAUDE_SCRIPT` -- o Node recusa executar `.cmd` sem shell (EINVAL).
+- **O painel Git nasce fechado** ("nunca sempre ativo"); pref `inspetor`.
+- **Revisao e Resumo continuam** como botoes do cabecalho (mesma classe `.painel-revisao`, Revisao
+  primeiro). O texto da Revisao virou preferencia (`textoRevisao`, com o marcador `{branch}`).
+- **Icone C** (terminais empilhados). O `.ico` agora carrega SETE tamanhos, e abaixo de 64px entra a
+  variante simplificada -- o Windows escolhe a entrada do tamanho que desenha em vez de reduzir o 256.
+  O gerador ganhou anti-aliasing (SDF com 4x4 amostras por pixel).
+
+**Os modulos novos, e o que cada um garante:**
+
+- `icones.js` (`OrqIcones.svg`), `menu.js` (`OrqMenu`, o "⋯" da lateral e do painel, com os MESMOS
+  itens via `OrqLateral.itensDoMenuDaSessao`).
+- `vistas.js` (`OrqVistas`): a grade e as paginas (Issues, Historico, Configuracoes) dividem o
+  `#conteudo`. **Trocar de vista so esconde a grade**: o `ajustar()` do painel ja pulava tamanho 0, e
+  e isso que impede o PTY de ir para 1 coluna (`teste:vistas` prova cols/rows intactos e a saida
+  preservada). Focar um painel volta para a grade. Fora da grade a `#barra` some.
+- `inbox.js` virou a pagina de Issues (mesmos ids, o `teste:inbox-ui` passou sem mudar).
+- `pag-config.js`: Configuracoes em tela cheia. **Nenhuma regra nova**: cada controle chama a funcao
+  que ja existia. `externo` e `origens` ganharam UI pela primeira vez.
+- `inspetor.js` + `git:*`/`branch:*` novos no main + `github.js` com escrita (`criarPr`,
+  `detalhesPr` com checks POR NOME, `mesclar`, `logDoCheck`). Escrita sem token vira
+  `acesso:false` e a tela cai para o navegador; o token nunca aparece em retorno nem erro.
+- `transcritos.js`: o Historico de sessoes le os `*.jsonl` do CLI **so pela cabeca (64 KB) e cauda
+  (256 KB)** -- sao ~2,7 GB nesta maquina, o maior com ~71 MB. Cache por caminho + mtime + tamanho.
+  O **nome do arquivo e o id da sessao**; retomar e `claude --resume <id>` na `cwd` da conversa, e
+  "em sessao nova" acrescenta `--fork-session` (os dois conferidos no `--help`).
+- A lateral (`lateral.js` + `projetos.js`): `projetos.js` cria um `ol.projeto-sessoes[data-proj]` por
+  projeto (mais "Outras pastas"), e o `lateral.js` distribui as linhas neles. `projetoDe()` passou a
+  devolver `id`. Ctrl+B recolhe para um **trilho de 56px** (nao mais `display: none`); `lateral`
+  aceita `'compacta'`.
+
+**Ainda nao provado contra o mundo real** (so com `fetch` falso e `claude` falso): criar PR e mesclar
+no GitHub, e o "Gerar". Rodar uma vez num repositorio de teste antes de confiar.
+
+**Ficou de fora, de proposito:** a confirmacao de arquivar UMA worktree continua no dialogo nativo
+(ele ja lista os portoes e o que vai embora). E a pagina de Issues so le as issues atribuidas a voce:
+"abertas do time", labels e responsavel dependem de mudar a API do Flow (pedido registrado).
 
 ## Proximos passos: Fase 10
 
@@ -107,6 +172,11 @@ npm run teste:uso-real    # o spike: fala com a API de uso de verdade (nao conso
 npm run teste:layouts     # Node puro: gravar, substituir e normalizar layouts
 npm run teste:ajuda       # a ajuda no app, e se os numeros dela batem com o codigo
 npm run teste:ligacoes    # mecanica das ligacoes, sem invocar o Claude
+npm run teste:vistas      # grade <-> paginas sem mexer no tamanho do PTY (redesign R4)
+npm run teste:config-ui   # a pagina de Configuracoes (R6)
+npm run teste:git-painel  # Node puro: commit pelo app, PR/merge com fetch falso, Gerar com claude falso (R7)
+npm run teste:inspetor-ui # o painel Git pela tela, num repositorio descartavel (R7)
+npm run teste:transcritos # Node puro: o leitor das conversas do Claude Code (R8)
 npm run teste:ligacoes-reais # com Claude de verdade: ~3min e consome tokens
 npm run teste:aprovacao    # formas do pedido e o farejador, sem invocar o Claude
 npm run teste:aprovacao-reais # aprovar um pedido real: ~2min e consome tokens

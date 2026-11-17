@@ -2,23 +2,22 @@
 
 # Orquestrador de CLIs
 
-**Várias sessões do Claude Code ao mesmo tempo, numa grade, ordenadas por quem está te esperando.**
+**Todas as suas sessões do Claude Code numa tela só, e a que espera você sempre em destaque.**
 
 <br clear="left">
 
-![Quatro sessões na grade: uma pedindo permissão, uma trabalhando, uma pronta para revisar e um terminal](recursos/tela.png)
+![Sessões dentro de cada projeto na lateral, a grade de terminais e o painel Git à direita](recursos/tela.png)
 
-## O que ele resolve
+Você abre cinco sessões, vai fazer outra coisa, e uma delas fica dez minutos parada pedindo permissão
+sem ninguém ver. O Orquestrador resolve isso: cada sessão num painel, cada uma no próprio worktree, e
+a que precisa de você acende.
 
-Três coisas que nenhuma ferramenta entrega juntas:
+## O que ele faz
 
-- **Ver todos os terminais ao mesmo tempo**, numa grade — não uma sessão por vez com lista lateral.
-- **Saber na hora qual sessão parou te esperando**, e há quanto tempo. A bolinha fica amarela sozinha,
-  em menos de 100ms, mesmo com o painel fora da tela.
-- **Misturar projetos diferentes no mesmo painel**, ordenados por urgência e não por repositório.
-
-Cada sessão roda no seu próprio worktree, com sua própria faixa de portas. Duas features do mesmo
-projeto não brigam pelos arquivos nem pela porta 3000.
+| | | |
+|---|---|---|
+| **● Atenção primeiro**<br>A sessão que espera você fica âmbar em segundos, na lateral e no painel. Aprove o pedido sem entrar no terminal. | **⎇ Um worktree por sessão**<br>Cada feature isolada, com faixa de portas própria. Duas sessões nunca brigam pela porta 3000. | **↗ Do commit ao PR**<br>Commit, push, pull request, checks e merge no painel Git, sem sair do app. |
+| **◎ Issues do Pronix Flow**<br>Abra uma sessão a partir da issue, já no branch certo e com a descrição na caixa do Claude. | **✎ Revisão e Resumo**<br>Um clique pede a revisão final; outro manda a devolutiva para quem pediu a issue. | **↻ Sobrevive ao reinício**<br>Painéis, ligações e as últimas 500 linhas de cada terminal voltam quando você reabre. |
 
 ---
 
@@ -72,7 +71,7 @@ código-fonte.
 
 ### Ligue os hooks na primeira vez
 
-No rodapé da barra lateral há o interruptor **Hooks**. Ligá-lo registra no seu
+No rodapé da barra lateral (e em **Configurações → Integrações**) há o interruptor **Hooks**. Ligá-lo registra no seu
 `~/.claude/settings.json` os avisos que fazem as bolinhas mudarem sozinhas.
 
 O app pergunta antes, faz backup do arquivo e preserva o que já estiver lá. Sem os hooks o app
@@ -82,50 +81,66 @@ funciona, mas os status ficam parados — e é justamente o status que faz a gra
 
 ## Usando
 
-**Cadastre um projeto.** No `+` da seção PROJETOS, aponte a pasta do repositório e escolha a faixa de
-portas dele. Fica salvo, e vale também para os worktrees desse projeto.
+**Cadastre um projeto.** No ícone de pasta da seção PROJETOS, aponte a pasta do repositório e escolha
+a faixa de portas dele. Fica salvo, e vale também para os worktrees desse projeto.
 
-**Ache tudo com `Ctrl+K`.** A paleta de comandos pula para qualquer sessão, abre uma nova em qualquer
-projeto, troca o tema e abre a ajuda — sem procurar na tela. A busca ignora acento.
+**Abra uma sessão.** O `+` ao lado do projeto (ou um clique nele) pergunta como abrir: **sessão nova**
+numa worktree — digite o nome e a dica embaixo mostra o worktree e o branch reais —, **retomar uma
+conversa** ou **só o terminal**, sem Claude.
 
-**Abra uma sessão.** Digite o nome no campo de cima e clique no projeto. A dica ao lado mostra
-exatamente o que vai ser criado — o worktree e o branch — antes de você clicar. Sem nome, abre
-`claude` direto na pasta do projeto, sem worktree.
+**Veja tudo pela lateral.** Cada projeto lista as próprias sessões, com o branch embaixo do nome. A que
+espera você acende em âmbar e diz há quanto tempo; PR, CI e "pronto para revisar" aparecem num selo na
+linha. O `⋯` de cada sessão liga a outro repositório, copia o branch ou fecha o painel. **Ctrl+B**
+recolhe a lateral para um trilho estreito.
 
-**Retome o trabalho de ontem.** A seta ao lado do projeto lista os worktrees existentes. Um clique
-abre o painel dentro dele continuando a última conversa. A etiqueta diz o que impede arquivar cada
-um — `aberto agora`, `2 alterados`, `1 commit` — e o `×` arquiva os que estão limpos, removendo pasta
-e branch.
+**Atenda a fila.** `Ctrl+Enter` pula direto para a sessão que está esperando há mais tempo. Quando o
+app não está em primeiro plano, você recebe notificação do sistema.
 
-**Ligue sessões de repositórios diferentes.** Uma feature que mexe no backend e no frontend ao mesmo
-tempo: o botão `ligar` no cabeçalho do painel dá a cada sessão acesso ao código da outra. Elas param
-de reexplicar o contrato da API uma para a outra.
+**Aprove sem entrar no terminal.** Quando o Claude pede permissão, a pergunta aparece no rodapé do
+painel com **Aprovar** e **Ver**. Aprovar responde "1. Yes" ao pedido que está na tela — nunca "não
+perguntar mais", e nunca às cegas: se o app não achar o pedido no terminal, ele não escreve nada.
 
-**Ou implemente nos dois de uma vez.** **Implementação dupla** vai um passo além de ligar: escolha
-dois projetos e dê a **cada um** o nome do branch dele — o backend vai para `worktree-api-pix` e o
-frontend para `worktree-issue-42`, uma issue por repositório — e o app cria as duas worktrees e abre
-**uma** sessão que enxerga as duas. O Claude lê e escreve nos dois lados na mesma conversa — sem
-handoff, sem abrir um terminal fora do app. Worktree que já existe é reaproveitada, e o diálogo
-mostra o nome real do branch antes de você confirmar.
+**Feche o trabalho pelo painel Git.** `Ctrl+Shift+G`, o botão da barra de título ou o chip de branch
+do painel abre, à direita, o git da sessão focada:
+
+- **Alterações:** marque os arquivos, escreva a mensagem (ou **Gerar**, que pede ao Claude Code em
+  segundo plano) e faça o commit — só os marcados entram.
+- **Git e novo PR:** os commits à frente da base, o push e o formulário do pull request.
+- **PR e CI:** os checks por nome, o log de quem falhou, **Pedir correção à sessão** e o merge.
+
+Push e merge sempre perguntam antes, e nunca usam `--force`.
+
+**Revisão e Resumo.** No cabeçalho de cada painel: **Revisão** cola na caixa do Claude o pedido de
+revisar, commitar e subir (o texto é editável em Configurações); **Resumo** pede a devolutiva ao
+solicitante e a manda como rascunho para a issue no Flow.
+
+**Issues, Histórico e Configurações são páginas.** **Issues** (`Ctrl+Shift+I`) lista as issues do Flow
+em tabela e abre a sessão na worktree certa. **Histórico** (`Ctrl+Shift+H`) mostra as conversas do
+Claude Code de cada projeto, com o último resumo do agente e **retomar** com um clique, e as métricas
+de tempo por feature. **Configurações** (`Ctrl+,`) reúne tudo que antes ficava espalhado pela paleta.
+
+**Ache tudo com `Ctrl+K`.** A paleta pula para qualquer sessão, abre uma nova em qualquer projeto e
+alcança todo comando, agrupado por assunto. A busca ignora acento.
+
+**Retome o trabalho de ontem.** As worktrees sem sessão aberta aparecem dentro do projeto (a seta ao
+lado dele), com **retomar**, o que impede arquivar cada uma e a **limpeza** em lote das que já foram
+integradas.
+
+**Ligue sessões de repositórios diferentes.** Uma feature que mexe no backend e no frontend: **Ligar a
+outro repositório…** (no `⋯`) dá a cada sessão acesso ao código da outra. Ou use **Implementação
+dupla**: escolha dois projetos, um branch para cada, e o app cria as duas worktrees e abre **uma**
+sessão que enxerga as duas.
 
 **Copie do terminal.** `Ctrl+C` copia quando há texto selecionado e continua interrompendo quando não
 há; `Ctrl+Shift+C` copia sempre, `Ctrl+Shift+V` cola, e o botão direito abre Copiar / Colar /
 Selecionar tudo.
 
-**Atenda a fila.** `Ctrl+Enter` pula direto para a sessão que está esperando há mais tempo e põe o
-cursor lá. Quando o app não está em primeiro plano, você recebe notificação do sistema.
-
-**Aprove sem entrar no terminal.** Quando o Claude pede permissão, a pergunta aparece no rodapé do
-painel com os botões **Aprovar** e **Ver**. Aprovar responde "1. Yes" ao pedido que está na tela —
-nunca "não perguntar mais", e nunca às cegas: se o app não achar o pedido no terminal, ele não
-escreve nada e leva você até lá.
-
-**Feche sem medo.** O arranjo é salvo. Ao reabrir, os painéis voltam adormecidos com um botão de
-retomar — e um "Retomar todas" na lateral.
+**Feche sem medo.** O arranjo é salvo. Ao reabrir, os painéis voltam adormecidos, com a saída anterior
+na tela e um botão de retomar.
 
 ### Ajuda dentro do app
 
-**F1** (ou **⌘+/** no Mac), ou o botão **Como usar** no rodapé da lateral. É o manual completo — cada
+**F1** (ou **⌘+/** no Mac), ou o botão **?** no rodapé da lateral. É o manual completo — cada
 recurso, os atalhos, as portas, os hooks e uma seção de problemas comuns com sintoma e causa.
 
 Os números que ela cita (portas, limites, caminho da pasta de dados) são lidos do app em execução, não
@@ -196,6 +211,11 @@ npm run teste:portas        # dois servidores no ar ao mesmo tempo
 npm run teste:worktrees     # listar, recusar e arquivar
 npm run teste:ajuda         # a ajuda, e se os numeros dela batem com o codigo
 npm run teste:ligacoes      # mecanica das ligacoes
+npm run teste:vistas        # trocar entre grade e paginas sem mexer no terminal
+npm run teste:config-ui     # a pagina de Configuracoes
+npm run teste:git-painel    # commit, PR, merge e Gerar, em Node puro
+npm run teste:inspetor-ui   # o painel Git pela tela
+npm run teste:transcritos   # o leitor das conversas do Claude Code
 npm run teste:sac           # o pacote -sac abre e o terminal funciona
 npm run diagnostico         # por que o Windows bloqueou o instalador
 npm run perfil              # CPU e RAM por processo

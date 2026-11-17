@@ -75,7 +75,7 @@ const TODAS_SECOES = [
       passos([
         '<b>Instale os hooks</b> no botão "Hooks: instalar", no rodapé desta barra lateral. '
           + 'É o que faz as bolinhas mudarem sozinhas.',
-        '<b>Cadastre um projeto</b> no <b>+</b> da seção PROJETOS: escolha a pasta do repositório. '
+        '<b>Cadastre um projeto</b> no ícone de pasta da seção PROJETOS: escolha a pasta do repositório. '
           + 'Se você tem vários, <b>Várias…</b> aceita escolher tudo de uma vez, e cada um já sai '
           + 'com sua própria faixa de portas.',
         '<b>Clique no projeto</b>, dê um nome à sessão e confirme. '
@@ -149,13 +149,20 @@ const TODAS_SECOES = [
     id: 'lateral',
     titulo: 'A barra lateral e a fila de atenção',
     blocos: [
-      p('O bloco <b>ESPERANDO VOCÊ</b> aparece no topo da lateral assim que alguma sessão para te '
-        + 'esperando, com o tempo de cada uma. Ele some sozinho quando a última é atendida — fila '
-        + 'vazia não ocupa espaço.'),
+      p('Cada projeto lista as <b>próprias sessões</b>, com o branch embaixo do nome; o que não '
+        + 'pertence a projeto cadastrado vai para <b>Outras pastas</b>, e os workers ficam logo '
+        + 'abaixo da sessão que os criou. Não há bloco separado de espera: a <b>linha da sessão '
+        + 'que espera você acende em âmbar</b>, sobe para o topo do projeto e diz há quanto tempo — '
+        + 'a fila de atenção é essa.'),
       lista([
-        'A fila é sempre por <b>quem espera há mais tempo</b>, mesmo com a grade ordenada por projeto.',
+        'A fila é sempre por <b>quem espera há mais tempo</b>, e a grade segue a mesma urgência.',
         '<b>{mod}+Enter</b> pula direto para a mais antiga e já põe o cursor lá.',
-        'Clicar num item da fila (ou num card de SESSÕES) foca o painel correspondente.',
+        'Clicar numa sessão foca o painel dela. O <b>⋯</b> da linha liga a outro repositório, '
+          + 'copia o branch ou o caminho e fecha o painel.',
+        'PR, CI, "pronto para revisar" (terminou com commits fora da base) e workers aparecem '
+          + 'num <b>selo</b> na própria linha.',
+        '<b>{mod}+B</b> recolhe a lateral para um trilho estreito, com a navegação, a cor de cada '
+          + 'projeto e quem espera; em Configurações dá para deixá-la <b>compacta</b>, sem o branch.',
         'Quando o app não está em primeiro plano, uma <b>notificação do sistema</b> avisa, e a '
           + 'janela chama pela barra de tarefas ou pelo Dock, conforme o sistema — um toast '
           + 'pode ser descartado em silêncio, e esse piscar é o sinal que sobra.',
@@ -163,9 +170,9 @@ const TODAS_SECOES = [
           + '<b>{mod}+K</b> → avisos). A bolinha amarela, a fila e o <b>{mod}+Enter</b> continuam '
           + 'iguais: o que sai é a interrupção fora da janela.',
       ]),
-      p('A lista de SESSÕES segue a mesma ordem da grade, e o placar no alto mostra quantas sessões '
-        + 'estão vivas e quanto do processador o app está usando.'),
-      p('Clicar no placar abre o <b>histórico</b>. No topo fica a linha de base dos últimos '
+      p('O placar, no rodapé da lateral, mostra quantas sessões estão vivas e quanto do processador '
+        + 'o app está usando.'),
+      p('Clicar no placar abre as <b>métricas do histórico</b>. No topo fica a linha de base dos últimos '
         + '{diasMetricas} dias: quanto tempo as sessões ficaram <b>esperando você</b>, quanto você '
         + 'leva para <b>responder</b> (a mediana; fechar o painel com a sessão esperando não conta '
         + 'como resposta) e quantas features foram <b>integradas</b>, com o tempo do último '
@@ -278,22 +285,47 @@ const TODAS_SECOES = [
         + '<code>PR #12 · CI ✓</code> ou <code>PR #12 · CI ✗ 2</code>. Ele some no branch base e '
         + 'em painel de terminal.'),
       lista([
-        'Clicar no chip abre <b>Enviar (push)</b>, <b>Criar PR</b> (ou abrir o PR que já existe) e '
-          + '<b>Atualizar</b>. O push pergunta antes e nunca usa <code>--force</code>: se o remoto tem '
-          + 'algo que a branch não tem, ele é recusado.',
-        'Criar PR abre a página de comparação do GitHub no navegador, já com o formulário — sem '
-          + 'token nenhum. A branch precisa estar no remoto antes.',
+        'Clicar no chip abre o <b>painel Git</b> desta sessão, à direita (veja a seção seguinte).',
+        'O push pergunta antes e nunca usa <code>--force</code>: se o remoto tem algo que a '
+          + 'branch não tem, ele é recusado.',
         'PR e CI vêm do GitHub com o login que o git desta máquina já tem, lido na hora e '
           + 'descartado. Nada é guardado, e nenhuma janela de senha abre. Sem login, repositório '
           + 'público ainda responde; privado mostra só o que é local.',
         'O chip é atualizado quando a sessão termina, quando você volta para a janela e pelo '
           + '<b>Atualizar</b>. Não há consulta periódica.',
       ]),
-      p('Na lateral, <b>Pronto para revisar</b> junta as sessões que terminaram com commits na '
+      p('Na lateral, o <b>selo</b> da linha mostra as sessões que terminaram com commits na '
         + 'branch ainda não integrados. É o que procurar no fim do dia.'),
       aviso('CI vermelho não deixa a sessão amarela, e "pronto para revisar" não entra na fila de '
         + 'atenção nem no {mod}+Enter: o amarelo continua querendo dizer só uma coisa — tem '
         + 'pergunta te bloqueando.'),
+    ],
+  },
+  {
+    id: 'painel-git',
+    titulo: 'O painel Git: do commit ao PR mesclado',
+    blocos: [
+      p('<b>{mod}+Shift+G</b>, o botão ao lado das Configurações na barra de título ou o chip de '
+        + 'branch do painel abrem, à direita, o git da <b>sessão focada</b>. Ele nasce fechado e '
+        + 'lembra se você o deixou aberto.'),
+      lista([
+        '<b>Alterações</b>: os arquivos mudados, cada um com uma caixa de marcar. Escreva a '
+          + 'mensagem e faça o commit — só os marcados entram, e o app nunca usa '
+          + '<code>--amend</code>, <code>--no-verify</code> nem <code>-a</code>. Se um hook de '
+          + 'pre-commit recusar, o motivo aparece e nada fica no índice.',
+        '<b>Gerar</b> escreve a mensagem (ou o título e a descrição do PR) com o Claude Code em '
+          + 'segundo plano, a partir do diff. Custa alguns centavos de tokens por clique e não '
+          + 'mexe na sessão do painel.',
+        '<b>Git e novo PR</b>: os commits à frente da base, o push e o formulário do pull request '
+          + '(título, descrição, base e rascunho). "Push e criar PR" sobe a branch antes, com a '
+          + 'pergunta de sempre. Sem permissão de escrita no GitHub, abre a página do GitHub.',
+        '<b>PR e CI</b>: os checks por nome, o fim do log de quem falhou, as revisões e os '
+          + 'conflitos. <b>Pedir correção à sessão</b> cola os erros na caixa do Claude, sem Enter. '
+          + '<b>Mesclar</b> pergunta antes, recusa com checks falhando e confere que ninguém subiu '
+          + 'commit novo desde que a tela foi lida.',
+      ]),
+      aviso('A credencial do GitHub é a do git desta máquina, lida na hora e descartada. Os padrões '
+        + 'do PR (branch base e rascunho) ficam em Configurações → Git e projetos.'),
     ],
   },
   {
@@ -336,7 +368,7 @@ const TODAS_SECOES = [
     titulo: 'Ligar sessões de repositórios diferentes',
     blocos: [
       p('Para uma feature que mexe no backend e no frontend ao mesmo tempo, em repositórios separados: '
-        + 'o botão <b>ligar</b> no cabeçalho do painel dá a esta sessão acesso ao código da outra. '
+        + '<b>Ligar a outro repositório…</b>, no <b>⋯</b> do painel ou da linha na lateral, dá a esta sessão acesso ao código da outra. '
         + 'Elas param de reexplicar o contrato da API uma para a outra.'),
       lista([
         'Ligar a <b>outro painel aberto</b> é <b>mútuo</b>: cada lado enxerga o repositório do outro.',
@@ -423,8 +455,8 @@ const TODAS_SECOES = [
     id: 'inbox',
     titulo: 'Minhas issues: a próxima tarefa sem ir ao navegador',
     blocos: [
-      p('O botão <b>Minhas issues</b>, no rodapé da lateral (ou <b>{mod}+K</b> → minhas issues), '
-        + 'lista aqui as issues do Pronix Flow <b>abertas e atribuídas a você</b> — as em '
+      p('A página <b>Issues</b>, na navegação da lateral (ou <b>{mod}+Shift+I</b>), '
+        + 'lista em tabela as issues do Pronix Flow <b>abertas e atribuídas a você</b> — as em '
         + 'progresso primeiro, depois as a fazer e o backlog — e abre a sessão de qualquer uma '
         + 'com um clique. É o mesmo resultado do <b>Abrir no Claude</b>, sem trocar de janela.'),
       passos([
@@ -504,7 +536,7 @@ const TODAS_SECOES = [
     id: 'notas',
     titulo: 'Bloco de notas: texto que não se perde',
     blocos: [
-      p('O botão <b>Bloco de notas</b>, no rodapé da lateral, <b>{mod}+Shift+N</b> (que também fecha, '
+      p('<b>Bloco de notas</b>, na navegação da lateral, <b>{mod}+Shift+N</b> (que também fecha, '
         + 'com o foco no bloco) ou <b>{mod}+K</b> → bloco de notas '
         + 'abre na grade um painel de texto livre, com abas, para rascunho de prompt, lista de '
         + 'tarefas ou um log colado. <b>O texto é guardado sozinho</b> enquanto você escreve, e volta '
@@ -687,6 +719,10 @@ const TODAS_SECOES = [
         ['{mod}+K', 'Abre a paleta de comandos'],
         ['{mod}+B', 'Recolhe ou mostra a barra lateral'],
         ['{mod}+Shift+N', 'Abre o bloco de notas; com o foco nele, fecha'],
+        ['{mod}+Shift+G', 'Abre ou fecha o painel Git da sessão focada'],
+        ['{mod}+,', 'Configurações'],
+        ['{mod}+Shift+I', 'A página de Issues'],
+        ['{mod}+Shift+H', 'A página de Histórico'],
         ['{alt}+setas', 'Pula para o terminal ao lado, acima ou abaixo'],
         ['{mod}+C', 'Copia a seleção do terminal; <b>sem</b> seleção, interrompe como sempre'],
         ['{mod}+Shift+C', 'Copia a seleção, sempre'],
@@ -737,7 +773,7 @@ const TODAS_SECOES = [
     titulo: 'Quando algo não funciona',
     blocos: [
       tabela(['Sintoma', 'Causa provável'], [
-        ['As bolinhas não mudam de cor', 'Os hooks não estão instalados. Use o botão no rodapé da lateral.'],
+        ['As bolinhas não mudam de cor', 'Os hooks não estão instalados. Use o botão no rodapé da lateral, ou Configurações → Integrações.'],
         ['O dev server subiu na porta errada', 'O projeto não lê a variável <code>PORT</code>. Veja a seção de portas.'],
         ['A aplicação não sobe dentro do worktree', 'Falta o <code>.worktreeinclude</code> com o <code>.env</code>.'],
         ['Não consigo arquivar um worktree', 'A etiqueta dele diz o motivo: sessão viva, alteração sem commit ou commit fora da base.'],
