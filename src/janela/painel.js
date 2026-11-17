@@ -999,7 +999,11 @@ class Painel {
   }
 
   colarRevisao() {
-    this.colarTexto(this.textoRevisao(), 'a revisão');
+    // Redesign R9: o retorno visual de "colou, e o Enter e seu" -- antes nada
+    // dizia que o texto estava parado na caixa esperando.
+    if (this.colarTexto(this.textoRevisao(), 'a revisão')) {
+      window.OrqToast?.mostrar(`Revisão colada em ${this.feature || 'sessão'} · o Enter é seu`);
+    }
   }
 
   // `term.paste`, como o Ctrl+Shift+V: bracketed paste faz a TUI receber TEXTO,

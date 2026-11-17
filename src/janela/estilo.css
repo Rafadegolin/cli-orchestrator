@@ -3294,6 +3294,66 @@ button.primario:hover {
 .hist-barra-info { background: var(--info); }
 .hist-barra-ok { background: var(--acc); }
 
+/* ================================================== dialogos (redesign R9) */
+
+/* Paleta: cabecalho de grupo entre os comandos. */
+.paleta-grupo {
+  padding: 10px 12px 4px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--fg3);
+  list-style: none;
+}
+.paleta-grupo:first-child { padding-top: 4px; }
+
+/* Abrir sessao: tres opcoes em cartoes. */
+.escolha-caixa { width: 480px; }
+.escolha-opcao {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line2);
+  background: var(--bg2);
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+}
+button.escolha-opcao:hover { border-color: var(--fg3); background: var(--bg3); }
+.escolha-opcao-nova {
+  border-color: color-mix(in srgb, var(--acc) 55%, transparent);
+  background: var(--accd);
+  gap: 6px;
+}
+.escolha-opcao-nova .scripts-campo { width: 100%; box-sizing: border-box; }
+.escolha-opcao-nova #escolha-nova { align-self: flex-end; margin-top: 2px; }
+.escolha-opcao-nova .modal-explica { margin: 0; }
+.escolha-opcao-cab { display: flex; flex-direction: column; gap: 2px; }
+.escolha-opcao-titulo { font-size: 13.5px; font-weight: 600; }
+.escolha-opcao-desc { font-size: 12px; color: var(--fg2); line-height: 1.4; }
+
+/* Resumo: as issues sugeridas viram linhas de lista, como no design. */
+#resumo .resumo-lista {
+  border: 1px solid var(--line2);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+#resumo .resumo-lista .inbox-linha {
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  margin: 0;
+  padding: 10px 12px;
+}
+#resumo .resumo-lista .inbox-linha:last-child { border-bottom: 0; }
+#resumo .resumo-lista .inbox-linha:hover { background: var(--bg2); }
+
 /* ================================================================ vazio */
 
 #vazio {

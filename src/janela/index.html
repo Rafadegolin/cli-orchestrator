@@ -510,21 +510,33 @@
   </div>
 
   <div id="escolha-sessao" class="overlay" hidden>
-    <div class="modal-caixa">
+    <div class="modal-caixa escolha-caixa">
       <h2 id="escolha-titulo">Abrir sessão</h2>
       <p class="modal-explica" id="escolha-explica"></p>
-      <!-- O nome da sessao morava num campo da barra ate o redesign (R1).
-           Aqui ele fica ao lado da escolha que o usa, com a dica do branch
+      <!-- Redesign R9: tres opcoes em cartoes. O nome da sessao (que morava na
+           barra ate o R1) fica DENTRO da opcao que o usa, com a dica do branch
            real embaixo. Vazio = roda na pasta do projeto, sem worktree. -->
-      <label class="modal-rotulo" for="escolha-nome">Nome da sessão nova</label>
-      <input id="escolha-nome" class="scripts-campo" type="text" placeholder="ex.: auth-refresh" spellcheck="false" />
-      <p class="modal-explica mono" id="escolha-dica"></p>
+      <div class="escolha-opcao escolha-opcao-nova">
+        <div class="escolha-opcao-cab">
+          <span class="escolha-opcao-titulo">Sessão nova</span>
+          <span class="escolha-opcao-desc">Numa worktree isolada, com faixa de portas própria.</span>
+        </div>
+        <label class="modal-rotulo" for="escolha-nome">Nome da sessão</label>
+        <input id="escolha-nome" class="scripts-campo" type="text" placeholder="ex.: auth-refresh" spellcheck="false" />
+        <p class="modal-explica mono" id="escolha-dica"></p>
+        <button id="escolha-nova" class="primario">Abrir sessão nova</button>
+      </div>
+      <button id="escolha-retomar" class="escolha-opcao">
+        <span class="escolha-opcao-titulo">Retomar uma conversa</span>
+        <span class="escolha-opcao-desc">Abre o seletor de conversas do próprio Claude.</span>
+      </button>
+      <!-- Abre um shell na pasta do projeto e NAO sobe o Claude: para rodar
+           o dev server, git, o que for, sem gastar token. -->
+      <button id="escolha-terminal" class="escolha-opcao" title="Abre um terminal na pasta do projeto, sem iniciar o Claude">
+        <span class="escolha-opcao-titulo">Só o terminal</span>
+        <span class="escolha-opcao-desc">Shell na pasta do projeto, sem Claude e sem gastar token.</span>
+      </button>
       <div class="modal-acoes">
-        <!-- Abre um shell na pasta do projeto e NAO sobe o Claude: para rodar
-             o dev server, git, o que for, sem gastar token. -->
-        <button id="escolha-terminal" title="Abre um terminal na pasta do projeto, sem iniciar o Claude">Abrir terminal</button>
-        <button id="escolha-retomar">Retomar uma anterior</button>
-        <button id="escolha-nova" class="primario">Sessão nova</button>
         <button id="escolha-cancelar">Cancelar</button>
       </div>
     </div>

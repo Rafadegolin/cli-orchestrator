@@ -369,9 +369,28 @@
     return lista;
   }
 
+  // Redesign R9: os comandos aparecem em GRUPOS, com um cabecalho por grupo.
+  // A ordem dentro de cada grupo e a de sempre; a dos grupos, esta.
+  const GRUPOS = [
+    ['Sessões', ['ir', 'todas']],
+    ['Abrir', ['nova', 'projeto', 'terminal']],
+    ['Issues', ['flow', 'issue']],
+    ['Git e worktrees', ['git', 'worktree']],
+    ['Aparência e layout', ['tema', 'layout']],
+    ['Aplicativo', ['app']],
+    ['Ajuda', ['ajuda']],
+  ];
+  function grupoDe(tag) {
+    const i = GRUPOS.findIndex(([, tags]) => tags.includes(tag));
+    return i < 0 ? GRUPOS.length : i;
+  }
+
   function desenhar() {
     const busca = achatar(elBusca.value);
-    itensVisiveis = comandos().filter((c) => !busca || achatar(`${c.tag} ${c.rotulo}`).includes(busca));
+    itensVisiveis = comandos().filter((c) => !busca || achatar(`${c.tag} ${c.rotulo}`).includes(busca))
+      .map((c, i) => ({ c, i, g: grupoDe(c.tag) }))
+      .sort((a, b) => (a.g - b.g) || (a.i - b.i))
+      .map((x) => x.c);
     if (selecionado >= itensVisiveis.length) selecionado = Math.max(0, itensVisiveis.length - 1);
 
     if (!itensVisiveis.length) {
@@ -382,7 +401,18 @@
       return;
     }
 
-    elLista.replaceChildren(...itensVisiveis.map((c, i) => {
+    let grupoAtual = -1;
+    elLista.replaceChildren(...itensVisiveis.flatMap((c, i) => {
+      const saida = [];
+      const g = grupoDe(c.tag);
+      if (g !== grupoAtual) {
+        grupoAtual = g;
+        const cab = document.createElement('li');
+        cab.className = 'paleta-grupo';
+        cab.setAttribute('aria-hidden', 'true');
+        cab.textContent = GRUPOS[g] ? GRUPOS[g][0] : 'Outros';
+        saida.push(cab);
+      }
       const li = document.createElement('li');
       li.className = 'paleta-item' + (i === selecionado ? ' selecionado' : '');
       li.dataset.indice = String(i);
@@ -402,7 +432,8 @@
 
       li.append(tag, rotulo, dica);
       li.addEventListener('click', () => executar(i));
-      return li;
+      saida.push(li);
+      return saida;
     }));
   }
 
