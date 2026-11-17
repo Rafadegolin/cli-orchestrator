@@ -192,6 +192,13 @@
     });
 
     lista.push({
+      tag: 'app',
+      rotulo: 'Configurações',
+      dica: `${window.OrqShell.MOD || 'Ctrl'}+,`,
+      correr: () => window.OrqConfig?.abrir(),
+    });
+
+    lista.push({
       tag: 'tema',
       rotulo: 'Cor de destaque…',
       dica: '',

@@ -27,6 +27,11 @@ const SCROLLBACK = 3000;
 
 const MS_DEBOUNCE_RESIZE = 100;
 
+// O pedido que o botao Revisao cola (sem Enter). `{branch}` vira singular ou
+// plural conforme a sessao seja dupla. Editavel em Configuracoes (R6).
+const TEXTO_REVISAO_PADRAO = 'Como foi uma implementação grande e sensível revise tudo que '
+  + 'foi feito para evitar erros e gaps, depois pode commitar e dar push {branch}';
+
 // Painel fora da area visivel nao desenha: os bytes ficam num buffer ate ele
 // voltar. 200 KB sao muito mais do que as 3000 linhas de scrollback conseguem
 // mostrar, entao o teto so corta o que seria descartado de qualquer jeito.
@@ -926,11 +931,16 @@ class Painel {
   // Sessao com ligacao e a implementacao dupla (`dupla.js` abre o painel com
   // `ligacoes: [outro]`), e entao sao DUAS branches. Sem campo novo de
   // proposito: `ligacoes` ja persiste e ja volta na dupla restaurada.
+  //
+  // Redesign R6: o texto e editavel em Configuracoes (`textoRevisao` no
+  // ui.json). `{branch}` vira "na respectiva branch" ou "nas respectivas
+  // branchs"; texto proprio sem o marcador fica como esta.
   textoRevisao() {
     const dupla = (this.ligacoes || []).length > 0;
-    return 'Como foi uma implementação grande e sensível revise tudo que foi feito para evitar '
-      + 'erros e gaps, depois pode commitar e dar push '
-      + (dupla ? 'nas respectivas branchs' : 'na respectiva branch');
+    const branch = dupla ? 'nas respectivas branchs' : 'na respectiva branch';
+    const proprio = window.OrqCasca?.ui?.().textoRevisao;
+    const molde = proprio || TEXTO_REVISAO_PADRAO;
+    return molde.split('{branch}').join(branch);
   }
 
   // Painel de terminal nao tem Claude para receber o pedido.
@@ -1271,4 +1281,5 @@ function definirFonte(familia, tamanho) {
 window.OrqPainel = {
   Painel, painelPorId, nomeCurto, achatar: Painel.achatar, definirCursor, definirFonte,
   fonteTerminal: () => ({ ...FONTE_TERMINAL }),
+  TEXTO_REVISAO_PADRAO,
 };

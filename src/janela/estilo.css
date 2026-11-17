@@ -2645,6 +2645,274 @@ button.primario:hover {
 }
 .inbox-conectar-titulo { margin: 0 0 6px 0; font-size: 16px; font-weight: 600; }
 
+/* ================================================ pagina de configuracoes */
+
+/* Redesign R6: tela cheia (cobre lateral e barra), navegacao em grupos a
+   esquerda e o corpo rolando a direita, no molde do Orca. */
+#configuracoes {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+#configuracoes[hidden] { display: none; }
+#app[data-vista="config"] #conteudo { overflow: hidden; }
+#app[data-vista="config"] #paginas { height: 100%; }
+
+.cfg-nav {
+  flex: 0 0 272px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 10px;
+  background: var(--bg1);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+
+.cfg-voltar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg2);
+  font-size: 13px;
+  text-align: left;
+}
+.cfg-voltar:hover { background: var(--bg2); color: var(--fg); }
+
+.cfg-busca {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 8px 0 10px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line2);
+  background: var(--bg0);
+  color: var(--fg3);
+}
+.cfg-busca:focus-within { border-color: var(--acc); }
+.cfg-busca input {
+  flex: 1 1 0;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.cfg-nav-lista { display: flex; flex-direction: column; gap: 1px; margin-top: 6px; }
+.cfg-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg2);
+  font-size: 13px;
+  text-align: left;
+}
+.cfg-nav-item:hover { background: var(--bg2); color: var(--fg); }
+
+.cfg-corpo {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 36px 32px 60px 32px;
+}
+.cfg-grupo { max-width: 860px; margin: 0 auto 40px auto; scroll-margin-top: 20px; }
+.cfg-grupo-titulo { margin: 0 0 4px 0; font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+
+.cfg-secao { margin-top: 20px; }
+.cfg-secao-titulo { margin: 0 0 10px 0; font-size: 15px; font-weight: 600; }
+.cfg-cartao {
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--bg1);
+  padding: 4px 22px;
+}
+
+.cfg-linha {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 15px 0;
+  border-bottom: 1px solid var(--line);
+}
+.cfg-cartao > :last-child,
+.cfg-cartao > .cfg-linha:last-child { border-bottom: 0; }
+.cfg-linha-bloco { flex-wrap: wrap; }
+.cfg-linha-bloco > .cfg-textos { flex-basis: 100%; }
+.cfg-textos { flex: 1 1 0; min-width: 0; }
+.cfg-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.cfg-descricao { margin-top: 3px; font-size: 12px; line-height: 1.45; color: var(--fg2); }
+.cfg-controle { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
+.cfg-linha-acoes { display: flex; gap: 8px; margin-top: 8px; }
+
+.cfg-botao {
+  height: 30px;
+  padding: 0 12px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line2);
+  background: var(--bg2);
+  color: var(--fg);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.cfg-botao:hover { border-color: var(--fg3); }
+.cfg-botao-fraco { background: transparent; color: var(--fg2); border-color: var(--line); }
+
+.cfg-switch {
+  width: 36px;
+  height: 21px;
+  flex: 0 0 36px;
+  padding: 2px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--bg4);
+  display: flex;
+  justify-content: flex-start;
+}
+.cfg-switch-bolota {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--fg2);
+}
+.cfg-switch.ligado { background: var(--acc); justify-content: flex-end; }
+.cfg-switch.ligado .cfg-switch-bolota { background: var(--acc-texto); }
+
+.cfg-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line2);
+  background: var(--bg2);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--fg2);
+}
+.cfg-chip-ok { color: var(--acc); background: var(--accd); border-color: color-mix(in srgb, var(--acc) 34%, transparent); }
+.cfg-chip-aviso { color: var(--warn); background: var(--warnd); border-color: var(--warn-linha); }
+
+.cfg-cores { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cfg-cor {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+}
+.cfg-cor.ativa { box-shadow: 0 0 0 2px var(--bg1), 0 0 0 4px var(--fg2); }
+
+.cfg-passo { display: inline-flex; border: 1px solid var(--line2); border-radius: var(--r-md); overflow: hidden; }
+.cfg-passo-b { width: 32px; height: 30px; border: 0; background: transparent; color: var(--fg2); font-size: 15px; }
+.cfg-passo-b:hover { background: var(--bg3); color: var(--fg); }
+.cfg-passo-v {
+  width: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid var(--line2);
+  border-right: 1px solid var(--line2);
+  font-size: 12px;
+}
+
+.cfg-campo {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line2);
+  background: var(--bg0);
+  color: var(--fg);
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+.cfg-campo:focus { border-color: var(--acc); }
+.cfg-campo-curto { width: 200px; }
+.cfg-area { flex-basis: 100%; height: auto; padding: 8px 10px; line-height: 1.5; resize: vertical; }
+
+.cfg-lista {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line2);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  margin: 4px 0 14px 0;
+  flex-basis: 100%;
+}
+.cfg-lista-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.cfg-lista-item:last-child { border-bottom: 0; }
+.cfg-lista-nome { flex: 1 1 0; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cfg-lista-meta { font-size: 11.5px; color: var(--fg3); }
+.cfg-lista-novo .cfg-campo { flex: 1 1 0; min-width: 0; }
+.cfg-erro { padding: 6px 12px 8px; font-size: 12px; color: var(--danger); }
+
+.cfg-cor-projeto { width: 9px; height: 9px; border-radius: 50%; background: var(--fg3); }
+
+.cfg-kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--line2);
+  border-bottom-width: 2px;
+  border-radius: var(--r-xs);
+  font-size: 10.5px;
+  color: var(--fg3);
+  background: var(--bg1);
+  white-space: nowrap;
+}
+.cfg-teclas {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  align-items: center;
+  padding: 2px 0 16px 0;
+  font-size: 12.5px;
+  color: var(--fg2);
+}
+.cfg-teclas .cfg-kbd { justify-self: start; }
+
+#btn-config {
+  width: 28px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg2);
+}
+#btn-config:hover { background: var(--bg3); color: var(--fg); }
+
 /* ================================================================ vazio */
 
 #vazio {
