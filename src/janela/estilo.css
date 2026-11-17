@@ -449,27 +449,99 @@ button:focus-visible, input:focus-visible {
    Animar a largura reflui a grade inteira a cada quadro, e cada reflow arrasta
    junto o `fit()` de todo terminal a vista -- caro pelo que entrega. Instantaneo
    tambem e mais honesto: a lateral esta la ou nao esta. */
-#app[data-lateral="fechada"] #lateral { display: none; }
+/* Navegacao no topo da lateral (redesign R2): Sessoes, Issues, Historico e
+   Bloco de notas, com icone de linha. */
+#lateral-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 8px 6px 8px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--fg2);
+  font-size: 13px;
+  text-align: left;
+}
+.nav-item:hover { background: var(--bg2); color: var(--fg); }
+.nav-item.ativo { background: var(--bg3); color: var(--fg); font-weight: 500; }
+.nav-rotulo { flex: 1 1 0; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-qtd { font-size: 10.5px; color: var(--fg3); }
+.nav-qtd:empty { display: none; }
+
+/* Lateral COMPACTA: uma linha por sessao, sem o branch embaixo. */
+#app[data-lateral="compacta"] .sessao-sub { display: none; }
+#app[data-lateral="compacta"] .sessao { padding-top: 4px; padding-bottom: 4px; }
+#app[data-lateral="compacta"] .sessao .bolinha { margin-top: 5px; }
+
+/* Lateral RECOLHIDA (Ctrl+B): um trilho de 56px, e nao mais `display: none`.
+   Continua instantaneo (sem animar largura, que reflui a grade a cada quadro),
+   e o que importa fica a um clique: a navegacao, a cor de cada projeto e as
+   sessoes que esperam voce, como bolinha. */
+#app[data-lateral="fechada"] #lateral { flex-basis: 56px; }
+#app[data-lateral="fechada"] .nav-rotulo,
+#app[data-lateral="fechada"] .nav-qtd,
+#app[data-lateral="fechada"] .secao-topo,
+#app[data-lateral="fechada"] .projeto-nome,
+#app[data-lateral="fechada"] .projeto-atras,
+#app[data-lateral="fechada"] .projeto-marca,
+#app[data-lateral="fechada"] .projeto-qtd,
+#app[data-lateral="fechada"] .projeto-expandir,
+#app[data-lateral="fechada"] .projeto-nova,
+#app[data-lateral="fechada"] .projeto-remover,
+#app[data-lateral="fechada"] .projeto-detalhe,
+#app[data-lateral="fechada"] .projeto-vazio,
+#app[data-lateral="fechada"] .sessao:not(.sessao-esperando),
+#app[data-lateral="fechada"] .sessao-texto,
+#app[data-lateral="fechada"] .sessao-menu,
+#app[data-lateral="fechada"] #lateral-pe > button,
+#app[data-lateral="fechada"] #placar { display: none; }
+#app[data-lateral="fechada"] #lateral-nav { padding: 10px 8px 6px 8px; align-items: center; }
+#app[data-lateral="fechada"] .nav-item { width: 38px; justify-content: center; padding: 0; }
+#app[data-lateral="fechada"] #lateral-rolagem > section { padding: 8px 8px 4px 8px; }
+#app[data-lateral="fechada"] .projeto-linha { justify-content: center; padding: 7px 0; }
+#app[data-lateral="fechada"] .sessao { justify-content: center; padding: 6px 0; }
+#app[data-lateral="fechada"] .sessao .bolinha { margin-top: 0; }
+#app[data-lateral="fechada"] #lateral-pe { padding: 8px; }
+#app[data-lateral="fechada"] #lateral-base { justify-content: center; }
+
+
+/* O placar virou uma linha compacta no rodape (redesign R2), ao lado do "?".
+   Continua clicavel: abre o historico. */
+#lateral-base {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
 #placar {
-  padding: 14px 14px 12px 14px;
-  border-bottom: 1px solid var(--line);
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: var(--r-sm);
 }
 
 .placar-linha {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
 }
 
 #placar-num {
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -.03em;
+  font-size: 13px;
+  font-weight: 600;
   line-height: 1;
 }
 
-.placar-rotulo { font-size: 11.5px; color: var(--fg2); }
+.placar-rotulo { font-size: 11.5px; color: var(--fg3); }
 
 #placar-cpu {
   margin-left: auto;
@@ -479,9 +551,9 @@ button:focus-visible, input:focus-visible {
 
 #placar-carga {
   display: flex;
-  gap: 3px;
-  margin-top: 10px;
-  height: 4px;
+  gap: 2px;
+  margin-top: 6px;
+  height: 3px;
 }
 
 #placar-carga span {
@@ -494,6 +566,13 @@ button:focus-visible, input:focus-visible {
 #placar-carga span.aceso { background: var(--acc); }
 #placar-carga span.cheio { background: var(--warn); }
 
+#lateral-pe #btn-ajuda {
+  width: auto;
+  flex: 0 0 auto;
+  gap: 6px;
+  padding: 6px 8px;
+}
+
 #lateral-rolagem {
   flex: 1;
   overflow-y: auto;
@@ -502,8 +581,8 @@ button:focus-visible, input:focus-visible {
   min-width: 0;
 }
 
-#lateral-rolagem > section { padding: 14px 12px 4px 14px; }
-#bloco-sessoes { padding-top: 16px; }
+#lateral-rolagem > section { padding: 10px 8px 4px 8px; }
+#bloco-projetos .secao-topo { padding: 0 2px 0 10px; }
 
 .secao-topo {
   display: flex;
@@ -536,104 +615,25 @@ button:focus-visible, input:focus-visible {
 
 #btn-projeto-add {
   margin-left: auto;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--r-sm);
-  border: 1px solid var(--line);
-  background: var(--bg2);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-xs);
+  border: 0;
+  background: transparent;
   color: var(--fg2);
-  font-size: 13px;
-  line-height: 1;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-#btn-projeto-add:hover { border-color: var(--acc); color: var(--acc); }
+#btn-projeto-add:hover { background: var(--bg3); color: var(--fg); }
 
 #lateral ol {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-
-/* --------------------------------------------------------- fila de atencao */
-
-#fila-lista li {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  background: var(--warnd);
-  border: 1px solid var(--warn-linha);
-  border-radius: var(--r-md);
-  padding: 9px 10px;
-  margin-bottom: 6px;
-  cursor: pointer;
-  transition: transform .15s ease, background .15s ease;
-}
-
-/* A bolinha da fila e menor que a do painel; o anel acompanha. */
-#fila-lista .bolinha { width: 6px; height: 6px; flex: 0 0 6px; }
-
-#fila-lista li:hover { transform: translateX(3px); }
-
-.fila-nome {
-  font-size: 12.5px;
-  font-weight: 600;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.fila-espera {
-  margin-left: auto;
-  flex: 0 0 auto;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--warn);
-}
-
-/* "Pronto para revisar" (Fase 10.3): o mesmo cartao da fila, sem a cor de
-   atencao -- ninguem esta bloqueado aqui. */
-#revisar-lista li {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  background: var(--bg2);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: 9px 10px;
-  margin-bottom: 6px;
-  cursor: pointer;
-}
-
-#revisar-lista li:hover { border-color: var(--line2); }
-#revisar-lista .bolinha { width: 6px; height: 6px; flex: 0 0 6px; }
-
-.revisar-branch {
-  margin-left: auto;
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--fg2);
-}
-
-#fila-dica {
-  width: 100%;
-  text-align: left;
-  font-size: 10px;
-  color: var(--fg3);
-  background: none;
-  border: none;
-  padding: 3px 2px 4px 2px;
-}
-
-#fila-dica:hover { color: var(--warn); }
 
 /* -------------------------------------------------------------- projetos */
 
@@ -642,15 +642,15 @@ button:focus-visible, input:focus-visible {
 .projeto-linha {
   display: flex;
   align-items: center;
-  gap: 9px;
-  border: 1px solid transparent;
-  border-radius: var(--r-md);
-  padding: 7px 8px;
+  gap: 8px;
+  border-radius: var(--r-sm);
+  padding: 6px 6px 6px 8px;
   cursor: pointer;
   transition: background .14s ease;
 }
 
-.projeto-linha:hover { background: var(--bg3); border-color: var(--line); }
+.projeto-linha:hover { background: var(--bg2); }
+.projeto-linha .projeto-nome { font-weight: 600; font-size: 13px; }
 
 /* 24x24 e o minimo da WCAG 2.2, e este botao media ~14x11: `width: 14px`,
    `padding: 0`, glifo de 9px, e `.projeto-linha` com `align-items: center`, que
@@ -688,18 +688,48 @@ button:focus-visible, input:focus-visible {
 .projeto-expandir:disabled { visibility: hidden; }
 
 /* Botao, e nao mais um `span`: e onde a cor esta, entao e onde se procura para
-   troca-la. Cresceu de 6 para 9px para virar alvo de clique de verdade. */
+   troca-la. Redesign R2: virou o ICONE DE PASTA na cor do projeto (a cor vem em
+   `color`, e o svg herda por currentColor). */
 .projeto-tinta {
-  width: 9px;
-  height: 9px;
-  border-radius: 3px;
-  flex: 0 0 9px;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin: -2px 0;
   padding: 0;
   border: none;
-  background: var(--acc);
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--acc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.projeto-tinta:hover { box-shadow: 0 0 0 3px var(--bg3); }
+button.projeto-tinta:hover { background: var(--bg3); }
+
+.projeto-qtd { flex: 0 0 auto; font-size: 10.5px; color: var(--fg3); }
+.projeto-qtd:empty { display: none; }
+
+/* O "+" do projeto: o caminho principal para abrir sessao desde o R1. */
+.projeto-nova {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  margin: -2px 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--fg2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+}
+.projeto-linha:hover .projeto-nova,
+.projeto-nova:focus-visible { opacity: 1; }
+.projeto-nova:hover { background: var(--bg4); color: var(--fg); }
+.projeto-nova:disabled { visibility: hidden; }
 
 /* --------------------------------------------------- escolher a cor */
 
@@ -1019,90 +1049,134 @@ button:focus-visible, input:focus-visible {
 /* Com algo pronto para sair, o botao deixa de ser decoracao. */
 .wt-limpar-ativo { color: var(--acc); border-color: var(--line2); background: var(--accd); }
 
-/* --------------------------------------------------------- lista de sessoes */
+/* ------------------------------------------- sessoes dentro do projeto (R2) */
 
-.card {
+/* A linha da sessao: bolinha, nome com o selo ao lado, e embaixo, em mono, o
+   estado quando importa e o branch. Recuada para ler como filha do projeto. */
+.projeto-sessoes { margin: 1px 0 4px 0; }
+
+.sessao {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 9px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--r-md);
-  padding: 8px;
-  margin-bottom: 4px;
+  padding: 6px 6px 6px 26px;
+  border-radius: var(--r-sm);
   cursor: pointer;
+  transition: background .14s ease;
 }
 
-/* A cor do projeto na lista de sessoes. Barra a esquerda, e nao um quadradinho:
-   com varias sessoes de projetos diferentes, o que agrupa e a linha continua na
-   borda, nao um ponto no meio do texto. */
-.card-tinto::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--tinta);
-}
+.sessao:hover { background: var(--bg2); }
+.sessao-focada { background: var(--bg3); }
+.sessao-focada:hover { background: var(--bg3); }
 
-.card-tinto { padding-left: 11px; }
+.sessao .bolinha { width: 7px; height: 7px; flex: 0 0 7px; margin-top: 6px; }
 
-.card:hover { background: var(--bg3); }
-
-.card-focado {
-  background: var(--bg3);
-  border-color: var(--line2);
-}
-
-.card-texto {
+.sessao-texto {
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
+}
+
+.sessao-linha {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
+}
+
+.sessao-nome {
   flex: 1 1 0;
-  overflow: hidden;
-}
-
-.card-nome {
+  min-width: 0;
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 500;
+  color: var(--fg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.card-sub {
-  font-family: var(--mono);
-  font-size: 10px;
+.sessao-sub {
+  font-size: 10.5px;
   color: var(--fg3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.card-porta {
-  margin-left: auto;
+/* O selo so aparece quando pede acao: espera, PR/CI, workers. */
+.sessao-selo {
   flex: 0 0 auto;
   font-family: var(--mono);
   font-size: 10px;
-  color: var(--fg3);
+  line-height: 16px;
+  padding: 0 6px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--line2);
+  color: var(--fg2);
+  background: var(--bg2);
+}
+.sessao-selo:empty { display: none; }
+.sessao-selo.selo-espera {
+  color: var(--warn);
+  background: var(--warnd);
+  border-color: var(--warn-linha);
+}
+.sessao-selo.selo-ok {
+  color: var(--acc);
+  background: var(--accd);
+  border-color: color-mix(in srgb, var(--acc) 34%, transparent);
+}
+.sessao-selo.selo-falha {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
 }
 
-.card-atencao .card-sub { color: var(--warn); }
-
-/* Os workers de uma coordenadora (Fase 10.6). Vazio nao ocupa nada. */
-.card-filhos {
-  margin-left: auto;
-  flex: 0 0 auto;
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--info);
+/* Esperando voce: a LINHA inteira acende, e nao um bloco separado no topo da
+   lateral (pedido do redesign). Fundo ambar e um filete a esquerda. */
+.sessao-esperando,
+.sessao-esperando:hover {
+  background: var(--warnd);
+  box-shadow: inset 2px 0 0 var(--warn);
 }
-.card-filhos:empty { display: none; }
-.card-filhos:not(:empty) + .card-porta { margin-left: 6px; }
+.sessao-esperando .sessao-sub { color: var(--fg2); }
+
+.sessao-dormindo .sessao-nome { color: var(--fg2); }
+.sessao-dormindo { opacity: .7; }
+
+/* Worker: logo abaixo da coordenadora, um degrau mais recuado e menor. */
+.sessao-worker { padding-left: 42px; }
+.sessao-worker .sessao-nome { font-size: 12px; color: var(--fg2); }
+.sessao-worker .bolinha { width: 6px; height: 6px; flex-basis: 6px; }
+
+/* O "..." so aparece no hover (ou com foco de teclado), como no Orca. */
+.sessao-menu {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--fg2);
+  opacity: 0;
+}
+.sessao:hover .sessao-menu,
+.sessao-menu:focus-visible { opacity: 1; }
+.sessao-menu:hover { background: var(--bg4); color: var(--fg); }
+
+.menu-sessao button.perigo { color: var(--danger); }
+
+/* "Outras pastas": sessoes fora de qualquer projeto cadastrado. */
+.projeto-outras .projeto-linha { cursor: default; }
+.projeto-outras .projeto-tinta { color: var(--fg3); }
 
 /* ----------------------------------------------------------- rodape lateral */
 
@@ -2147,7 +2221,6 @@ button.primario:hover {
   border: 1px solid var(--fg3);
 }
 
-.card .bolinha { width: 6px; height: 6px; flex: 0 0 6px; }
 
 /* ================================================================= mapa */
 
@@ -3582,7 +3655,6 @@ button.primario:hover {
     transition-duration: .001ms !important;
   }
   .painel:hover, button.primario:hover { transform: none; }
-  #fila-lista li:hover { transform: none; }
 }
 
 /* ================================================== menu do botao direito */

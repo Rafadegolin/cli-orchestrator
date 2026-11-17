@@ -74,54 +74,37 @@
   <div id="corpo">
     <aside id="lateral">
 
-      <div id="placar">
-        <div class="placar-linha">
-          <span id="placar-num">0</span>
-          <span class="placar-rotulo">sessões vivas</span>
-          <span id="placar-cpu" class="mono"></span>
-        </div>
-        <div id="placar-carga"></div>
-      </div>
+      <!-- Redesign R2: navegacao no topo. Os ids #btn-inbox e #btn-notas sao os
+           de antes (o inbox.js e o notas.js ligam o clique neles). -->
+      <nav id="lateral-nav">
+        <button id="nav-sessoes" class="nav-item ativo" data-ico="grade">
+          <span class="nav-rotulo">Sessões</span>
+          <span id="nav-sessoes-qtd" class="nav-qtd mono"></span>
+        </button>
+        <button id="btn-inbox" class="nav-item" data-ico="issue">
+          <span class="nav-rotulo">Issues</span>
+          <span class="nav-qtd mono">Flow</span>
+        </button>
+        <button id="nav-historico" class="nav-item" data-ico="historico">
+          <span class="nav-rotulo">Histórico</span>
+        </button>
+        <button id="btn-notas" class="nav-item" data-ico="notas">
+          <span class="nav-rotulo">Bloco de notas</span>
+        </button>
+      </nav>
 
       <div id="lateral-rolagem">
-
-        <!-- So existe quando ha quem esperando: fila vazia nao ocupa espaco. -->
-        <section id="bloco-fila" hidden>
-          <div class="secao-topo">
-            <h1 class="secao-titulo atencao">Esperando você</h1>
-            <span id="fila-contagem" class="mono badge-atencao">0</span>
-          </div>
-          <ol id="fila-lista"></ol>
-          <button id="fila-dica" class="mono">ctrl+enter &rsaquo; ir para a mais antiga</button>
-        </section>
-
-        <!-- Fase 10.3: o agente terminou e ha commits na branch. NAO e fila de
-             atencao: ninguem esta bloqueado, e o Ctrl+Enter nao passa por aqui. -->
-        <section id="bloco-revisar" hidden>
-          <div class="secao-topo">
-            <h1 class="secao-titulo">Pronto para revisar</h1>
-            <span id="revisar-contagem" class="mono">0</span>
-          </div>
-          <ol id="revisar-lista"></ol>
-        </section>
-
+        <!-- Redesign R2: as sessoes moram DENTRO do projeto. Nao ha mais bloco
+             "Esperando voce" nem "Pronto para revisar": a propria linha da
+             sessao acende em ambar, e o PR/CI vira selo na linha. -->
         <section id="bloco-projetos">
           <div class="secao-topo">
             <h1 class="secao-titulo">Projetos</h1>
             <span id="projetos-contagem" class="mono"></span>
-            <button id="btn-projeto-add" title="Cadastrar pasta de um projeto">+</button>
+            <button id="btn-projeto-add" class="secao-acao" data-ico="pasta-mais" title="Cadastrar pasta de um projeto" aria-label="Cadastrar projeto"></button>
           </div>
           <ol id="projetos-lista"></ol>
         </section>
-
-        <section id="bloco-sessoes">
-          <div class="secao-topo">
-            <h1 class="secao-titulo">Sessões</h1>
-            <span id="lateral-contagem" class="mono"></span>
-          </div>
-          <ol id="lateral-lista"></ol>
-        </section>
-
       </div>
 
       <div id="lateral-pe">
@@ -132,27 +115,27 @@
           <span>Hooks</span>
           <span id="hooks-rotulo" class="mono">verificando...</span>
         </button>
-        <!-- O outro caminho para este interruptor e a paleta (Ctrl+K), e ele
-             nao e opcional: o rodape da lateral some com Ctrl+B. -->
+        <!-- O outro caminho para este interruptor e a paleta (Ctrl+K). -->
         <button id="btn-avisos">
           <span class="switch"><span class="switch-bolota"></span></span>
           <span>Avisos</span>
           <span id="avisos-rotulo" class="mono">ligados</span>
         </button>
-        <!-- A paleta (Ctrl+K) tambem abre: com a lateral recolhida, e o caminho. -->
-        <button id="btn-inbox">
-          <span>Minhas issues</span>
-          <span class="mono">Flow</span>
-        </button>
-        <!-- O bloco de notas: um painel na grade, e o texto nunca se perde. -->
-        <button id="btn-notas">
-          <span>Bloco de notas</span>
-          <span class="mono">notas</span>
-        </button>
-        <button id="btn-ajuda">
-          <span>Como usar</span>
-          <span class="mono">F1</span>
-        </button>
+        <div id="lateral-base">
+          <!-- O placar continua clicavel (abre o historico), so que compacto. -->
+          <div id="placar" title="Histórico de tempo por feature">
+            <div class="placar-linha">
+              <span id="placar-num">0</span>
+              <span class="placar-rotulo">vivas</span>
+              <span id="placar-cpu" class="mono"></span>
+            </div>
+            <div id="placar-carga"></div>
+          </div>
+          <button id="btn-ajuda" title="Como usar">
+            <span>?</span>
+            <span class="mono">F1</span>
+          </button>
+        </div>
       </div>
     </aside>
 

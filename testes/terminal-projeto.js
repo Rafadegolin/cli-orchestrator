@@ -85,7 +85,7 @@ async function ate(fn, cond, ms = 10000) {
       status: c.status,
       tipoPainel: c.tipoPainel,
       naFila: window.OrqLateral.filaAtencao().length,
-      bolinha: document.querySelector('#lateral-lista .bolinha')?.className || '',
+      bolinha: document.querySelector('#projetos-lista .sessao .bolinha')?.className || '',
     };
   })()`);
   checar('a lateral diz "terminal", e nao "trabalhando"', rotulo.rotulo === 'terminal', JSON.stringify(rotulo));

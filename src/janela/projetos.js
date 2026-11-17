@@ -285,6 +285,8 @@ function projetoDe(caminho) {
     const dentro = alvo === base || alvo.startsWith(`${base}/`);
     if (dentro && (!melhor || base.length > melhor.base.length)) {
       melhor = {
+        // O id e a chave do grupo da sessao na lateral (redesign R2).
+        id: p.id,
         base,
         nome: p.nome,
         caminho: p.caminho,
@@ -327,7 +329,8 @@ function desenharProjetos() {
     botao.addEventListener('click', cadastrarProjeto);
 
     vazio.append(frase, botao);
-    elProjetosLista.replaceChildren(vazio);
+    elProjetosLista.replaceChildren(vazio, grupoOutrasPastas());
+    window.OrqLateral?.redesenhar?.();
     return;
   }
 
@@ -417,18 +420,43 @@ function desenharProjetos() {
     // O quadradinho de cor virou BOTAO: e onde a cor esta, entao e onde a gente
     // procura para troca-la. `stopPropagation` porque a linha inteira abre
     // sessao.
+    //
+    // Redesign R2: o quadradinho virou o ICONE DE PASTA na cor do projeto -- e o
+    // mesmo botao, so que agora ele tambem identifica a linha.
     const tinta = document.createElement('button');
     tinta.className = 'projeto-tinta';
-    tinta.style.background = tintaDoProjeto(p);
+    tinta.style.color = tintaDoProjeto(p);
     tinta.title = 'Trocar a cor deste projeto';
+    tinta.setAttribute('aria-label', `Trocar a cor de ${p.nome}`);
+    tinta.append(window.OrqIcones.svg('pasta', 'ico-s'));
     tinta.addEventListener('click', (ev) => {
       ev.stopPropagation();
       window.OrqCorProjeto?.abrir(p.id);
     });
 
+    // Quantas sessoes abertas no projeto. Quem preenche e o lateral.js, que e
+    // quem distribui as sessoes (redesign R2).
+    const qtd = document.createElement('span');
+    qtd.className = 'projeto-qtd mono';
+
+    // O "+" do projeto: e o caminho principal para abrir sessao desde que o
+    // botao "Nova sessao" saiu da barra (R1). Passa pelo dialogo, que e onde se
+    // da o nome.
+    const btnNova = document.createElement('button');
+    btnNova.className = 'projeto-nova';
+    btnNova.title = `Nova sessão em ${p.nome}`;
+    btnNova.setAttribute('aria-label', btnNova.title);
+    btnNova.append(window.OrqIcones.svg('mais', 'ico-s'));
+    btnNova.disabled = !p.existe;
+    btnNova.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (window.OrqEscolhaSessao) window.OrqEscolhaSessao.abrir(p.id);
+      else abrirProjeto(p.id);
+    });
+
     const linha = document.createElement('div');
     linha.className = 'projeto-linha';
-    linha.append(btnAbrir, tinta, nome, atras, marca, btnRemover);
+    linha.append(tinta, nome, atras, marca, qtd, btnAbrir, btnNova, btnRemover);
     linha.title = p.caminho;
     // Passa pela escolha, que agora pergunta SEMPRE -- mesmo sem conversa
     // guardada ha o que escolher: sessao do Claude ou so um terminal. A paleta
@@ -438,7 +466,12 @@ function desenharProjetos() {
       ? window.OrqEscolhaSessao.abrir(p.id)
       : abrirProjeto(p.id)));
 
-    li.append(linha);
+    // As sessoes do projeto (redesign R2): o lateral.js preenche.
+    const sessoes = document.createElement('ol');
+    sessoes.className = 'projeto-sessoes';
+    sessoes.dataset.proj = p.id;
+
+    li.append(linha, sessoes);
 
     if (expandidos.has(p.id)) {
       const caixa = document.createElement('div');
@@ -449,7 +482,37 @@ function desenharProjetos() {
     }
 
     return li;
-  }));
+  }), grupoOutrasPastas());
+
+  // As listas de sessao acabaram de ser recriadas vazias: redistribuir.
+  window.OrqLateral?.redesenhar?.();
+}
+
+// Sessoes cuja pasta nao pertence a nenhum projeto cadastrado (pasta qualquer,
+// projeto removido). Escondido quando vazio -- quem decide e o lateral.js.
+function grupoOutrasPastas() {
+  const li = document.createElement('li');
+  li.className = 'projeto-outras';
+  li.hidden = true;
+
+  const linha = document.createElement('div');
+  linha.className = 'projeto-linha';
+  const icone = document.createElement('span');
+  icone.className = 'projeto-tinta';
+  icone.append(window.OrqIcones.svg('pasta', 'ico-s'));
+  const nome = document.createElement('span');
+  nome.className = 'projeto-nome';
+  nome.textContent = 'Outras pastas';
+  const qtd = document.createElement('span');
+  qtd.className = 'projeto-qtd mono';
+  linha.append(icone, nome, qtd);
+
+  const sessoes = document.createElement('ol');
+  sessoes.className = 'projeto-sessoes';
+  sessoes.dataset.proj = '';
+
+  li.append(linha, sessoes);
+  return li;
 }
 
 // Ler worktree custa varios comandos git por projeto, entao so acontece quando

@@ -241,15 +241,15 @@ function stop(id) {
 
   // Fora da fila de atencao, mesmo depois do Stop.
   await stop(id);
+  // Redesign R2: o "pronto para revisar" virou o SELO da linha da sessao.
   const revisar = () => cdp.avaliar(`JSON.stringify({
-    hidden: document.getElementById('bloco-revisar').hidden,
-    ids: [...document.querySelectorAll('#revisar-lista li')].map((li) => li.dataset.id),
-    texto: document.getElementById('revisar-lista').textContent,
+    selo: document.querySelector('#projetos-lista .sessao[data-id="' + CSS.escape(${JSON.stringify(id)}) + '"] .sessao-selo')?.textContent || '',
+    pronta: window.OrqBranch.prontoParaRevisar(${JSON.stringify(id)}),
     fila: window.OrqLateral.filaAtencao().map((x) => x.id),
   })`).then(JSON.parse);
-  const rv = await ate(revisar, (x) => x.ids.includes(id), 8000);
-  checar('o Stop poe a sessao em "Pronto para revisar"', rv.hidden === false && rv.ids.includes(id), JSON.stringify(rv));
-  checar('com o estado da branch no cartao', /1 à frente/.test(rv.texto), rv.texto);
+  const rv = await ate(revisar, (x) => x.pronta && /1 à frente/.test(x.selo), 8000);
+  checar('o Stop deixa a sessao pronta para revisar', rv.pronta === true, JSON.stringify(rv));
+  checar('com o estado da branch no selo da linha', /1 à frente/.test(rv.selo), rv.selo);
   checar('e ela NAO entra na fila de atencao (o amarelo e so para pergunta)', !rv.fila.includes(id));
 
   // Push pelo IPC, sem o dialogo nativo (que o CDP nao dirige).

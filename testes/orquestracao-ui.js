@@ -135,7 +135,7 @@ function pedir(caminho, o = {}) {
     checar('e e o prompt da coordenadora, com as quebras', texto === PROMPT, JSON.stringify(texto));
   }
 
-  const cartao = await cdp.avaliar(`document.querySelector('.card[data-id="${coord}"] .card-filhos')?.textContent || ''`);
+  const cartao = await cdp.avaliar(`document.querySelector('#projetos-lista .sessao[data-id="${coord}"] .sessao-selo')?.textContent || ''`);
   checar('o card da coordenadora conta o worker', cartao === '1 worker', JSON.stringify(cartao));
 
   await cdp.avaliar(`window.OrqMapa.definirModo('mapa')`);

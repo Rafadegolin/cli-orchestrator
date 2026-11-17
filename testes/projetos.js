@@ -142,7 +142,7 @@ function lerArquivo() {
   await esperar(400);
 
   const linhas = JSON.parse(await cdp.avaliar(`(() => JSON.stringify(
-    [...document.querySelectorAll('#projetos-lista .projeto-linha')].map((l) => {
+    [...document.querySelectorAll('#projetos-lista li.projeto .projeto-linha')].map((l) => {
       const b = l.querySelector('.projeto-expandir');
       const m = l.querySelector('.projeto-marca');
       const cl = l.getBoundingClientRect();

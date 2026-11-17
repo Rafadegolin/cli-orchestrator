@@ -348,6 +348,7 @@ async function arrastarAlca(cdp, id, dx, dy) {
     const ui = await window.orq.uiCarregar();
     return JSON.stringify({
       display: getComputedStyle(document.getElementById('lateral')).display,
+      trilho: Math.round(document.getElementById('lateral').getBoundingClientRect().width),
       largura: Math.round(document.getElementById('conteudo').getBoundingClientRect().width),
       salvo: ui.lateral,
       marcado: document.getElementById('app').dataset.lateral,
@@ -355,8 +356,11 @@ async function arrastarAlca(cdp, id, dx, dy) {
       scrollDoc: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     });
   })()`));
-  checar('recolher esconde a lateral e devolve o espaco para a grade',
-    fechada.display === 'none' && fechada.largura > larguraAntes, JSON.stringify(fechada));
+  // Redesign R2: recolher vira um TRILHO de 56px (navegacao, cor dos projetos e
+  // quem espera continuam a um clique), e nao mais `display: none`.
+  checar('recolher vira o trilho e devolve o espaco para a grade',
+    fechada.display !== 'none' && fechada.trilho <= 60 && fechada.largura > larguraAntes,
+    JSON.stringify(fechada));
   checar('e a escolha vai para o ui.json', fechada.salvo === 'fechada', fechada.salvo);
   checar('sem criar scroll horizontal', fechada.scrollDoc === 0, String(fechada.scrollDoc));
 
@@ -516,33 +520,35 @@ async function arrastarAlca(cdp, id, dx, dy) {
   await marcar(ids['ui-d-espera-nova'], 'esperando', 'parado há 60s', 4);
   await esperar(600);
 
+  // Redesign R2: nao ha mais bloco "Esperando voce". A propria linha da sessao
+  // acende (`.sessao-esperando`), sobe ao topo do grupo e mostra o tempo no selo.
   const fila = JSON.parse(await cdp.avaliar(`(() => {
-    const bloco = document.getElementById('bloco-fila');
-    const itens = [...document.querySelectorAll('#fila-lista li')];
+    const itens = [...document.querySelectorAll('#projetos-lista .sessao-esperando')];
     return JSON.stringify({
-      visivel: bloco.hidden === false,
-      contagem: document.getElementById('fila-contagem').textContent,
-      nomes: itens.map(l => l.querySelector('.fila-nome').textContent),
-      tempos: itens.map(l => l.querySelector('.fila-espera').textContent),
+      bloco: Boolean(document.getElementById('bloco-fila')),
+      nomes: itens.map(l => l.querySelector('.sessao-nome').textContent),
+      tempos: itens.map(l => l.querySelector('.sessao-selo').textContent),
+      resumo: document.getElementById('barra-resumo').textContent,
     });
   })()`));
-  checar('a fila de atencao aparece quando alguem espera', fila.visivel, JSON.stringify(fila));
-  checar('com a contagem certa', fila.contagem === '2', fila.contagem);
+  checar('nao existe mais o bloco separado de fila', fila.bloco === false, JSON.stringify(fila));
+  checar('as linhas de quem espera acendem', fila.nomes.length === 2, JSON.stringify(fila));
   checar('e quem espera ha mais tempo vem primeiro',
     fila.nomes.join() === 'ui-a-espera-velha,ui-d-espera-nova', fila.nomes.join());
-  checar('mostrando o tempo de cada uma',
-    fila.tempos[0] === 'há 12min' && fila.tempos[1] === 'há 4min', fila.tempos.join(' / '));
+  checar('mostrando o tempo de cada uma no selo',
+    fila.tempos[0] === 'esperando 12min' && fila.tempos[1] === 'esperando 4min', fila.tempos.join(' / '));
+  checar('e o resumo da barra conta quem espera', /2 esperando/.test(fila.resumo), fila.resumo);
 
   // O rotulo diz o ESTADO; o motivo do hook vai para o title. Era daqui que
   // saia o "parado ha 60s ha 4min", com o "ha" duas vezes.
   const rotulos = JSON.parse(await cdp.avaliar(`(() => {
     const de = (id) => {
       const p = window.OrqPainel.painelPorId.get(id);
-      const card = document.querySelector('#lateral-lista .card[data-id="' + CSS.escape(id) + '"]');
+      const card = document.querySelector('#projetos-lista .sessao[data-id="' + CSS.escape(id) + '"]');
       return {
         painel: p.elStatus.textContent,
         painelTitle: p.elStatus.title,
-        card: card?.querySelector('.card-sub')?.textContent,
+        card: card?.querySelector('.sessao-selo')?.textContent,
       };
     };
     return JSON.stringify({
@@ -552,7 +558,7 @@ async function arrastarAlca(cdp, id, dx, dy) {
     });
   })()`));
   checar('rotulo de quem espera diz o estado e o tempo',
-    rotulos.a.painel === 'esperando há 12min' && rotulos.a.card === 'esperando há 12min',
+    rotulos.a.painel === 'esperando há 12min' && rotulos.a.card === 'esperando 12min',
     JSON.stringify(rotulos.a));
   checar('e o motivo do hook fica no title, fora do rotulo',
     rotulos.a.painelTitle === 'pedindo permissão' && !rotulos.a.painel.includes('permissão'),
@@ -601,10 +607,10 @@ async function arrastarAlca(cdp, id, dx, dy) {
   await cdp.avaliar(`window.OrqCasca.mudar({ ordem: 'urgencia' })`);
   await esperar(500);
 
-  // Clicar na fila foca o painel daquela sessao.
-  await cdp.avaliar(`document.querySelector('#fila-lista li').click()`);
+  // Clicar na linha acesa foca o painel daquela sessao.
+  await cdp.avaliar(`document.querySelector('#projetos-lista .sessao-esperando').click()`);
   await esperar(400);
-  checar('clicar na fila foca a sessao certa',
+  checar('clicar na linha de quem espera foca a sessao certa',
     await cdp.avaliar(`window.OrqGrade.focado()`) === ids['ui-a-espera-velha'], '');
 
   // Painel dormindo: rotulo proprio, bolinha vazada e ultimo na ordem.
@@ -636,8 +642,8 @@ async function arrastarAlca(cdp, id, dx, dy) {
   await esperar(2200);
   const depoisDoTique = await cdp.avaliar(
     `window.OrqPainel.painelPorId.get(${JSON.stringify(ids['ui-a-espera-velha'])}).elStatus.textContent`);
-  checar('sem fila, o bloco de atencao some',
-    await cdp.avaliar(`document.getElementById('bloco-fila').hidden`) === true, '');
+  checar('sem ninguem esperando, nenhuma linha fica acesa',
+    await cdp.avaliar(`document.querySelectorAll('#projetos-lista .sessao-esperando').length`) === 0, '');
   checar('e o rotulo para de mudar de segundo em segundo',
     antesDoTique === depoisDoTique && antesDoTique === 'trabalhando', `${antesDoTique} -> ${depoisDoTique}`);
 

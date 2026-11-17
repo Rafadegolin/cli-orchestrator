@@ -98,20 +98,20 @@ function dispararHook(evento, tipo, { orqId = '', cwd = '', message = '' } = {})
   checar('entre dois esperando, o mais antigo vem primeiro', ordem2[0] === 'beta', JSON.stringify(ordem2));
 
   await esperar(2200);
-  const texto = await cdp.avaliar(`document.querySelector('.card-atencao .card-sub')?.textContent`);
-  checar('card amarelo mostra ha quanto tempo espera', /h[aá] \d+s/.test(texto || ''), texto);
+  // Redesign R2: a linha da sessao acende e o selo diz ha quanto tempo espera.
+  const texto = await cdp.avaliar(`document.querySelector('#projetos-lista .sessao-esperando .sessao-selo')?.textContent`);
+  checar('linha amarela mostra ha quanto tempo espera', /esperando \d+s/.test(texto || ''), texto);
 
   // De ponta a ponta: o hook do Canal 2 faz o bloco ESPERANDO VOCE aparecer.
   // A suite ui.js cobre a fila pela API interna; esta checagem e a que prova
   // que ela esta ligada no que vem do Claude de verdade.
   const bloco = JSON.parse(await cdp.avaliar(`JSON.stringify({
-    visivel: document.getElementById('bloco-fila').hidden === false,
-    itens: document.querySelectorAll('#fila-lista li').length,
-    contagem: document.getElementById('fila-contagem').textContent,
-    primeiro: document.querySelector('#fila-lista .fila-nome')?.textContent || '',
+    itens: document.querySelectorAll('#projetos-lista .sessao-esperando').length,
+    resumo: document.getElementById('barra-resumo').textContent,
+    primeiro: document.querySelector('#projetos-lista .sessao-esperando .sessao-nome')?.textContent || '',
   })`));
-  checar('o hook faz a fila de atencao aparecer',
-    bloco.visivel && bloco.itens === 2 && bloco.contagem === '2', JSON.stringify(bloco));
+  checar('o hook acende as linhas de quem espera',
+    bloco.itens === 2 && /2 esperando/.test(bloco.resumo), JSON.stringify(bloco));
   checar('com o mais antigo no topo da fila', bloco.primeiro === 'beta', bloco.primeiro);
 
   // A pergunta que o Claude manda no corpo do hook chega ate a faixa. Prova o

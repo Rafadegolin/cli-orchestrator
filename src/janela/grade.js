@@ -449,8 +449,8 @@ function marcarFocado() {
   }
   // O card da lateral acompanha: uma sessao focada por vez, e voce tem de
   // conseguir ver qual e sem olhar para a grade.
-  for (const li of document.querySelectorAll('#lateral-lista .card')) {
-    li.classList.toggle('card-focado', li.dataset.id === focado);
+  for (const li of document.querySelectorAll('#projetos-lista .sessao')) {
+    li.classList.toggle('sessao-focada', li.dataset.id === focado);
   }
 }
 

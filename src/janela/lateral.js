@@ -3,15 +3,11 @@
 // A barra de status. Responde "onde eu preciso olhar agora?" em menos de um
 // segundo, sem procurar.
 
-const elLista = document.getElementById('lateral-lista');
-const elContagem = document.getElementById('lateral-contagem');
-const elFilaBloco = document.getElementById('bloco-fila');
-const elFilaLista = document.getElementById('fila-lista');
-const elFilaContagem = document.getElementById('fila-contagem');
-const btnFilaDica = document.getElementById('fila-dica');
-const elRevisarBloco = document.getElementById('bloco-revisar');
-const elRevisarLista = document.getElementById('revisar-lista');
-const elRevisarContagem = document.getElementById('revisar-contagem');
+// Redesign R2: as sessoes sao desenhadas DENTRO do projeto. O projetos.js cria
+// um <ol class="projeto-sessoes" data-proj="<id>"> por projeto (mais um para
+// "Outras pastas", data-proj=""), e este arquivo distribui as linhas neles.
+const elProjetosListaLat = document.getElementById('projetos-lista');
+const elNavQtd = document.getElementById('nav-sessoes-qtd');
 const btnHooks = document.getElementById('btn-hooks');
 const elHooksRotulo = document.getElementById('hooks-rotulo');
 const btnAvisos = document.getElementById('btn-avisos');
@@ -218,9 +214,105 @@ function textoEspera(ms) {
   return `há ${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}`;
 }
 
+// O que a linha da sessao diz, em dois pedacos (redesign R2):
+// - `sub`: a linha de baixo, em mono -- o estado quando ele importa (parada,
+//   dormindo, terminal, esperando) e o branch;
+// - `selo`: so quando pede acao -- esperando, PR/CI, workers.
+// O cronometro de 1s chama isto de novo, entao tem de ser barato.
+function textosDaSessao(c) {
+  const painel = window.OrqPainel.painelPorId.get(c.id);
+  const estadoBranch = window.OrqBranch?.de?.(c.id);
+  const branch = painel?.branch || estadoBranch?.branch || '';
+  let estado = '';
+  if (painel?.dormindo) estado = 'dormindo';
+  else if (c.tipoPainel === 'terminal') estado = 'terminal';
+  else if (c.status === 'esperando') estado = c.tipo === 'permissao' ? 'permissão' : 'esperando você';
+  else if (c.status === 'parada' || c.status === 'encerrada') estado = rotuloDe(c);
+  const sub = [estado, branch].filter(Boolean).join(' · ');
+
+  let selo = '';
+  let tom = '';
+  if (c.status === 'esperando' && !painel?.dormindo) {
+    selo = `esperando ${textoEspera(Date.now() - c.desde).replace(/^há /, '')}`;
+    tom = 'espera';
+  } else {
+    const filhos = [...window.OrqPainel.painelPorId.values()].filter((x) => x.pai === c.id).length;
+    if (filhos) {
+      selo = `${filhos} worker${filhos === 1 ? '' : 's'}`;
+    } else if (estadoBranch && (estadoBranch.pr || estadoBranch.ci?.falhas
+        || (c.status === 'terminou' && window.OrqBranch.prontoParaRevisar(c.id)))) {
+      // PR, CI com falha, ou "pronto para revisar" (terminou com commits fora
+      // da base): era um bloco proprio na lateral e virou selo da linha (R2).
+      const r = window.OrqBranch.rotulo(estadoBranch);
+      selo = r.texto;
+      if (r.tom === 'falha') tom = 'falha';
+      else if (r.tom === 'ok') tom = 'ok';
+    }
+  }
+  return { sub, selo, tom };
+}
+
+function montarSessao(c, worker) {
+  const painel = window.OrqPainel.painelPorId.get(c.id);
+  const esperando = c.status === 'esperando' && !painel?.dormindo;
+  const li = document.createElement('li');
+  li.className = 'sessao'
+    + (esperando ? ' sessao-esperando' : '')
+    + (painel?.dormindo ? ' sessao-dormindo' : '')
+    + (worker ? ' sessao-worker' : '')
+    // Redesenhar recria as linhas, entao o foco tem de ser reaplicado aqui --
+    // senao ele some sozinho na primeira mudanca de status de qualquer sessao.
+    + (window.OrqGrade?.focado?.() === c.id ? ' sessao-focada' : '');
+  li.dataset.id = c.id;
+
+  const bolinha = document.createElement('span');
+  bolinha.className = painel?.dormindo
+    ? 'bolinha bolinha-dormindo'
+    : `bolinha bolinha-${c.tipoPainel === 'terminal' ? 'terminal' : c.status}`;
+
+  const { sub, selo, tom } = textosDaSessao(c);
+
+  const nome = document.createElement('span');
+  nome.className = 'sessao-nome';
+  nome.textContent = c.feature;
+
+  const elSelo = document.createElement('span');
+  elSelo.className = tom ? `sessao-selo selo-${tom}` : 'sessao-selo';
+  elSelo.textContent = selo;
+
+  const linha1 = document.createElement('span');
+  linha1.className = 'sessao-linha';
+  linha1.append(nome, elSelo);
+
+  const elSub = document.createElement('span');
+  elSub.className = 'sessao-sub mono';
+  elSub.dataset.status = c.status;
+  elSub.textContent = sub;
+
+  const texto = document.createElement('span');
+  texto.className = 'sessao-texto';
+  texto.append(linha1, elSub);
+
+  const menu = document.createElement('button');
+  menu.className = 'sessao-menu';
+  menu.title = 'Ações da sessão';
+  menu.setAttribute('aria-label', `Ações de ${c.feature}`);
+  menu.append(window.OrqIcones.svg('menu', 'ico-s'));
+  menu.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const r = menu.getBoundingClientRect();
+    abrirMenuSessao(c.id, r.left, r.bottom + 4);
+  });
+
+  li.title = [c.cwd, c.motivo].filter(Boolean).join('\n');
+  li.append(bolinha, texto, menu);
+  li.addEventListener('click', () => window.OrqGrade.focarPainel(c.id));
+  return li;
+}
+
 function redesenhar() {
   const lista = ordenadas();
-  elContagem.textContent = String(lista.length);
+  if (elNavQtd) elNavQtd.textContent = lista.length ? String(lista.length) : '';
 
   // Viva = tem processo. Painel restaurado dormindo aparece na lista, mas nao
   // conta no placar: ninguem esta gastando CPU por ele.
@@ -240,140 +332,94 @@ function redesenhar() {
       : '';
   }
 
-  elLista.replaceChildren(...lista.map((c) => {
-    const painel = window.OrqPainel.painelPorId.get(c.id);
+  // Distribuir por projeto, na ordem de urgencia. O worker (painel.pai) fica
+  // logo abaixo da coordenadora, recuado. O bloco de notas nao tem card.
+  const grupos = new Map();
+  const listas = [...(elProjetosListaLat?.querySelectorAll('ol.projeto-sessoes') || [])];
+  for (const ol of listas) grupos.set(ol.dataset.proj, []);
+  const ids = new Set(lista.map((c) => c.id));
+  const paiDe = (c) => {
+    const pai = window.OrqPainel.painelPorId.get(c.id)?.pai;
+    return pai && ids.has(pai) ? pai : null;
+  };
+  const workersDe = new Map();
+  for (const c of lista) {
+    const pai = paiDe(c);
+    if (!pai) continue;
+    if (!workersDe.has(pai)) workersDe.set(pai, []);
+    workersDe.get(pai).push(c);
+  }
+  for (const c of lista) {
+    if (paiDe(c)) continue;
+    const proj = window.OrqProjetos?.projetoDe?.(c.cwd);
+    const chave = proj && grupos.has(proj.id) ? proj.id : '';
+    if (!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave).push(montarSessao(c, false));
+    for (const w of workersDe.get(c.id) || []) grupos.get(chave).push(montarSessao(w, true));
+  }
+  for (const ol of listas) {
+    const itens = grupos.get(ol.dataset.proj) || [];
+    ol.replaceChildren(...itens);
+    // O grupo "Outras pastas" so existe quando tem alguem nele.
+    const outras = ol.closest('.projeto-outras');
+    if (outras) outras.hidden = itens.length === 0;
+    // A contagem do projeto: sessoes abertas nele.
+    const qtd = ol.closest('li')?.querySelector('.projeto-qtd');
+    if (qtd) qtd.textContent = itens.length ? String(itens.length) : '';
+  }
 
-    const li = document.createElement('li');
-    li.className = 'card'
-      + (c.status === 'esperando' ? ' card-atencao' : '')
-      // Redesenhar recria os cards, entao o foco tem de ser reaplicado aqui --
-      // senao ele some sozinho na primeira mudanca de status de qualquer sessao.
-      + (window.OrqGrade?.focado?.() === c.id ? ' card-focado' : '');
-    li.dataset.id = c.id;
-
-    const bolinha = document.createElement('span');
-    bolinha.className = painel?.dormindo
-      ? 'bolinha bolinha-dormindo'
-      : `bolinha bolinha-${c.tipoPainel === 'terminal' ? 'terminal' : c.status}`;
-
-    const nome = document.createElement('span');
-    nome.className = 'card-nome';
-    nome.textContent = c.feature;
-
-    const sub = document.createElement('span');
-    sub.className = 'card-sub';
-    sub.dataset.status = c.status;
-    sub.textContent = rotuloDe(c);
-
-    const texto = document.createElement('span');
-    texto.className = 'card-texto';
-    texto.append(nome, sub);
-
-    const porta = document.createElement('span');
-    porta.className = 'card-porta';
-    porta.textContent = painel?.portas?.length ? `:${painel.portas[0]}` : '';
-
-    // Coordenadora do orquestrador (10.6): quantos workers ela tem abertos. E o
-    // custo a vista -- cada um e uma sessao inteira gastando token.
-    const filhos = [...window.OrqPainel.painelPorId.values()].filter((x) => x.pai === c.id).length;
-    const elFilhos = document.createElement('span');
-    elFilhos.className = 'card-filhos';
-    elFilhos.textContent = filhos ? `${filhos} worker${filhos === 1 ? '' : 's'}` : '';
-
-    // O cartao nao tinha NENHUMA identidade de projeto -- so status. Com sessoes
-    // de projetos diferentes lado a lado, a lista era uma coluna de nomes sem
-    // agrupamento visivel.
-    const tinta = window.OrqProjetos?.tintaDaPasta?.(c.cwd) || '';
-    li.style.setProperty('--tinta', tinta);
-    li.classList.toggle('card-tinto', Boolean(tinta));
-
-    li.title = [c.cwd, c.motivo].filter(Boolean).join('\n');
-    li.append(bolinha, texto, elFilhos, porta);
-    li.addEventListener('click', () => window.OrqGrade.focarPainel(c.id));
-    return li;
-  }));
-
-  redesenharFila();
-  redesenharRevisar();
   // A grade acompanha a mesma ordem, sem mover nenhum no do DOM.
   window.OrqGrade?.ordenarGrade?.(lista);
 }
 
-// O bloco ESPERANDO VOCE. So existe quando ha fila: um cabecalho vazio ocupando
-// espaco na lateral e ruido permanente para avisar de algo que nao esta
-// acontecendo.
-function redesenharFila() {
-  const espera = filaAtencao();
-  elFilaBloco.hidden = espera.length === 0;
-  if (!espera.length) {
-    elFilaLista.replaceChildren();
-    return;
+// Menu "⋯" da linha da sessao. Reusa o visual do `.menu-ctx` (copiar.js,
+// branch.js). Um so, criado sob demanda.
+let menuSessao = null;
+function fecharMenuSessao() {
+  if (menuSessao) menuSessao.hidden = true;
+}
+function abrirMenuSessao(id, x, y) {
+  const painel = window.OrqPainel.painelPorId.get(id);
+  if (!painel) return;
+  if (!menuSessao) {
+    menuSessao = document.createElement('div');
+    menuSessao.className = 'menu-ctx menu-sessao';
+    menuSessao.hidden = true;
+    document.getElementById('app').append(menuSessao);
+    window.addEventListener('mousedown', (ev) => {
+      if (menuSessao && !menuSessao.hidden && !menuSessao.contains(ev.target)) fecharMenuSessao();
+    }, true);
+    // Esc em captura com stopPropagation, no molde do menu do copiar.js: em
+    // bolha ele fecharia o menu E chegaria ao PTY.
+    window.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape' && menuSessao && !menuSessao.hidden) {
+        ev.stopPropagation();
+        fecharMenuSessao();
+      }
+    }, true);
+    window.addEventListener('blur', fecharMenuSessao);
   }
-
-  elFilaContagem.textContent = String(espera.length);
-  elFilaLista.replaceChildren(...espera.map((c) => {
-    const li = document.createElement('li');
-    li.dataset.id = c.id;
-    li.title = c.motivo || 'esperando você';
-
-    const bolinha = document.createElement('span');
-    bolinha.className = 'bolinha bolinha-esperando';
-
-    const nome = document.createElement('span');
-    nome.className = 'fila-nome';
-    nome.textContent = c.feature;
-
-    const tempo = document.createElement('span');
-    tempo.className = 'fila-espera';
-    tempo.textContent = textoEspera(Date.now() - c.desde);
-
-    li.append(bolinha, nome, tempo);
-    li.addEventListener('click', () => window.OrqGrade.focarPainel(c.id));
-    return li;
-  }));
-}
-
-// "Pronto para revisar" (Fase 10.3): sessao em `terminou` com commits na branch
-// que ainda nao foram integrados. E o card que se procura no fim do dia, e que
-// antes se parecia com qualquer sessao parada.
-//
-// FORA da `filaAtencao()` de proposito, e sem cor de atencao: o amarelo e o
-// Ctrl+Enter continuam significando uma coisa so -- tem pergunta te bloqueando.
-// Quem diz se ha commit e o `OrqBranch`, que so desenha o que o main mandou.
-function prontasParaRevisar() {
-  return [...cards.values()]
-    .filter((c) => c.status === 'terminou' && c.tipoPainel !== 'terminal' && !estaDormindo(c.id))
-    .filter((c) => window.OrqBranch?.prontoParaRevisar(c.id))
-    .sort((a, b) => a.desde - b.desde);
-}
-
-function redesenharRevisar() {
-  if (!elRevisarBloco) return;
-  const prontas = prontasParaRevisar();
-  elRevisarBloco.hidden = prontas.length === 0;
-  elRevisarContagem.textContent = String(prontas.length);
-  elRevisarLista.replaceChildren(...prontas.map((c) => {
-    const li = document.createElement('li');
-    li.dataset.id = c.id;
-    const e = window.OrqBranch.de(c.id);
-    const { texto } = window.OrqBranch.rotulo(e);
-    li.title = window.OrqBranch.titulo(e);
-
-    const bolinha = document.createElement('span');
-    bolinha.className = 'bolinha bolinha-terminou';
-
-    const nome = document.createElement('span');
-    nome.className = 'fila-nome';
-    nome.textContent = c.feature;
-
-    const estadoBranch = document.createElement('span');
-    estadoBranch.className = 'revisar-branch';
-    estadoBranch.textContent = texto;
-
-    li.append(bolinha, nome, estadoBranch);
-    li.addEventListener('click', () => window.OrqGrade.focarPainel(c.id));
-    return li;
-  }));
+  const item = (rotulo, fn, perigo) => {
+    const b = document.createElement('button');
+    b.textContent = rotulo;
+    if (perigo) b.className = 'perigo';
+    b.addEventListener('click', () => { fecharMenuSessao(); fn(); });
+    return b;
+  };
+  const itens = [item('Focar o painel', () => window.OrqGrade.focarPainel(id))];
+  if (painel.tipoPainel !== 'terminal' && window.OrqSeletorLigacoes) {
+    itens.push(item('Ligar a outro repositório…', () => window.OrqSeletorLigacoes.abrir(id)));
+  }
+  const branch = painel.branch || window.OrqBranch?.de?.(id)?.branch;
+  if (branch) itens.push(item('Copiar nome do branch', () => window.orq.copiar(branch)));
+  itens.push(item('Copiar caminho da pasta', () => window.orq.copiar(painel.cwd)));
+  itens.push(item('Fechar painel', () => painel.destruir(), true));
+  menuSessao.replaceChildren(...itens);
+  menuSessao.hidden = false;
+  const larg = menuSessao.offsetWidth;
+  const alt = menuSessao.offsetHeight;
+  menuSessao.style.left = `${Math.max(8, Math.min(x, window.innerWidth - larg - 8))}px`;
+  menuSessao.style.top = `${Math.max(8, Math.min(y, window.innerHeight - alt - 8))}px`;
 }
 
 // UM unico intervalo para todos os cronometros. Um setInterval por card
@@ -396,11 +442,14 @@ setInterval(() => {
     const rotulo = rotuloDe(c);
     const decorrido = textoEspera(Date.now() - c.desde);
 
-    const sub = elLista.querySelector(`.card[data-id="${CSS.escape(c.id)}"] .card-sub`);
-    if (sub && sub.textContent !== rotulo) sub.textContent = rotulo;
-
-    const naFila = elFilaLista.querySelector(`li[data-id="${CSS.escape(c.id)}"] .fila-espera`);
-    if (naFila && naFila.textContent !== decorrido) naFila.textContent = decorrido;
+    const linha = elProjetosListaLat?.querySelector(`.sessao[data-id="${CSS.escape(c.id)}"]`);
+    if (linha) {
+      const t = textosDaSessao(c);
+      const sub = linha.querySelector('.sessao-sub');
+      if (sub && sub.textContent !== t.sub) sub.textContent = t.sub;
+      const selo = linha.querySelector('.sessao-selo');
+      if (selo && selo.textContent !== t.selo) selo.textContent = t.selo;
+    }
 
     window.OrqPainel.painelPorId.get(c.id)?.atualizarRotulo(rotulo);
 
@@ -430,7 +479,6 @@ function pularParaMaisAntigo() {
   return alvo.id;
 }
 
-btnFilaDica?.addEventListener('click', pularParaMaisAntigo);
 
 // `metaKey` junto do `ctrlKey` pela mesma razao do Ctrl+B e do Ctrl+K: no Mac
 // o modificador e o ⌘, e este era o unico atalho que nao aceitava os dois.
@@ -652,6 +700,21 @@ window.orq.aoMudarAtualizacao(mostrarAtualizacao);
   if (elVersao) elVersao.textContent = `v${v}`;
   mostrarAtualizacao(await window.orq.atualizacaoSituacao());
 })();
+
+// --------------------------------------------------- navegacao (redesign R2)
+
+// Os icones dos botoes marcados com `data-ico` (nav e "+" da secao) vem do
+// icones.js, que carrega antes deste arquivo.
+for (const el of document.querySelectorAll('#lateral [data-ico]')) {
+  el.prepend(window.OrqIcones.svg(el.dataset.ico));
+}
+
+// "Sessoes" e a vista da grade. Enquanto as paginas (R4) nao existem, o clique
+// leva a grade ao topo; Issues, Historico e Notas abrem o que ja existia.
+document.getElementById('nav-sessoes')?.addEventListener('click', () => {
+  document.getElementById('conteudo')?.scrollTo({ top: 0, behavior: 'smooth' });
+});
+document.getElementById('nav-historico')?.addEventListener('click', () => window.OrqHistorico?.abrir());
 
 window.OrqLateral = {
   registrar, remover, definirStatus, pularParaMaisAntigo, cards, ordenadas, mostrarAtualizacao,
