@@ -1435,16 +1435,14 @@ button.primario:hover {
      em 924px da painéis de 200px, e o que cabe ali nao tem nada a ver com o
      tamanho da tela. */
   container-type: inline-size;
-  border-radius: var(--r-xl);
+  border-radius: var(--r-lg);
   overflow: hidden;
   background: var(--bg1);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
   animation: orqPop .32s ease both;
-  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+  transition: border-color .18s ease, box-shadow .18s ease;
 }
-
-.painel:hover { transform: translateY(-2px); }
 
 /* A FAIXA DO PROJETO, no topo do painel.
    Pseudo-elemento, e nao `border-color`: a borda do painel ja carrega tres
@@ -1455,7 +1453,7 @@ button.primario:hover {
   content: '';
   position: absolute;
   inset: 0 0 auto 0;
-  height: 4px;
+  height: 3px;
   background: var(--tinta);
   z-index: 3;
   pointer-events: none;
@@ -1466,7 +1464,10 @@ button.primario:hover {
   box-shadow: 0 0 0 1px var(--acc), var(--shadow);
 }
 
-.painel-esperando { border-color: var(--warn-linha); }
+.painel-esperando {
+  border-color: color-mix(in srgb, var(--warn) 55%, transparent);
+  box-shadow: 0 0 0 3px var(--warnd), var(--shadow);
+}
 
 /* Painel sob o arquivo que voce esta arrastando. Precisa ser obvio QUAL vai
    receber: com oito terminais na tela, soltar no vizinho e facil. */
@@ -1478,9 +1479,9 @@ button.primario:hover {
 .painel-cab {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 9px 10px 9px 12px;
-  background: var(--bg2);
+  gap: 7px;
+  padding: 7px 8px 7px 12px;
+  background: var(--bg1);
   border-bottom: 1px solid var(--line);
   min-width: 0;
 }
@@ -1509,25 +1510,17 @@ button.primario:hover {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 12.5px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   letter-spacing: -.01em;
   white-space: nowrap;
 }
 
-.painel-local {
-  flex: 0 20000 auto;
-  min-width: 0;
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--fg3);
-  background: var(--bg3);
-  border-radius: var(--r-xs);
-  padding: 2px 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+/* Redesign R3: a pill do projeto saiu do cabecalho. A cor do projeto continua
+   na faixa do topo do painel (.painel-tinto::before), e o nome do projeto na
+   lateral, onde a sessao mora. O elemento fica (mostrarProjeto ainda escreve
+   nele) so para nao espalhar condicao pelo painel.js. */
+.painel-local { display: none !important; }
 
 .painel-status {
   flex: 0 100000 auto;
@@ -1559,11 +1552,9 @@ button.primario:hover {
 
 .painel-porta {
   font-family: var(--mono);
-  font-size: 10px;
-  color: var(--info);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: 2px 6px;
+  font-size: 10.5px;
+  color: var(--fg3);
+  padding: 2px 4px;
   white-space: nowrap;
 }
 
@@ -1585,6 +1576,10 @@ button.primario:hover {
 
 .painel-ligacoes:hover { border-color: var(--line2); color: var(--fg2); }
 
+/* Redesign R3: "ligar" foi para o menu "..." do painel. O chip so aparece
+   quando HA ligacao (`1 ligado` / o branch do outro lado), que e informacao. */
+.painel-ligacoes:not(.tem-ligacao) { display: none; }
+
 /* Vai no grupo da esquerda, depois do status, mas sem encolher: rotulo cortado
    num botao de uma palavra nao serve. Por isso ele SAI cedo, antes de todos os
    degraus do @container la embaixo: com 58px fixos, num painel de 304px (densidade
@@ -1599,30 +1594,35 @@ button.primario:hover {
    painel. */
 .painel-run {
   flex: 0 0 auto;
+  height: 24px;
   font-size: 9px;
   line-height: 1;
   border-radius: var(--r-sm);
-  padding: 3px 6px;
-  background: transparent;
-  border: 1px solid var(--line);
-  color: var(--fg3);
+  padding: 0 7px;
+  background: var(--bg2);
+  border: 1px solid var(--line2);
+  color: var(--fg2);
 }
 
-.painel-run:hover { border-color: var(--line2); color: var(--acc); }
+.painel-run:hover { border-color: var(--acc); color: var(--acc); }
 
+/* Revisao e Resumo: botoes de verdade (redesign R3), lado a lado, e nao chips
+   mono. Sao as duas acoes que fecham o trabalho da sessao. */
 .painel-revisao {
   flex: 0 0 auto;
-  font-family: var(--mono);
-  font-size: 10px;
+  height: 24px;
+  font-family: var(--ui);
+  font-size: 11.5px;
+  font-weight: 500;
   border-radius: var(--r-sm);
-  padding: 2px 7px;
+  padding: 0 9px;
   white-space: nowrap;
-  background: transparent;
-  border: 1px solid var(--line);
-  color: var(--fg3);
+  background: var(--bg2);
+  border: 1px solid var(--line2);
+  color: var(--fg2);
 }
 
-.painel-revisao:hover { border-color: var(--line2); color: var(--fg2); }
+.painel-revisao:hover { border-color: var(--fg3); color: var(--fg); }
 
 .painel-ligacoes.tem-ligacao {
   background: var(--accd);
@@ -1652,20 +1652,23 @@ button.primario:hover {
 
 .painel-render.render-webgl { display: none; }
 
-.painel-fechar {
-  flex: 0 0 20px;
-  width: 20px;
-  height: 20px;
+.painel-fechar,
+.painel-mais {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
   border-radius: var(--r-sm);
-  border: 1px solid transparent;
+  border: 0;
   background: none;
   color: var(--fg3);
-  font-size: 11px;
-  line-height: 1;
   padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.painel-fechar:hover { color: var(--danger); border-color: var(--danger); }
+.painel-mais:hover { background: var(--bg3); color: var(--fg); }
+.painel-fechar:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
 
 /* A issue do Pronix Flow que originou a sessao.
 
@@ -1681,10 +1684,10 @@ button.primario:hover {
   flex: 0 5000 auto;
   min-width: 0;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--info);
-  background: none;
-  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--info) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--info) 30%, transparent);
   border-radius: var(--r-sm);
   padding: 2px 6px;
   white-space: nowrap;
@@ -1724,10 +1727,10 @@ button.primario:hover {
   flex: 0 500 auto;
   min-width: 0;
   font-family: var(--mono);
-  font-size: 10px;
+  font-size: 10.5px;
   color: var(--fg2);
-  background: none;
-  border: 1px solid var(--line);
+  background: var(--bg2);
+  border: 1px solid var(--line2);
   border-radius: var(--r-sm);
   padding: 2px 6px;
   white-space: nowrap;
@@ -1736,8 +1739,16 @@ button.primario:hover {
 }
 
 .painel-branch:hover { border-color: var(--line2); }
-.painel-branch.ci-ok { color: var(--acc); }
-.painel-branch.ci-falha { color: var(--danger); border-color: var(--danger); }
+.painel-branch.ci-ok {
+  color: var(--acc);
+  background: var(--accd);
+  border-color: color-mix(in srgb, var(--acc) 34%, transparent);
+}
+.painel-branch.ci-falha {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+}
 
 /* Sai antes da pill (260) e depois do Revisao/▶ (340): numa grade apertada o
    nome do projeto ainda vale mais que o estado da branch, que tem a secao
@@ -1795,6 +1806,7 @@ button.primario:hover {
 .painel-notas .painel-fila,
 .painel-notas .painel-porta,
 .painel-notas .painel-render,
+.painel-notas .painel-mais,
 .painel-notas .painel-rodape { display: none; }
 
 .painel-notas .painel-term { padding: 0; }
@@ -2045,7 +2057,7 @@ button.primario:hover {
   padding: 5px 10px;
 }
 
-.rodape-ver:hover { background: rgba(255, 180, 84, .14); }
+.rodape-ver:hover { background: var(--warnd); }
 
 /* Painel muito estreito: a pergunta cede, os botoes nao. */
 @container (max-width: 260px) {

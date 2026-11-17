@@ -267,10 +267,25 @@ class Painel {
     this.elRender = document.createElement('span');
     this.elRender.className = 'painel-render';
 
+    // Redesign R3: o "..." do cabecalho junta o que era chip solto ("ligar",
+    // copiar caminho). Os itens sao os mesmos do "..." da linha na lateral.
+    const btnMais = document.createElement('button');
+    btnMais.className = 'painel-mais';
+    btnMais.title = 'Mais ações';
+    btnMais.setAttribute('aria-label', 'Mais ações do painel');
+    btnMais.append(window.OrqIcones.svg('menu', 'ico-s'));
+    btnMais.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const itens = window.OrqLateral?.itensDoMenuDaSessao?.(this, { focar: false }) || [];
+      window.OrqMenu?.abrirEm(btnMais, itens);
+    });
+    btnMais.addEventListener('mousedown', (ev) => ev.stopPropagation());
+
     const btnFechar = document.createElement('button');
     btnFechar.className = 'painel-fechar';
-    btnFechar.textContent = '×';
     btnFechar.title = 'Fechar painel (mata o processo)';
+    btnFechar.setAttribute('aria-label', 'Fechar painel');
+    btnFechar.append(window.OrqIcones.svg('fechar', 'ico-s'));
     btnFechar.addEventListener('click', (ev) => {
       ev.stopPropagation();
       this.destruir();
@@ -281,7 +296,7 @@ class Painel {
     // mas o botao de fechar continua alcancavel.
     const acoes = document.createElement('span');
     acoes.className = 'painel-acoes';
-    acoes.append(this.elPorta, this.elFila, this.elLigacoes, this.elRender, btnFechar);
+    acoes.append(this.elPorta, this.elFila, this.elLigacoes, this.elRender, btnMais, btnFechar);
 
     cab.append(this.elBolinha, elFeature, this.elPai, this.elIssue, this.elBranch, this.elLocal, this.elStatus, this.elRevisao, this.elResumo, this.elRun, acoes);
 

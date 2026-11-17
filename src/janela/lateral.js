@@ -372,54 +372,26 @@ function redesenhar() {
   window.OrqGrade?.ordenarGrade?.(lista);
 }
 
-// Menu "⋯" da linha da sessao. Reusa o visual do `.menu-ctx` (copiar.js,
-// branch.js). Um so, criado sob demanda.
-let menuSessao = null;
-function fecharMenuSessao() {
-  if (menuSessao) menuSessao.hidden = true;
-}
+// Menu "⋯" da linha da sessao (redesign R2). O desenho e o comportamento sao do
+// OrqMenu (menu.js); aqui so a lista de acoes.
 function abrirMenuSessao(id, x, y) {
   const painel = window.OrqPainel.painelPorId.get(id);
   if (!painel) return;
-  if (!menuSessao) {
-    menuSessao = document.createElement('div');
-    menuSessao.className = 'menu-ctx menu-sessao';
-    menuSessao.hidden = true;
-    document.getElementById('app').append(menuSessao);
-    window.addEventListener('mousedown', (ev) => {
-      if (menuSessao && !menuSessao.hidden && !menuSessao.contains(ev.target)) fecharMenuSessao();
-    }, true);
-    // Esc em captura com stopPropagation, no molde do menu do copiar.js: em
-    // bolha ele fecharia o menu E chegaria ao PTY.
-    window.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Escape' && menuSessao && !menuSessao.hidden) {
-        ev.stopPropagation();
-        fecharMenuSessao();
-      }
-    }, true);
-    window.addEventListener('blur', fecharMenuSessao);
-  }
-  const item = (rotulo, fn, perigo) => {
-    const b = document.createElement('button');
-    b.textContent = rotulo;
-    if (perigo) b.className = 'perigo';
-    b.addEventListener('click', () => { fecharMenuSessao(); fn(); });
-    return b;
-  };
-  const itens = [item('Focar o painel', () => window.OrqGrade.focarPainel(id))];
-  if (painel.tipoPainel !== 'terminal' && window.OrqSeletorLigacoes) {
-    itens.push(item('Ligar a outro repositório…', () => window.OrqSeletorLigacoes.abrir(id)));
-  }
-  const branch = painel.branch || window.OrqBranch?.de?.(id)?.branch;
-  if (branch) itens.push(item('Copiar nome do branch', () => window.orq.copiar(branch)));
-  itens.push(item('Copiar caminho da pasta', () => window.orq.copiar(painel.cwd)));
-  itens.push(item('Fechar painel', () => painel.destruir(), true));
-  menuSessao.replaceChildren(...itens);
-  menuSessao.hidden = false;
-  const larg = menuSessao.offsetWidth;
-  const alt = menuSessao.offsetHeight;
-  menuSessao.style.left = `${Math.max(8, Math.min(x, window.innerWidth - larg - 8))}px`;
-  menuSessao.style.top = `${Math.max(8, Math.min(y, window.innerHeight - alt - 8))}px`;
+  window.OrqMenu.abrir(itensDoMenuDaSessao(painel), x, y);
+}
+
+// Tambem usada pelo "..." do cabecalho do painel (painel.js), para os dois
+// menus dizerem a mesma coisa.
+function itensDoMenuDaSessao(painel, { focar = true } = {}) {
+  const branch = painel.branch || window.OrqBranch?.de?.(painel.id)?.branch;
+  return [
+    focar && { rotulo: 'Focar o painel', acao: () => window.OrqGrade.focarPainel(painel.id) },
+    painel.tipoPainel !== 'terminal' && window.OrqSeletorLigacoes
+      && { rotulo: 'Ligar a outro repositório…', acao: () => window.OrqSeletorLigacoes.abrir(painel.id) },
+    branch && { rotulo: 'Copiar nome do branch', acao: () => window.orq.copiar(branch) },
+    { rotulo: 'Copiar caminho da pasta', acao: () => window.orq.copiar(painel.cwd) },
+    { rotulo: 'Fechar painel', perigo: true, acao: () => painel.destruir() },
+  ];
 }
 
 // UM unico intervalo para todos os cronometros. Um setInterval por card
@@ -719,5 +691,5 @@ document.getElementById('nav-historico')?.addEventListener('click', () => window
 window.OrqLateral = {
   registrar, remover, definirStatus, pularParaMaisAntigo, cards, ordenadas, mostrarAtualizacao,
   atualizarRetomarTodas, filaAtencao, rotuloDe, pesoDe, textoEspera, redesenhar,
-  verificarAtualizacao, alternarAvisos, avisosLigados,
+  verificarAtualizacao, alternarAvisos, avisosLigados, itensDoMenuDaSessao,
 };
