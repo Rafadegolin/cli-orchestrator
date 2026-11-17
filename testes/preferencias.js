@@ -48,6 +48,8 @@ const gravarBruto = (ui) => fs.writeFileSync(
   checar('a lateral nasce ABERTA', padrao.lateral === 'aberta', padrao.lateral);
   checar('recolher sobrevive ao salvar e reler',
     preferencias.salvar({ lateral: 'fechada' }).lateral === 'fechada', '');
+  checar('a lateral compacta e aceita (redesign R2)',
+    preferencias.salvar({ lateral: 'compacta' }).lateral === 'compacta', '');
   checar('valor torto de lateral volta para aberta',
     preferencias.salvar({ lateral: 'talvez' }).lateral === 'aberta', '');
 

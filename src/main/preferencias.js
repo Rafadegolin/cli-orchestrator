@@ -111,7 +111,9 @@ function normalizar(bruto) {
     // A lateral recolhida. O padrao e ABERTA: ela e onde ficam a fila de
     // atencao e o aviso de versao nova, e um app que nasce escondendo isso
     // parece quebrado para quem abre pela primeira vez.
-    lateral: b.lateral === 'fechada' ? 'fechada' : 'aberta',
+    // Redesign R2: 'compacta' (uma linha por sessao, sem o branch) e 'fechada'
+    // (o trilho de 56px).
+    lateral: ['fechada', 'compacta'].includes(b.lateral) ? b.lateral : 'aberta',
     // O medidor de uso do topo. O padrao e MOSTRAR: ele responde "posso
     // continuar?", e um app que esconde isso por padrao devolve a pergunta para
     // dentro do terminal, que e de onde ela veio.

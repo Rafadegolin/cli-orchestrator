@@ -214,6 +214,17 @@
       correr: () => window.OrqCasca.alternarLateral(),
     });
 
+    lista.push({
+      tag: 'tema',
+      rotulo: window.OrqCasca?.lateral() === 'compacta'
+        ? 'Lateral com o branch embaixo de cada sessão'
+        : 'Lateral compacta (uma linha por sessão)',
+      dica: 'lateral',
+      correr: () => window.OrqCasca.mudar({
+        lateral: window.OrqCasca.lateral() === 'compacta' ? 'aberta' : 'compacta',
+      }),
+    });
+
     // Com a lateral recolhida, o interruptor de hooks fica fora de alcance -- e
     // sem hooks nao ha bolinha de status nenhuma. A paleta passa a ser o outro
     // caminho para ele.
