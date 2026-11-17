@@ -150,6 +150,14 @@ contextBridge.exposeInMainWorld('orq', {
   branchAtualizar: (id) => ipcRenderer.invoke('branch:atualizar', id),
   branchPush: (id, confirmar = true) => ipcRenderer.invoke('branch:push', { id, confirmar }),
   branchAbrirPr: (id) => ipcRenderer.invoke('branch:abrirPr', id),
+  // Painel Git (redesign R7).
+  gitArquivos: (id) => ipcRenderer.invoke('git:arquivos', id),
+  gitCommit: (carga) => ipcRenderer.invoke('git:commit', carga),
+  gitGerar: (carga) => ipcRenderer.invoke('git:gerar', carga),
+  branchPr: (id) => ipcRenderer.invoke('branch:pr', id),
+  branchCriarPr: (carga) => ipcRenderer.invoke('branch:criarPr', carga),
+  branchMesclar: (carga) => ipcRenderer.invoke('branch:mesclar', carga),
+  branchLogCheck: (carga) => ipcRenderer.invoke('branch:logCheck', carga),
   gitAtualizar: (projeto) => ipcRenderer.invoke('git:atualizar', projeto),
   includeCriar: (projeto, linhas, confirmar = true) =>
     ipcRenderer.invoke('worktrees:criarInclude', { projeto, linhas, confirmar }),

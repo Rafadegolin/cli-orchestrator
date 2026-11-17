@@ -224,6 +224,7 @@ function idsAbertos() {
 }
 
 module.exports = {
+  envLimpo,
   definirJanela,
   abrir,
   escrever,

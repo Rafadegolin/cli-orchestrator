@@ -1342,7 +1342,120 @@ function criarInclude(projeto, linhas) {
   return { arquivo, conteudo };
 }
 
+// ------------------------------------------------ painel Git (redesign R7)
+
+// Os arquivos alterados da pasta, para a lista com caixa de marcar do painel
+// Git: `[{ caminho, tipo, mais, menos }]`, com `tipo` em M/A/D/R/?.
+//
+// `--porcelain=v1 -z` e o formato estavel do git; `-z` para caminho com espaco
+// ou acento chegar inteiro. As contagens de linha saem do `diff HEAD
+// --numstat` (rastreado, indexado ou nao); arquivo novo nao rastreado fica com
+// `mais: null` -- contar exigiria ler o arquivo, e a lista nao precisa disso.
+async function statusArquivos(dir) {
+  const st = await gitLento(dir, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+  if (!st.ok) return { ok: false, texto: st.erro || 'Nao consegui ler o git status.' };
+
+  const partes = st.saida.split('\0');
+  const arquivos = [];
+  for (let i = 0; i < partes.length; i++) {
+    const p = partes[i];
+    if (p.length < 4) continue;
+    const xy = p.slice(0, 2);
+    const caminho = p.slice(3);
+    let tipo = '?';
+    if (xy === '??') tipo = '?';
+    else if (xy.includes('R')) { tipo = 'R'; i += 1; } // o nome antigo vem no item seguinte
+    else if (xy.includes('D')) tipo = 'D';
+    else if (xy.includes('A')) tipo = 'A';
+    else tipo = 'M';
+    arquivos.push({ caminho, tipo, mais: null, menos: null });
+  }
+
+  const ns = await gitLento(dir, ['diff', 'HEAD', '--numstat']);
+  if (ns.ok) {
+    const porCaminho = new Map(arquivos.map((a) => [a.caminho, a]));
+    for (const linha of ns.saida.split(/\r?\n/)) {
+      const m = /^(\d+|-)\t(\d+|-)\t(.+)$/.exec(linha);
+      if (!m) continue;
+      const a = porCaminho.get(m[3]);
+      if (a) {
+        a.mais = m[1] === '-' ? null : Number(m[1]);
+        a.menos = m[2] === '-' ? null : Number(m[2]);
+      }
+    }
+  }
+  return { ok: true, arquivos };
+}
+
+// Commit FEITO PELO APP (decisao do redesign: o painel Git commita sozinho,
+// sem passar pela sessao). Revisa de proposito a regra antiga deste modulo de
+// "nao mexer no indice do usuario": aqui o indice so muda POR CLIQUE, e so nos
+// arquivos que a pessoa marcou.
+//
+// - Cada caminho tem de estar na lista do `statusArquivos` DESTE instante: e
+//   texto vindo da janela, e um caminho qualquer (`..`, absoluto, ou um arquivo
+//   que nem mudou) e recusado inteiro, antes de tocar em nada.
+// - Nao rastreado entra por `git add`; o commit e `--only` com a lista, entao o
+//   que ja estava indexado FORA da lista nao vai junto.
+// - Nunca `--amend`, `--no-verify` nem `-a`. Hook de pre-commit que recusa vira
+//   a linha de motivo.
+// - Recusa no commit desfaz o `add` dos nao rastreados: nenhum caminho de
+//   recusa deixa residuo no indice.
+const MS_COMMIT = 60_000;
+
+async function commitar(dir, { mensagem, arquivos } = {}) {
+  const msg = String(mensagem || '').replace(/\r\n?/g, '\n').trim();
+  if (!msg) return { ok: false, texto: 'Escreva a mensagem do commit.' };
+  if (msg.length > 10_000) return { ok: false, texto: 'Mensagem longa demais.' };
+  const lista = Array.isArray(arquivos) ? [...new Set(arquivos.map(String))] : [];
+  if (!lista.length) return { ok: false, texto: 'Marque ao menos um arquivo.' };
+
+  for (const c of lista) {
+    if (!c || path.isAbsolute(c) || c.split(/[\\/]/).includes('..')) {
+      return { ok: false, texto: `Caminho recusado: ${c}` };
+    }
+  }
+  const st = await statusArquivos(dir);
+  if (!st.ok) return st;
+  const alterados = new Map(st.arquivos.map((a) => [a.caminho, a]));
+  const fora = lista.filter((c) => !alterados.has(c));
+  if (fora.length) return { ok: false, texto: `Estes arquivos nao tem alteracao agora: ${fora.join(', ')}` };
+
+  const novos = lista.filter((c) => alterados.get(c).tipo === '?');
+  if (novos.length) {
+    const add = await gitLento(dir, ['add', '--', ...novos]);
+    if (!add.ok) return { ok: false, texto: `Nao consegui adicionar os arquivos novos: ${add.erro}` };
+  }
+
+  const r = await gitLento(dir, ['commit', '--only', '-m', msg, '--', ...lista], { ms: MS_COMMIT });
+  if (!r.ok) {
+    if (novos.length) await gitLento(dir, ['reset', '-q', '--', ...novos]);
+    // Sem os avisos de fim de linha do git (CRLF), que nao explicam nada.
+    const linhas = String(r.erro).split(/\r?\n/).map((l) => l.trim())
+      .filter((l) => l && !/^(warning:|Command failed:)/i.test(l));
+    return { ok: false, texto: `O commit foi recusado: ${linhas.slice(-3).join(' ') || 'o git recusou'}` };
+  }
+  const sha = (await gitLento(dir, ['rev-parse', '--short', 'HEAD'])).saida.trim();
+  return { ok: true, sha, arquivos: lista.length };
+}
+
+// Os commits da branch que ainda nao estao na base (para a aba Git do painel).
+async function commitsAFrente(dir, base, max = 20) {
+  if (!base) return [];
+  const r = await gitLento(dir, ['log', `${base}..HEAD`, `-${max}`, '--format=%h%x1f%s%x1f%cr']);
+  if (!r.ok) return [];
+  return r.saida.split(/\r?\n/).filter(Boolean).map((l) => {
+    const [sha, assunto, quando] = l.split('\x1f');
+    return { sha, assunto, quando };
+  });
+}
+
 module.exports = {
+  statusArquivos,
+  commitar,
+  commitsAFrente,
+  gitLento,
+  MS_COMMIT,
   CANDIDATOS_ENV,
   MS_TAMANHO,
   MS_GIT,

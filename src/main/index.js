@@ -25,6 +25,7 @@ const remoto = require('./remoto');
 const branches = require('./branches');
 const telas = require('./telas');
 const github = require('./github');
+const gerarTexto = require('./gerar-texto');
 const avisos = require('./avisos');
 const registro = require('./registro');
 const externo = require('./externo');
@@ -506,6 +507,160 @@ ipcMain.handle('branch:abrirPr', async (_e, id) => {
     : github.urlNovoPr(alvo.repo.dono, alvo.repo.repo, e.base, e.upstream.slice(e.remoto.length + 1));
   shell.openExternal(destino);
   return { ok: true, url: destino };
+});
+
+// ------------------------------------------------ painel Git (redesign R7)
+//
+// O painel Git a direita: alteracoes, commit pelo app, push, PR, checks e
+// merge. O estado e SEMPRE relido no clique (`branches.paraAcao`): o que a tela
+// mostra e rotulo, nunca portao. Push e merge so com dialogo nativo dizendo o
+// que vai acontecer.
+
+// O push com o dialogo de sempre. Extraido do `branch:push` para o "Commit e
+// push" e o "Push e criar PR" usarem a mesma pergunta.
+async function pushComDialogo(id, confirmar = true) {
+  const alvo = await branches.paraAcao(id);
+  if (!alvo || !alvo.local.ok || !alvo.local.branch) {
+    return { ok: false, texto: 'Nao ha branch para enviar neste painel.' };
+  }
+  const e = alvo.local;
+  if (e.upstream && !e.semPush) return { ok: true, nadaAEnviar: true, texto: 'Nada para enviar: o remoto ja tem tudo.' };
+  if (confirmar) {
+    const n = e.semPush;
+    const { response } = await dialog.showMessageBox(janela, {
+      type: 'question',
+      buttons: ['Enviar', 'Cancelar'],
+      defaultId: 0,
+      cancelId: 1,
+      title: 'Enviar branch',
+      message: `Enviar ${e.branch}?`,
+      detail: (e.upstream
+        ? `${n} ${n === 1 ? 'commit vai' : 'commits vao'} para ${e.upstream}.`
+        : `A branch ainda nao existe no remoto: ela sera criada${n ? ` com ${n} ${n === 1 ? 'commit' : 'commits'}` : ''} `
+          + 'e passa a ser rastreada.')
+        + '\n\nSem --force: se o remoto tiver algo que esta branch nao tem, o push e recusado.',
+    });
+    if (response !== 0) return { ok: false, cancelado: true, texto: '' };
+  }
+  const r = await worktrees.push(alvo.pasta);
+  if (r.ok) branches.atualizar(id, { forcar: true }).catch(() => {});
+  return r;
+}
+
+ipcMain.handle('git:arquivos', async (_e, id) => {
+  const alvo = await branches.paraAcao(id);
+  if (!alvo) return { ok: false, texto: 'Este painel nao tem pasta.' };
+  const e = alvo.local;
+  const st = await worktrees.statusArquivos(alvo.pasta);
+  const commits = e.ok ? await worktrees.commitsAFrente(alvo.pasta, e.base) : [];
+  return {
+    ok: st.ok,
+    texto: st.texto,
+    arquivos: st.arquivos || [],
+    commits,
+    local: e.ok ? {
+      branch: e.branch, base: e.base, frente: e.frente, upstream: e.upstream, semPush: e.semPush,
+    } : null,
+    github: Boolean(alvo.repo),
+  };
+});
+
+ipcMain.handle('git:commit', async (_e, { id, mensagem, arquivos, push = false } = {}) => {
+  const alvo = await branches.paraAcao(id);
+  if (!alvo) return { ok: false, texto: 'Este painel nao tem pasta.' };
+  const r = await worktrees.commitar(alvo.pasta, { mensagem, arquivos });
+  if (!r.ok) return r;
+  branches.atualizar(id, { forcar: true }).catch(() => {});
+  if (!push) return r;
+  const p = await pushComDialogo(id, true);
+  return { ...r, push: p };
+});
+
+ipcMain.handle('git:gerar', async (_e, { id, modo = 'commit', issue = '' } = {}) => {
+  const alvo = await branches.paraAcao(id);
+  if (!alvo) return { ok: false, texto: 'Este painel nao tem pasta.' };
+  const pasta = alvo.pasta;
+  // Commit: o que ainda nao foi commitado. PR: o que a branch fez desde a base.
+  const intervalo = modo === 'pr' && alvo.local.ok && alvo.local.base ? [`${alvo.local.base}...HEAD`] : ['HEAD'];
+  const stat = await worktrees.gitLento(pasta, ['diff', ...intervalo, '--stat']);
+  const diff = await worktrees.gitLento(pasta, ['diff', ...intervalo]);
+  let statTexto = stat.ok ? stat.saida : '';
+  if (modo !== 'pr') {
+    const st = await worktrees.statusArquivos(pasta);
+    const novos = (st.arquivos || []).filter((a) => a.tipo === '?').map((a) => `${a.caminho} (novo)`);
+    if (novos.length) statTexto += `\n${novos.join('\n')}`;
+  }
+  return gerarTexto.gerar(pasta, modo === 'pr' ? 'pr' : 'commit', {
+    stat: statTexto.trim(), diff: diff.ok ? diff.saida : '', issue: String(issue || '').slice(0, 200),
+  }, { env: terminais.envLimpo() });
+});
+
+ipcMain.handle('branch:pr', async (_e, id) => {
+  const alvo = await branches.paraAcao(id);
+  if (!alvo || !alvo.repo) return { ok: false, semGithub: true };
+  const pr = branches.agora().find((x) => x.id === id)?.pr;
+  if (!pr) return { ok: true, nenhum: true };
+  return github.detalhesPr({ ...alvo.repo, numero: pr.numero });
+});
+
+ipcMain.handle('branch:criarPr', async (_e, { id, titulo, corpo, base, rascunho } = {}) => {
+  let alvo = await branches.paraAcao(id);
+  if (!alvo || !alvo.local.ok || !alvo.local.branch) return { ok: false, texto: 'Nao ha branch neste painel.' };
+  // "Push e criar PR": sem upstream (ou com commits nao enviados), o push vem
+  // antes -- com o dialogo de sempre.
+  if (!alvo.local.upstream || alvo.local.semPush) {
+    const p = await pushComDialogo(id, true);
+    if (!p.ok) return p;
+    alvo = await branches.paraAcao(id);
+  }
+  if (!alvo.repo) return { ok: false, texto: 'O remoto desta branch nao e do GitHub.' };
+  const e = alvo.local;
+  const head = e.upstream ? e.upstream.slice(e.remoto.length + 1) : e.branch;
+  const r = await github.criarPr({
+    ...alvo.repo, head, base: String(base || e.base || '').trim() || e.base, titulo, corpo, rascunho,
+  });
+  if (r.ok) branches.atualizar(id, { forcar: true }).catch(() => {});
+  if (!r.ok && r.acesso === false) {
+    r.urlManual = github.urlNovoPr(alvo.repo.dono, alvo.repo.repo, base || e.base, head);
+  }
+  return r;
+});
+
+ipcMain.handle('branch:mesclar', async (_e, { id, numero, metodo = 'squash', sha } = {}) => {
+  const alvo = await branches.paraAcao(id);
+  if (!alvo || !alvo.repo) return { ok: false, texto: 'O remoto desta branch nao e do GitHub.' };
+  // Relido AGORA: checks e mesclabilidade do GitHub, e nao os da tela.
+  const d = await github.detalhesPr({ ...alvo.repo, numero });
+  if (!d.ok) return { ok: false, texto: d.texto || 'Nao consegui ler o PR.' };
+  if (d.estado !== 'aberto') return { ok: false, texto: `O PR #${numero} nao esta aberto.` };
+  const falhas = d.checks.filter((c) => c.situacao === 'falhou');
+  if (falhas.length) return { ok: false, texto: `${falhas.length} check(s) falhando: ${falhas.map((c) => c.nome).join(', ')}.` };
+  if (!d.mesclavel) return { ok: false, texto: `O GitHub ainda nao deixa mesclar (${d.estadoMescla || 'conflito ou checks pendentes'}).` };
+  if (sha && d.sha && sha !== d.sha) return { ok: false, texto: 'O PR recebeu commits novos desde que a tela foi lida. Confira de novo.' };
+
+  const nomes = { squash: 'squash', merge: 'merge commit', rebase: 'rebase' };
+  const pendentes = d.checks.filter((c) => c.situacao === 'pendente').length;
+  const { response } = await dialog.showMessageBox(janela, {
+    type: 'question',
+    buttons: ['Mesclar', 'Cancelar'],
+    defaultId: 1,
+    cancelId: 1,
+    title: 'Mesclar pull request',
+    message: `Mesclar o PR #${d.numero} em ${d.base}?`,
+    detail: `${d.titulo}\n\nMétodo: ${nomes[metodo] || metodo}. `
+      + `Checks: ${d.checks.length - pendentes} concluídos${pendentes ? `, ${pendentes} pendentes` : ''}. `
+      + `Aprovações: ${d.aprovacoes}.`,
+  });
+  if (response !== 0) return { ok: false, cancelado: true, texto: '' };
+  const r = await github.mesclar({ ...alvo.repo, numero: d.numero, metodo, sha: d.sha });
+  if (r.ok) branches.atualizar(id, { forcar: true }).catch(() => {});
+  return r;
+});
+
+ipcMain.handle('branch:logCheck', async (_e, { id, checkId } = {}) => {
+  const alvo = await branches.paraAcao(id);
+  if (!alvo || !alvo.repo) return { ok: false, texto: 'O remoto desta branch nao e do GitHub.' };
+  return github.logDoCheck({ ...alvo.repo, id: checkId });
 });
 
 // Area de transferencia pelo MAIN, e nao pelo `navigator.clipboard` da janela.
