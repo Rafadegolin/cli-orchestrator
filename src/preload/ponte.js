@@ -60,6 +60,8 @@ contextBridge.exposeInMainWorld('orq', {
   worktreesListar: (projeto) => ipcRenderer.invoke('worktrees:listar', projeto),
   worktreesArquivar: (projeto, caminho, confirmar = true) =>
     ipcRenderer.invoke('worktrees:arquivar', { projeto, caminho, confirmar }),
+  // A previa da confirmacao do arquivar, que agora e DENTRO do app.
+  worktreesPrevia: (projeto, caminhos) => ipcRenderer.invoke('worktrees:previa', { projeto, caminhos }),
   worktreesDiff: (projeto, caminho) => ipcRenderer.invoke('worktrees:diff', { projeto, caminho }),
   // Quantos comentarios do diff ainda nao foram colados: o rascunho nao
   // persiste, e o dialogo de fechar o app precisa saber disso.

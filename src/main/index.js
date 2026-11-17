@@ -1066,37 +1066,10 @@ ipcMain.handle('worktrees:arquivarVarias', async (evento, { projeto, caminhos, c
 
   const script = projetos.scriptDe(projeto, 'arquivar');
 
-  if (confirmar) {
-    const linhas = aptas.map((w) => {
-      const extra = w.ignorados?.length ? `  (+ ${w.ignorados.join(', ')})` : '';
-      return `  ${w.nome}  —  ${w.branch}${extra}`;
-    });
-    // Os ignorados NOMEADOS, como no dialogo de uma so: o git nao os enxerga e
-    // o `worktree remove` os apaga assim mesmo. Em lote isso pesa mais, nao
-    // menos.
-    const comIgnorados = aptas.filter((w) => w.ignorados?.length).length;
-
-    const { response } = await dialog.showMessageBox(dono, {
-      type: 'warning',
-      buttons: ['Arquivar', 'Cancelar'],
-      defaultId: 1,
-      cancelId: 1,
-      title: 'Arquivar worktrees',
-      message: aptas.length === 1
-        ? `Arquivar "${aptas[0].nome}"?`
-        : `Arquivar ${aptas.length} worktrees?`,
-      detail:
-        'Isto remove a pasta e o branch de cada uma:\n\n' +
-        `${linhas.join('\n')}\n\n` +
-        (comIgnorados
-          ? `Os itens entre parenteses sao arquivos que o git ignora e que nenhum commit guarda.\n\n`
-          : '') +
-        linhaScript(script) +
-        'Conferido agora: nenhuma tem sessao aberta, alteracao sem commit ou commit fora da ' +
-        'base. Ainda assim, isto nao tem desfazer.',
-    });
-    if (response !== 0) return { ok: false, cancelado: true, arquivadas: [], recusadas };
-  }
+  // Sem dialogo nativo: a janela ja confirmou no OrqConfirmar, com a previa.
+  // Cada `arquivar` do lote revalida tudo por dentro, entao uma sessao que suba
+  // entre a pergunta e a execucao ainda encontra o portao fechado.
+  void confirmar;
 
   // O progresso existe porque o lote leva dezenas de segundos e ate agora a
   // unica pista era o texto do botao virar `arquivando...`. Quem monta o evento
@@ -1137,45 +1110,33 @@ ipcMain.handle('worktrees:arquivar', async (_e, { projeto, caminho, confirmar = 
 
   const script = projetos.scriptDe(projeto, 'arquivar');
 
-  if (confirmar) {
-    const { response } = await dialog.showMessageBox(janela, {
-      type: 'warning',
-      buttons: ['Arquivar', 'Cancelar'],
-      defaultId: 1,
-      cancelId: 1,
-      title: 'Arquivar worktree',
-      message: `Arquivar "${alvo.nome}"?`,
-      detail:
-        `Isto remove a pasta ${alvo.caminho}\n` +
-        `e o branch ${alvo.branch}.\n\n` +
-        // Os ignorados NOMEADOS. O `git status` nao os enxerga, entao os
-        // portoes acima nao os cobrem -- e o `worktree remove` apaga assim
-        // mesmo. Nao bloqueia: so para de apagar em silencio.
-        (alvo.ignorados?.length
-          ? `Isto tambem apaga ${alvo.ignorados.length} ${alvo.ignorados.length === 1
-            ? 'arquivo que o git ignora' : 'arquivos que o git ignora'}, `
-            + `e que nenhum commit guarda:\n${alvo.ignorados.join(', ')}\n\n`
-          : '') +
-        linhaScript(script) +
-        'Conferido agora: nao ha sessao aberta, nao ha alteracao sem commit e nao ha commit ' +
-        'fora da base. Ainda assim, isto nao tem desfazer.',
-    });
-    if (response !== 0) return { ok: false, motivo: 'cancelado', texto: '' };
-  }
+  // A pergunta saiu daqui (pedido do usuario: nada de dialogo nativo no
+  // arquivar). Quem confirma e a janela, no OrqConfirmar, com a previa do
+  // `worktrees:previa` -- os ignorados nomeados e o script continuam na tela.
+  // `confirmar` segue aceito so por compatibilidade com quem ja o passa.
+  void confirmar;
 
   const r = await worktrees.arquivar(projeto, caminho, { script });
   if (r.ok) anotarIntegrada(projeto, r.nome);
   return r;
 });
 
-// O script de arquivar do projeto (Fase 10.2) aparece no dialogo: e um comando
-// que vai rodar com um clique em "Arquivar", e quem clica tem de ver qual.
-function linhaScript(script) {
-  return script ? `Antes de apagar, roda: ${script}
-Se ele falhar, nada e apagado.
-
-` : '';
-}
+// A previa do arquivar, para a confirmacao DENTRO do app (OrqConfirmar): os
+// mesmos portoes do lote (`triarLote`, mais o painel aberto na pasta), os
+// arquivos ignorados que vao junto e o script do projeto. So leitura -- quem
+// apaga continua sendo o `arquivar`, que revalida tudo na hora.
+ipcMain.handle('worktrees:previa', (_e, { projeto, caminhos } = {}) => {
+  const pedidos = Array.isArray(caminhos) ? caminhos : [];
+  const bloqueados = terminais.idsAbertos().map((id) => terminais.cwdDe(id)).filter(Boolean);
+  const { aptas, recusadas } = worktrees.triarLote(projeto, pedidos, { bloqueados });
+  return {
+    aptas: aptas.map((w) => ({
+      nome: w.nome, branch: w.branch, caminho: w.caminho, ignorados: w.ignorados || [],
+    })),
+    recusadas: recusadas.map((r) => ({ nome: r.nome, texto: r.texto })),
+    script: projetos.scriptDe(projeto, 'arquivar') || '',
+  };
+});
 
 // Arquivar com sucesso e o "integrado" das metricas do historico: o portao do
 // `podeArquivar` ja exigiu zero commits fora da base. O nome do projeto sai do

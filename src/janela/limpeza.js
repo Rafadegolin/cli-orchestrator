@@ -201,6 +201,13 @@
     if (!alvos.length) return { ok: false };
 
     const projetoDoLote = projeto;
+    // A pergunta e DENTRO do app (OrqConfirmar), e nao mais dialogo nativo:
+    // lista o que vai embora, os ignorados e o que fica de fora, e o foco nasce
+    // no Cancelar. O main revalida cada worktree de novo na hora de apagar.
+    if (confirmar) {
+      const ok = await window.OrqConfirmar.arquivar(projetoDoLote, alvos);
+      if (!ok) return { ok: false, cancelado: true };
+    }
     arquivando = true;
     btnArquivar.disabled = true;
     btnArquivar.textContent = 'arquivando…';
@@ -213,7 +220,7 @@
     // promessa rejeitada sem catch no listener do clique. Era por aqui que toda
     // excecao la de tras virava "o app travou" na tela.
     try {
-      r = await window.orq.worktreesArquivarVarias(projetoDoLote, alvos, confirmar);
+      r = await window.orq.worktreesArquivarVarias(projetoDoLote, alvos, false);
     } catch (err) {
       console.error('[limpeza] o lote falhou:', err);
       elResumo.textContent = `Não consegui arquivar: ${err?.message || err}`;

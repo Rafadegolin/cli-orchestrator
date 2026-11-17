@@ -140,13 +140,40 @@ function montarRepo() {
   await cdp.avaliar(`window.OrqPainel.painelPorId.get(${JSON.stringify(painel.id)}).destruir()`);
   await esperar(2500);
 
-  const arquivou = JSON.parse(await cdp.avaliar(`(async () => {
-    const p = window.OrqProjetos.lista()[0];
-    const w = window.OrqProjetos.detalhes.get(p.id).worktrees.find(x => x.nome === 'limpo');
-    const r = await window.orq.worktreesArquivar(p.caminho, w.caminho, false);
-    await window.OrqProjetos.carregarDetalhes(p.id);
-    return JSON.stringify(r);
-  })()`));
+  // Pelo × da linha, como a pessoa faz: a confirmacao e DENTRO do app (sem
+  // dialogo nativo). Cancelar nao apaga nada; confirmar arquiva.
+  const clicarX = () => cdp.avaliar(`(() => {
+    const li = [...document.querySelectorAll('.wt')].find(l => l.querySelector('.wt-nome')?.textContent === 'limpo');
+    li.querySelector('.wt-arquivar').click();
+    return 'ok';
+  })()`);
+  await clicarX();
+  const pergunta = JSON.parse(await (async () => {
+    for (let i = 0; i < 30; i++) {
+      const r = await cdp.avaliar(`JSON.stringify({ aberto: window.OrqConfirmar.aberto(),
+        titulo: document.getElementById('confirmar-titulo')?.textContent || '',
+        texto: document.querySelector('#confirmar .modal-caixa')?.textContent || '',
+        foco: document.activeElement?.id || '' })`);
+      if (JSON.parse(r).aberto) return r;
+      await esperar(150);
+    }
+    return '{}';
+  })());
+  checar('o × abre a confirmacao DENTRO do app', pergunta.aberto === true && /Arquivar limpo/.test(pergunta.titulo),
+    JSON.stringify(pergunta).slice(0, 200));
+  checar('ela nomeia o branch e nasce com o foco no Cancelar',
+    /worktree-limpo/.test(pergunta.texto) && pergunta.foco === 'confirmar-cancelar', pergunta.foco);
+  await cdp.avaliar(`document.getElementById('confirmar-cancelar').click()`);
+  await esperar(800);
+  checar('cancelar nao apaga nada', fs.existsSync(dirs.limpo), dirs.limpo);
+
+  await clicarX();
+  for (let i = 0; i < 30 && !(await cdp.avaliar(`window.OrqConfirmar.aberto()`)); i++) await esperar(150);
+  await cdp.avaliar(`document.getElementById('confirmar-ok').click()`);
+  for (let i = 0; i < 40 && fs.existsSync(dirs.limpo); i++) await esperar(250);
+  checar('confirmar no app arquiva', !fs.existsSync(dirs.limpo), dirs.limpo);
+  await esperar(800);
+  const arquivou = { ok: !fs.existsSync(dirs.limpo) };
   checar('com o painel fechado, arquiva', arquivou.ok === true, JSON.stringify(arquivou));
   checar('a pasta do worktree sumiu', !fs.existsSync(dirs.limpo), dirs.limpo);
 

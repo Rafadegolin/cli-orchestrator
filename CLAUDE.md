@@ -104,8 +104,12 @@ fatia saiu num commit proprio, em branches empilhadas `redesign-r0-fundacao` ...
 **Ainda nao provado contra o mundo real** (so com `fetch` falso e `claude` falso): criar PR e mesclar
 no GitHub, e o "Gerar". Rodar uma vez num repositorio de teste antes de confiar.
 
-**Ficou de fora, de proposito:** a confirmacao de arquivar UMA worktree continua no dialogo nativo
-(ele ja lista os portoes e o que vai embora). E a pagina de Issues so le as issues atribuidas a voce:
+**Arquivar nao abre mais dialogo nativo** (pedido do usuario): o `×` da worktree e a limpeza em
+lote confirmam no `OrqConfirmar` (`confirmar.js`), com a previa do `worktrees:previa` (os mesmos
+portoes do `triarLote`, os ignorados que vao junto e o script). Foco nasce no Cancelar. Os handlers
+`worktrees:arquivar`/`arquivarVarias` ignoram o `confirmar` e seguem revalidando tudo antes de apagar.
+
+**Ficou de fora, de proposito:** a pagina de Issues so le as issues atribuidas a voce:
 "abertas do time", labels e responsavel dependem de mudar a API do Flow (pedido registrado).
 
 ## Proximos passos: Fase 10

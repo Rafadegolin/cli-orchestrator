@@ -697,7 +697,11 @@ function desenharDetalhe(p) {
       : `Arquivar: remove a pasta e o branch ${w.branch}`;
     btnArquivar.addEventListener('click', async (ev) => {
       ev.stopPropagation();
-      const r = await window.orq.worktreesArquivar(p.caminho, w.caminho);
+      // A confirmacao e dentro do app (OrqConfirmar), com a previa lida do git
+      // agora; o main revalida tudo de novo antes de apagar.
+      const ok = await window.OrqConfirmar.arquivar(p.caminho, [w.caminho]);
+      if (!ok) return;
+      const r = await window.orq.worktreesArquivar(p.caminho, w.caminho, false);
       if (!r.ok && r.texto) btnArquivar.title = r.texto;
       // O `git branch -d` pode ter recusado (commit nao mesclado) mesmo com a
       // pasta ja removida. Isso vem em `ok: true` com `avisoBranch`, e estava
