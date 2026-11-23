@@ -58,6 +58,7 @@ function listar() {
     // Valor torto no JSON (editado a mao) nao pode pintar o painel de nada:
     // sem cor valida, a janela volta a sortear pelo caminho.
     cor: corValida(p.cor) ? Number(p.cor) : null,
+    ...iconeParaJanela(p.icone),
     scripts: normalizarScripts(p.scripts).scripts,
     existe: fs.existsSync(p.caminho),
     git: ehRepositorio(p.caminho),
@@ -100,6 +101,120 @@ function definirCor(id, cor) {
 
   gravar(projetos);
   return { ok: true, projeto: p };
+}
+
+// ------------------------------------------------------------ icone
+
+// O icone da linha do projeto na arvore. Dois tipos:
+//   { galeria: 'servidor' }  -- um dos icones de linha do app (icones.js), na
+//                               cor do projeto. O main so confere o FORMATO do
+//                               nome; quem conhece a lista e a janela, que cai
+//                               na pasta se nao reconhecer.
+//   { imagem: '<arquivo>' }  -- uma COPIA em <dados>/icones/, servida a janela
+//                               como data URL (o CSP ja aceita `img-src data:`;
+//                               file:// direto dependeria da origem da janela).
+// Sem campo, ou campo torto (editado a mao), e a pasta de sempre.
+const PASTA_ICONES = path.join(PASTA, 'icones');
+const MAX_ICONE = 512 * 1024;
+const TIPOS_IMAGEM = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.gif': 'image/gif',
+};
+const RE_GALERIA = /^[a-z][a-z0-9-]{0,23}$/;
+// So o nome que NOS gravamos: `<id>-<hash>.<ext>`, sem separador de pasta.
+const RE_ARQ_ICONE = /^[A-Za-z0-9_-]{1,80}\.(png|jpe?g|webp|svg|ico|gif)$/;
+
+function iconeValido(ic) {
+  if (!ic || typeof ic !== 'object') return null;
+  if (typeof ic.galeria === 'string' && RE_GALERIA.test(ic.galeria)) return { galeria: ic.galeria };
+  if (typeof ic.imagem === 'string' && RE_ARQ_ICONE.test(ic.imagem)) return { imagem: ic.imagem };
+  return null;
+}
+
+// `listar()` roda a cada refresh da janela: a imagem e lida uma vez e fica em
+// memoria, chaveada por nome + mtime + tamanho.
+const cacheIcones = new Map();
+
+function urlDaImagem(nome) {
+  const alvo = path.join(PASTA_ICONES, nome);
+  let st;
+  try { st = fs.statSync(alvo); } catch { return null; }
+  if (!st.isFile() || st.size > MAX_ICONE) return null;
+  const marca = `${st.mtimeMs}:${st.size}`;
+  const c = cacheIcones.get(nome);
+  if (c && c.marca === marca) return c.url;
+  const tipo = TIPOS_IMAGEM[path.extname(nome).toLowerCase()];
+  let url = null;
+  try { url = `data:${tipo};base64,${fs.readFileSync(alvo).toString('base64')}`; } catch { return null; }
+  cacheIcones.set(nome, { marca, url });
+  return url;
+}
+
+function iconeParaJanela(bruto) {
+  const ic = iconeValido(bruto);
+  if (!ic) return { icone: null, iconeUrl: null };
+  if (ic.galeria) return { icone: ic, iconeUrl: null };
+  const url = urlDaImagem(ic.imagem);
+  // Imagem sumida do disco: volta a pasta, em vez de um quadrado quebrado.
+  return url ? { icone: ic, iconeUrl: url } : { icone: null, iconeUrl: null };
+}
+
+function apagarImagemDe(p) {
+  const ic = iconeValido(p && p.icone);
+  if (!ic || !ic.imagem) return;
+  cacheIcones.delete(ic.imagem);
+  try { fs.unlinkSync(path.join(PASTA_ICONES, ic.imagem)); } catch { /* ja nao existe */ }
+}
+
+// `valor`: null (padrao), { galeria: nome } ou { imagem: caminhoDeOrigem }.
+// A imagem e COPIADA: o arquivo de origem pode ser movido ou apagado depois.
+function definirIcone(id, valor) {
+  const projetos = ler();
+  const p = projetos.find((x) => x.id === id);
+  if (!p) return { ok: false, erro: 'projeto nao encontrado' };
+
+  let novo = null;
+  if (valor && typeof valor.galeria === 'string') {
+    if (!RE_GALERIA.test(valor.galeria)) return { ok: false, erro: `icone invalido: ${valor.galeria}` };
+    novo = { galeria: valor.galeria };
+  } else if (valor && typeof valor.imagem === 'string') {
+    const origem = valor.imagem;
+    const ext = path.extname(origem).toLowerCase();
+    if (!TIPOS_IMAGEM[ext]) return { ok: false, erro: 'use uma imagem png, jpg, webp, svg, ico ou gif' };
+    let dados;
+    try {
+      const st = fs.statSync(origem);
+      if (!st.isFile()) return { ok: false, erro: 'nao e um arquivo' };
+      if (st.size > MAX_ICONE) return { ok: false, erro: `imagem grande demais (maximo ${MAX_ICONE / 1024} KB)` };
+      dados = fs.readFileSync(origem);
+    } catch {
+      return { ok: false, erro: 'nao consegui ler a imagem' };
+    }
+    const hash = require('crypto').createHash('sha256').update(dados).digest('hex').slice(0, 8);
+    const seguro = String(p.id).replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 60);
+    const nome = `${seguro}-${hash}${ext}`;
+    try {
+      fs.mkdirSync(PASTA_ICONES, { recursive: true });
+      fs.writeFileSync(path.join(PASTA_ICONES, nome), dados);
+    } catch {
+      return { ok: false, erro: 'nao consegui guardar a imagem' };
+    }
+    novo = { imagem: nome };
+  } else if (valor !== null && valor !== undefined) {
+    return { ok: false, erro: 'icone invalido' };
+  }
+
+  const antigo = iconeValido(p.icone);
+  if (antigo && antigo.imagem && !(novo && novo.imagem === antigo.imagem)) apagarImagemDe(p);
+  if (novo) p.icone = novo;
+  else delete p.icone;
+  gravar(projetos);
+  return { ok: true, projeto: { ...p, ...iconeParaJanela(p.icone) } };
 }
 
 // ------------------------------------------------------------ scripts
@@ -353,6 +468,8 @@ function remover(id) {
   const restantes = projetos.filter((p) => p.id !== id);
   if (restantes.length === projetos.length) return { removido: false };
   gravar(restantes);
+  // A copia do icone e nossa (a pasta do projeto, nao): sai junto do cadastro.
+  apagarImagemDe(projetos.find((p) => p.id === id));
   return { removido: true };
 }
 
@@ -386,6 +503,7 @@ module.exports = {
   corValida,
   proximaCor,
   definirCor,
+  definirIcone, iconeValido, PASTA_ICONES, MAX_ICONE,
   SCRIPTS, MAX_SCRIPT, normalizarScripts, definirScripts, scriptDe,
   ARQUIVO, PASTA, listar, adicionar, remover, renomear, nomeCurto, ehRepositorio,
   faixaDe, faixaValida, donoDe,

@@ -51,6 +51,22 @@ function tintaDoProjeto(p) {
   return p && p.cor ? `var(--proj-${p.cor})` : tintaDe(p?.caminho || '');
 }
 
+// O icone do projeto: a imagem dele (data URL que o main ja leu), um icone da
+// galeria pintado na cor do projeto, ou a pasta. Nome da galeria que a janela
+// nao conhece (projetos.json editado a mao, versao mais nova) cai na pasta.
+function elIconeDoProjeto(p) {
+  if (p && p.iconeUrl) {
+    const img = document.createElement('img');
+    img.className = 'projeto-img';
+    img.alt = '';
+    img.src = p.iconeUrl;
+    return img;
+  }
+  const nome = p?.icone?.galeria;
+  const ok = nome && window.OrqIcones.existe?.(nome);
+  return window.OrqIcones.svg(ok ? nome : 'pasta', 'ico-s');
+}
+
 // A cor de uma PASTA: a do projeto quando e a raiz, e um tom mais claro da
 // mesma familia quando esta dentro dele (worktree, subpasta).
 //
@@ -426,9 +442,9 @@ function desenharProjetos() {
     const tinta = document.createElement('button');
     tinta.className = 'projeto-tinta';
     tinta.style.color = tintaDoProjeto(p);
-    tinta.title = 'Trocar a cor deste projeto';
-    tinta.setAttribute('aria-label', `Trocar a cor de ${p.nome}`);
-    tinta.append(window.OrqIcones.svg('pasta', 'ico-s'));
+    tinta.title = 'Trocar a cor e o ícone deste projeto';
+    tinta.setAttribute('aria-label', `Trocar a cor e o ícone de ${p.nome}`);
+    tinta.append(elIconeDoProjeto(p));
     tinta.addEventListener('click', (ev) => {
       ev.stopPropagation();
       window.OrqCorProjeto?.abrir(p.id);
@@ -965,6 +981,7 @@ window.OrqProjetos = {
   retomar,
   tintaDe,
   tintaDoProjeto,
+  iconeDoProjeto: elIconeDoProjeto,
   tintaDaPasta,
   projetoDe,
   COMANDO_RETOMAR,

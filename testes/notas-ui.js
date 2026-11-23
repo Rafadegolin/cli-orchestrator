@@ -182,6 +182,43 @@ function hook(caminho, id, corpo) {
     vis.topo >= 0 && vis.fundo <= vis.alt && vis.scroll < vis.max - 50, JSON.stringify(vis));
   await tecla('Escape', 'Escape', 0, 27);
   await esperar(150);
+
+  // ------------------------------------------------------------ abrir no fim
+  // Pedido: abrir o bloco mostra o FIM do texto, com o cursor la -- sem rolar.
+  // Trocar de aba com o bloco aberto continua lembrando a posicao.
+  const naPonta = () => cdp.avaliar(`(() => {
+    const ed = ${N}.notas.editor;
+    const s = document.getSelection();
+    const noFim = s.rangeCount > 0 && ed.contains(s.focusNode) && (() => {
+      const r = document.createRange();
+      r.setStart(s.focusNode, s.focusOffset);
+      r.setEnd(ed, ed.childNodes.length);
+      return r.toString() === '';
+    })();
+    return JSON.stringify({ scroll: Math.round(ed.scrollTop), max: ed.scrollHeight - ed.clientHeight, noFim });
+  })()`);
+  const abaLonga = await cdp.avaliar(`document.querySelectorAll('.painel-notas .notas-aba').length - 1`);
+  await cdp.avaliar(`document.querySelectorAll('.painel-notas .notas-aba')[${abaLonga}].click()`);
+  await esperar(200);
+  await cdp.avaliar(`(() => { const n = ${N}.notas; n.selecionar(0, 0); n.editor.scrollTop = 0; return 'ok'; })()`);
+  await cdp.avaliar(`document.querySelector('.painel-notas .painel-fechar').click()`);
+  await esperar(500);
+  await cdp.avaliar('window.OrqNotas.abrir()');
+  await esperar(900);
+  const ponta = JSON.parse(await naPonta());
+  checar('reabrir o bloco mostra o fim da aba (rolagem no maximo)',
+    ponta.max > 100 && ponta.scroll >= ponta.max - 2, JSON.stringify(ponta));
+  checar('e o cursor no fim do texto', ponta.noFim === true, JSON.stringify(ponta));
+
+  await cdp.avaliar(`(() => { const n = ${N}.notas; n.editor.focus(); n.selecionar(0, 0); n.editor.scrollTop = 0; return 'ok'; })()`);
+  await cdp.avaliar(`document.querySelectorAll('.painel-notas .notas-aba')[0].click()`);
+  await esperar(200);
+  await cdp.avaliar(`document.querySelectorAll('.painel-notas .notas-aba')[${abaLonga}].click()`);
+  await esperar(300);
+  const volta = JSON.parse(await naPonta());
+  checar('trocar de aba e voltar mantem a posicao (nao pula para o fim)',
+    volta.scroll === 0 && volta.noFim === false, JSON.stringify(volta));
+
   await cdp.avaliar(`document.querySelectorAll('.painel-notas .notas-aba')[0].click()`);
   await esperar(200);
 

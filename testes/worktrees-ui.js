@@ -167,6 +167,27 @@ function montarRepo() {
   await esperar(800);
   checar('cancelar nao apaga nada', fs.existsSync(dirs.limpo), dirs.limpo);
 
+  // Lote grande: os botoes nao podem sair da tela (relatado com 15+), e so o
+  // corpo rola. Pela `pedir`, sem git nenhum: e geometria.
+  await cdp.avaliar(`(() => { window.__grande = window.OrqConfirmar.pedir({ titulo: 'Arquivar 30 worktrees?', texto: 'x',
+    blocos: [{ rotulo: 'Vão embora', itens: Array.from({ length: 30 }, (_, i) => ({ texto: 'feature-TECH-' + (3500 + i), sub: 'worktree-feature-TECH-' + (3500 + i) })) }],
+    rodape: 'rodape', botao: 'Arquivar 30', perigo: true }); return 'ok'; })()`);
+  await esperar(500); // a animacao de entrada escala a caixa
+  const grande = JSON.parse(await cdp.avaliar(`(() => {
+    const ok = document.getElementById('confirmar-ok').getBoundingClientRect();
+    const corpo = document.querySelector('#confirmar .confirmar-corpo');
+    const li = document.querySelector('#confirmar .confirmar-lista li').getBoundingClientRect();
+    return JSON.stringify({ okFundo: Math.round(ok.bottom), alturaJanela: innerHeight,
+      rola: corpo.scrollHeight > corpo.clientHeight, linha: Math.round(li.height),
+      rotulo: document.querySelector('#confirmar .modal-rotulo').textContent });
+  })()`));
+  checar('com 30 itens o botao de confirmar continua na tela', grande.okFundo <= grande.alturaJanela, JSON.stringify(grande));
+  checar('e quem rola e o corpo da lista', grande.rola === true, JSON.stringify(grande));
+  checar('cada worktree numa linha so (compacta)', grande.linha <= 34, JSON.stringify(grande));
+  checar('o rotulo diz quantas vao', /· 30$/.test(grande.rotulo), grande.rotulo);
+  await cdp.avaliar(`document.getElementById('confirmar-cancelar').click()`);
+  checar('e o cancelar desse pedido devolve false', (await cdp.avaliar('(async () => await window.__grande)()')) === false);
+
   await clicarX();
   for (let i = 0; i < 30 && !(await cdp.avaliar(`window.OrqConfirmar.aberto()`)); i++) await esperar(150);
   await cdp.avaliar(`document.getElementById('confirmar-ok').click()`);

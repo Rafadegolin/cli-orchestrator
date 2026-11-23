@@ -48,6 +48,8 @@ contextBridge.exposeInMainWorld('orq', {
   projetosListar: () => ipcRenderer.invoke('projetos:listar'),
   projetosConversas: (caminho) => ipcRenderer.invoke('projetos:conversas', caminho),
   projetosDefinirCor: (id, cor) => ipcRenderer.invoke('projetos:definirCor', { id, cor }),
+  projetosDefinirIcone: (id, icone) => ipcRenderer.invoke('projetos:definirIcone', { id, icone }),
+  escolherImagem: () => ipcRenderer.invoke('app:escolherImagem'),
   projetosDefinirScripts: (id, scripts) => ipcRenderer.invoke('projetos:definirScripts', { id, scripts }),
   projetosAdicionarVarios: (caminhos) => ipcRenderer.invoke('projetos:adicionarVarios', caminhos),
   projetosAdicionar: (caminho, faixa) => ipcRenderer.invoke('projetos:adicionar', caminho, faixa),

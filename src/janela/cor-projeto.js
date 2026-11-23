@@ -16,6 +16,9 @@
   const elGrade = document.getElementById('cor-grade');
   const btnAuto = document.getElementById('cor-automatica');
   const btnFechar = document.getElementById('cor-pronto');
+  const elIcones = document.getElementById('icone-grade');
+  const btnImagem = document.getElementById('icone-imagem');
+  const btnPadrao = document.getElementById('icone-padrao');
 
   let alvo = null;
 
@@ -40,7 +43,7 @@
     const p = window.OrqProjetos.lista().find((x) => x.id === alvo);
     if (!p) return fechar();
 
-    elTitulo.textContent = `Cor de ${p.nome}`;
+    elTitulo.textContent = `Cor e ícone de ${p.nome}`;
     const usadas = emUso(p.id);
 
     elGrade.replaceChildren(...Array.from({ length: CORES }, (_, i) => {
@@ -64,6 +67,59 @@
     btnAuto.title = p.cor
       ? 'Volta a sortear a cor pelo caminho da pasta'
       : 'Esta cor está sendo sorteada pelo caminho da pasta';
+
+    desenharIcones(p);
+  }
+
+  // A grade de icones, cada um ja na cor do projeto. Com imagem propria, ela
+  // aparece primeiro, marcada.
+  function desenharIcones(p) {
+    const cor = window.OrqProjetos.tintaDoProjeto(p);
+    const atual = p.iconeUrl ? null : (p.icone?.galeria || 'pasta');
+    const opcoes = [];
+    if (p.iconeUrl) {
+      const b = document.createElement('button');
+      b.className = 'icone-opcao ativa';
+      b.title = 'Imagem do projeto';
+      b.dataset.icone = 'imagem';
+      const img = document.createElement('img');
+      img.alt = '';
+      img.src = p.iconeUrl;
+      b.append(img);
+      opcoes.push(b);
+    }
+    for (const nome of window.OrqIcones.GALERIA_PROJETO) {
+      const b = document.createElement('button');
+      b.className = 'icone-opcao' + (nome === atual ? ' ativa' : '');
+      b.style.color = cor;
+      b.dataset.icone = nome;
+      b.title = nome;
+      b.append(window.OrqIcones.svg(nome));
+      b.addEventListener('click', () => aplicarIcone(nome === 'pasta' ? null : { galeria: nome }));
+      opcoes.push(b);
+    }
+    elIcones.replaceChildren(...opcoes);
+    btnPadrao.classList.toggle('ativa', !p.icone);
+  }
+
+  async function aplicarIcone(icone) {
+    const id = alvo;
+    if (!id) return null;
+    const r = await window.orq.projetosDefinirIcone(id, icone);
+    if (!r.ok) {
+      window.OrqToast?.mostrar(r.erro || 'Não consegui trocar o ícone');
+      return r;
+    }
+    await window.OrqProjetos.carregarProjetos();
+    window.OrqLateral?.redesenhar?.();
+    if (alvo === id) desenhar();
+    return r;
+  }
+
+  async function escolherImagem() {
+    const caminho = await window.orq.escolherImagem();
+    if (!caminho) return null;
+    return aplicarIcone({ imagem: caminho });
   }
 
   async function aplicar(cor) {
@@ -84,6 +140,8 @@
   }
 
   btnAuto?.addEventListener('click', () => aplicar(null));
+  btnImagem?.addEventListener('click', escolherImagem);
+  btnPadrao?.addEventListener('click', () => aplicarIcone(null));
   btnFechar?.addEventListener('click', fechar);
   window.OrqOverlays?.registrar(elOverlay, fechar);
 
@@ -93,5 +151,5 @@
     desenhar();
   }
 
-  window.OrqCorProjeto = { abrir, fechar, aplicar, CORES, aberta: () => elOverlay.hidden === false };
+  window.OrqCorProjeto = { abrir, fechar, aplicar, aplicarIcone, CORES, aberta: () => elOverlay.hidden === false };
 })();

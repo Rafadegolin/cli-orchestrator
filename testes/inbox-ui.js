@@ -176,6 +176,26 @@ const painelDaWt = `[...window.OrqPainel.painelPorId.values()].filter((p) => (p.
   checar('repo nao cadastrado nao abre', !porId.outro.abrir);
   checar('e diz por que', /não cadastrado/.test(porId.outro.meta), porId.outro.meta);
 
+  // A tabela e TABELA: cada cabecalho na coluna do conteudo, sem rolagem
+  // lateral, e o botao numa linha so. A regra antiga `.inbox-linha { flex }`
+  // virava cada `tr` num flex e soltava o cabecalho das colunas.
+  const geo = JSON.parse(await cdp.avaliar(`(() => {
+    const ths = [...document.querySelectorAll('.inbox-tabela thead th')];
+    const tds = [...document.querySelector('#inbox-lista .inbox-linha').children];
+    const rol = document.querySelector('.inbox-rolagem');
+    const btn = document.querySelector('#inbox-lista .inbox-linha .primario');
+    return JSON.stringify({
+      display: getComputedStyle(document.querySelector('#inbox-lista .inbox-linha')).display,
+      desvio: Math.max(...ths.map((th, i) => Math.abs(th.getBoundingClientRect().left - tds[i].getBoundingClientRect().left))),
+      lateral: rol.scrollWidth - rol.clientWidth,
+      btnAlt: Math.round(btn.getBoundingClientRect().height),
+    });
+  })()`));
+  checar('as linhas da tabela sao table-row', geo.display === 'table-row', JSON.stringify(geo));
+  checar('cada cabecalho alinha com a coluna do conteudo', geo.desvio <= 1, JSON.stringify(geo));
+  checar('sem rolagem lateral', geo.lateral <= 0, JSON.stringify(geo));
+  checar('"Abrir sessão" numa linha so', geo.btnAlt <= 30, JSON.stringify(geo));
+
   await cdp.avaliar(`(() => { const s = document.getElementById('inbox-projeto'); s.value = '__sem'; s.dispatchEvent(new Event('change')); })()`);
   checar('filtrar "sem projeto" deixa as duas que nao abrem',
     JSON.stringify((await linhas(cdp)).map((x) => x.id)) === '["sem-repo","outro"]');

@@ -210,7 +210,10 @@
   function rangeDe(raiz, ini, fim) {
     const { segs } = percorrer(raiz);
     const a = pontoDe(segs, ini, false);
-    const b = pontoDe(segs, fim, true);
+    // Cursor (ini === fim) e o MESMO ponto: com `fim` procurado do jeito de
+    // fim de intervalo, a posicao 0 nao casava com nenhum trecho e caia no
+    // ultimo -- `selecionar(0, 0)` selecionava o texto inteiro.
+    const b = fim === ini ? a : pontoDe(segs, fim, true);
     const r = document.createRange();
     if (!a || !b) {
       r.selectNodeContents(raiz);
@@ -274,6 +277,10 @@
   ];
 
   function montar(painel) {
+    // Abrir o bloco comeca no FIM de cada aba (pedido: nada de rolar ate o que
+    // se escreveu por ultimo). A memoria de posicao vale so enquanto o bloco
+    // esta aberto -- trocar de aba e voltar devolve onde voce estava.
+    cursores.clear();
     painel.feature = 'Bloco de notas';
     const elNome = painel.el.querySelector('.painel-feature');
     if (elNome) elNome.textContent = 'Bloco de notas';
@@ -441,8 +448,22 @@
       ultimaSelecao = null;
       const c = cursores.get(a.id);
       if (c && document.activeElement === ed) selecionar(c.ini, c.fim);
-      ed.scrollTop = c ? c.topo : 0;
+      else if (!c && document.activeElement === ed) cursorNoFim();
+      if (c) ed.scrollTop = c.topo;
+      else {
+        // Sem posicao guardada: o fim do texto. De novo no quadro seguinte,
+        // porque o painel recem-montado ainda pode estar sem layout (altura 0).
+        ed.scrollTop = ed.scrollHeight;
+        requestAnimationFrame(() => {
+          if (abaAtiva() === a && !cursores.has(a.id)) ed.scrollTop = ed.scrollHeight;
+        });
+      }
       if (!busca.hidden) contar();
+    }
+
+    function cursorNoFim() {
+      const fim = textoPuro(ed).length;
+      selecionar(fim, fim);
     }
 
     function focarEditor() {
@@ -457,6 +478,10 @@
         s.addRange(ultimaSelecao);
       } else if (c) {
         selecionar(c.ini, c.fim);
+      } else {
+        const topo = ed.scrollTop;
+        cursorNoFim();
+        ed.scrollTop = Math.max(topo, ed.scrollHeight - ed.clientHeight);
       }
     }
 

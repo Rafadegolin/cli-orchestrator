@@ -145,6 +145,30 @@ resposta e diz "este Flow ainda nao tem a lista do ciclo" em vez de mostrar as s
 ciclo. As duas listas alimentam o mesmo mapa do `flow:abrir`, e a consulta e coalescida por escopo.
 A cor da label e do Flow e vira estilo: so `#rgb`/`#rrggbb` passa.
 
+## Ajustes de 23/11/2026 (pedidos com print)
+
+- **O bloco de notas abre no FIM de cada aba**, com o cursor no final: `montar()` zera o `cursores`
+  e `mostrarAtiva()` sem posicao guardada rola para o `scrollHeight`. Trocar de aba com o bloco
+  aberto continua lembrando a posicao. De quebra: `rangeDe(ed, 0, 0)` selecionava o texto INTEIRO
+  (o fim de intervalo vazio na posicao 0 nao casava com trecho nenhum e caia no ultimo).
+- **`.inbox-linha` e ESCOPADA a `.inbox-lista`.** A regra antiga (`display: flex`, da inbox de antes
+  do R5) pegava o `tr.inbox-linha` da tabela de Issues: as `td` viravam itens flex, cada linha
+  calculava a propria largura e o cabecalho ficava sozinho, com rolagem lateral. O `teste:inbox-ui`
+  confere `table-row` e o alinhamento `th`/`td`. A pagina de Issues usa a largura toda, e o titulo e
+  a coluna elastica (`width: 100%; max-width: 0` na `td`, que e o que deixa o ellipsis funcionar).
+- **A devolutiva (`#resumo-corpo`) entrou na regra do `#historico-corpo`**: sem ela o corpo nao tinha
+  padding nem rolagem propria.
+- **`OrqConfirmar.pedir` tem corpo que ROLA**: titulo, rodape e botoes fixos, caixa com
+  `max-height: 86vh`, uma linha por item (`sub` a direita; `extra` quebra embaixo -- e onde vai o
+  "também apaga"). Com 15+ worktrees o "Arquivar N" saia da tela.
+- **Icone por projeto** (`icone` no `projetos.json`): `{ galeria: nome }` (um dos
+  `OrqIcones.GALERIA_PROJETO`, pintado na cor do projeto) ou `{ imagem: arquivo }` -- uma COPIA em
+  `<dados>/icones/` (png/jpg/webp/svg/ico/gif, ate 512 KB), servida a janela como data URL pelo
+  `listar()` (cache por mtime; o CSP ja tem `img-src data:`). O main so confere o formato do nome
+  da galeria; nome desconhecido cai na pasta na janela. Trocar ou remover o projeto apaga a copia.
+  Escolhe-se no mesmo dialogo da cor ("Cor e ícone"); `projetos:definirIcone` recebe o caminho
+  pronto, como o `projetos:adicionar`.
+
 ## Proximos passos: Fase 10
 
 O app resolve bem **para onde olhar** (atender). O que falta e **fechar** (de "o agente terminou" ate

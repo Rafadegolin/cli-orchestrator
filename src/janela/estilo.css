@@ -707,6 +707,15 @@ button:focus-visible, input:focus-visible {
 
 button.projeto-tinta:hover { background: var(--bg3); }
 
+/* Imagem propria do projeto: no lugar do svg de 14px, levemente arredondada. */
+.projeto-img {
+  width: 15px;
+  height: 15px;
+  object-fit: contain;
+  border-radius: 3px;
+  display: block;
+}
+
 .projeto-qtd { flex: 0 0 auto; font-size: 10.5px; color: var(--fg3); }
 .projeto-qtd:empty { display: none; }
 
@@ -761,6 +770,41 @@ button.projeto-tinta:hover { background: var(--bg3); }
 }
 
 #cor-automatica.ativa { border-color: var(--acc); color: var(--acc); }
+
+/* O icone do projeto, no mesmo dialogo da cor: cada opcao ja pintada na cor
+   do projeto, para a escolha ser a do resultado final. */
+#cor-projeto .modal-caixa { width: 560px; }
+.icone-grade {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.icone-opcao {
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--bg2);
+}
+.icone-opcao .ico { width: 18px; height: 18px; }
+.icone-opcao img { width: 20px; height: 20px; object-fit: contain; border-radius: 4px; }
+.icone-opcao:hover { border-color: var(--fg3); }
+.icone-opcao.ativa { border-color: var(--fg); background: var(--bg3); }
+.icone-acoes { display: flex; gap: 8px; margin-bottom: 18px; }
+.icone-acoes button {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  color: var(--fg2);
+  font-size: 12px;
+  padding: 7px 12px;
+}
+.icone-acoes button:hover { color: var(--fg); border-color: var(--line2); }
+.icone-acoes button.ativa { border-color: var(--acc); color: var(--acc); }
 
 /* --------------------------------------------- a cor de destaque do app */
 
@@ -2557,7 +2601,6 @@ button.primario:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 560px;
 }
 #inbox .inbox-meta {
   margin-top: 3px;
@@ -2567,7 +2610,6 @@ button.primario:hover {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 560px;
 }
 #inbox .inbox-meta-sem { color: var(--warn); }
 #inbox .inbox-status { margin-top: 4px; font-size: 11.5px; color: var(--danger); }
@@ -2603,9 +2645,17 @@ button.primario:hover {
 #inbox .inbox-acoes {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
 }
-#inbox .inbox-acoes .primario { height: 28px; padding: 0 12px; font-size: 12px; }
+#inbox .inbox-acoes .primario { height: 28px; padding: 0 12px; font-size: 12px; white-space: nowrap; }
+
+/* A pagina de Issues usa a largura toda, e o titulo e a coluna elastica:
+   `width: 100%` + `max-width: 0` faz a coluna absorver a sobra e ainda deixa o
+   ellipsis do titulo funcionar (sem o 0, a celula cresce com o texto). */
+#inbox .pagina-conteudo { max-width: none; }
+.inbox-tabela td.inbox-col-titulo { width: 100%; max-width: 0; }
+.inbox-tabela td.inbox-col-id { white-space: nowrap; }
 #inbox .inbox-acoes .primario:disabled {
   background: transparent;
   color: var(--fg3);
@@ -2876,6 +2926,7 @@ button.primario:hover {
 .cfg-erro { padding: 6px 12px 8px; font-size: 12px; color: var(--danger); }
 
 .cfg-cor-projeto { width: 9px; height: 9px; border-radius: 50%; background: var(--fg3); }
+.cfg-icone-projeto { display: inline-flex; align-items: center; color: var(--fg3); }
 
 .cfg-kbd {
   display: inline-block;
@@ -3338,7 +3389,22 @@ button.escolha-opcao:hover { border-color: var(--fg3); background: var(--bg3); }
 .escolha-opcao-titulo { font-size: 13.5px; font-weight: 600; }
 .escolha-opcao-desc { font-size: 12px; color: var(--fg2); line-height: 1.4; }
 
-/* Resumo: as issues sugeridas viram linhas de lista, como no design. */
+/* Resumo: as issues sugeridas viram linhas de lista, como no design. O corpo
+   ganha o padding e a rolagem dos outros overlays pela regra do
+   `#historico-corpo` -- sem ela o texto encostava na borda da caixa. */
+#resumo .historico-caixa { width: 640px; }
+#resumo .modal-rotulo { margin-top: 16px; }
+#resumo .modal-explica + .modal-rotulo { margin-top: 0; }
+#resumo .inbox-acoes .primario {
+  height: 28px;
+  padding: 0 14px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+#resumo .resumo-lista > p { margin: 0; padding: 10px 12px; }
+#resumo .modal-acoes { justify-content: flex-end; }
+#resumo .modal-acoes .primario { flex: 0 0 auto; padding: 9px 18px; }
+#resumo .modal-acoes button:not(.primario) { padding: 9px 16px; }
 #resumo .resumo-lista {
   border: 1px solid var(--line2);
   border-radius: var(--r-md);
@@ -3357,7 +3423,23 @@ button.escolha-opcao:hover { border-color: var(--fg3); background: var(--bg3); }
 /* ================================================ confirmacao dentro do app */
 
 /* O arquivar sem dialogo nativo (OrqConfirmar). Foco nasce no Cancelar. */
-.confirmar-caixa { width: 500px; }
+/* Titulo e botoes fixos, o corpo rola: com um lote grande a caixa esticava para
+   fora da tela e o "Arquivar N" sumia. */
+.confirmar-caixa {
+  width: 560px;
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+}
+.confirmar-caixa > h2, .confirmar-caixa > .confirmar-rodape, .confirmar-caixa > .modal-acoes { flex: 0 0 auto; }
+.confirmar-caixa > .confirmar-rodape { margin-top: 10px; }
+.confirmar-corpo {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
 .confirmar-lista {
   margin: 0 0 12px 0;
   padding: 0;
@@ -3366,18 +3448,42 @@ button.escolha-opcao:hover { border-color: var(--fg3); background: var(--bg3); }
   border-radius: var(--r-md);
   overflow: hidden;
 }
+/* Uma linha por item (nome a esquerda, branch a direita): ~32px em vez de ~55,
+   e o que faz um lote de 15 caber sem rolar. O texto puro (aviso) quebra. */
 .confirmar-lista li {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 9px 12px;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  row-gap: 2px;
+  padding: 7px 12px;
   border-bottom: 1px solid var(--line);
   font-size: 12.5px;
+  line-height: 1.45;
   color: var(--fg);
 }
 .confirmar-lista li:last-child { border-bottom: 0; }
-.confirmar-item-texto { font-weight: 600; }
-.confirmar-item-sub { font-size: 11px; color: var(--fg3); word-break: break-word; }
+.confirmar-item-texto {
+  flex: 0 1 auto;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.confirmar-item-sub {
+  flex: 1 1 0;
+  min-width: 120px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--fg3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.confirmar-item-extra { flex: 1 0 100%; font-size: 11px; color: var(--warn); word-break: break-word; }
+/* O motivo da recusa e frase, nao branch: quebra em vez de cortar. */
+li.confirmar-item-aviso .confirmar-item-sub { flex-basis: 100%; text-align: left; white-space: normal; }
 .confirmar-aviso { border-color: var(--warn-linha); background: var(--warnd); }
 .confirmar-aviso li { color: var(--fg2); }
 li.confirmar-item-aviso .confirmar-item-sub { color: var(--warn); }
@@ -3757,7 +3863,7 @@ html.claro #confirmar .modal-acoes button.confirmar-perigo { color: #ffffff; }
   animation: orqPop .24s ease;
 }
 
-#historico-corpo, #uso-corpo, #inbox-corpo {
+#historico-corpo, #uso-corpo, #inbox-corpo, #resumo-corpo {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -3812,7 +3918,11 @@ html.claro #confirmar .modal-acoes button.confirmar-perigo { color: #ffffff; }
   padding: 0;
 }
 
-.inbox-linha {
+/* ESCOPADA as listas de proposito: sem o `.inbox-lista`, o `display: flex` pegava
+   tambem o `tr.inbox-linha` da tabela de Issues -- as `td` viravam itens flex,
+   cada linha calculava a propria largura e o cabecalho ficava sozinho, com uma
+   rolagem horizontal que so existia por causa dele. */
+.inbox-lista .inbox-linha {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -3820,7 +3930,7 @@ html.claro #confirmar .modal-acoes button.confirmar-perigo { color: #ffffff; }
   border-bottom: 1px solid var(--line);
 }
 
-.inbox-linha:last-child { border-bottom: none; }
+.inbox-lista .inbox-linha:last-child { border-bottom: none; }
 
 .inbox-texto { flex: 1; min-width: 0; }
 

@@ -405,6 +405,16 @@ ipcMain.handle('app:escolherPasta', async () => {
   return r.canceled ? null : r.filePaths[0];
 });
 
+ipcMain.handle('app:escolherImagem', async () => {
+  const r = await dialog.showOpenDialog(janela, {
+    title: 'Escolha a imagem do projeto',
+    properties: ['openFile'],
+    filters: [{ name: 'Imagens', extensions: ['png', 'jpg', 'jpeg', 'webp', 'svg', 'ico', 'gif'] }],
+    defaultPath: os.homedir(),
+  });
+  return r.canceled ? null : r.filePaths[0];
+});
+
 ipcMain.handle('app:pastaPadrao', () => os.homedir());
 
 ipcMain.handle('terminal:abrir', async (_e, { id, cwd, cols, rows, comando, args, env, feature, herdarPortasDe }) => {
@@ -741,6 +751,14 @@ ipcMain.handle('projetos:conversas', (_e, caminho) => projetos.conversas(caminho
 
 ipcMain.handle('projetos:definirCor', (_e, { id, cor }) => ({
   ...projetos.definirCor(id, cor),
+  projetos: projetos.listar(),
+}));
+
+// `icone`: null, { galeria } ou { imagem: caminho } -- o caminho chega PRONTO
+// (o dialogo e o `app:escolherImagem`), como no `projetos:adicionar`: e o que
+// deixa o teste dirigir pelo CDP.
+ipcMain.handle('projetos:definirIcone', (_e, { id, icone }) => ({
+  ...projetos.definirIcone(id, icone),
   projetos: projetos.listar(),
 }));
 

@@ -278,6 +278,74 @@ function lerArquivo() {
   checar('cor fora da paleta e recusada, sem gravar nada',
     torta.ok === false && Boolean(torta.erro), JSON.stringify(torta));
 
+  // ---- o icone do projeto: galeria e imagem propria
+  const PASTA_ICONES = path.join(path.dirname(ARQ), 'icones');
+  const idQ = JSON.stringify(idCor);
+  const iconeNaArvore = () => cdp.avaliar(`(() => {
+    const btn = document.querySelector('[data-proj=${JSON.stringify(idCor)}]')
+      ?.closest('li')?.querySelector('.projeto-tinta');
+    if (!btn) return 'sem-botao';
+    if (btn.querySelector('img')) return 'img';
+    return btn.querySelector('svg')?.innerHTML || 'vazio';
+  })()`);
+
+  const pastaSvg = await iconeNaArvore();
+  const gal = JSON.parse(await cdp.avaliar(`(async () => {
+    const r = await window.orq.projetosDefinirIcone(${idQ}, { galeria: 'servidor' });
+    await window.OrqProjetos.carregarProjetos();
+    const p = window.OrqProjetos.lista().find((x) => x.id === ${idQ});
+    return JSON.stringify({ ok: r.ok, icone: p.icone });
+  })()`));
+  checar('icone da galeria fica gravado', gal.ok && gal.icone?.galeria === 'servidor', JSON.stringify(gal));
+  const servidorSvg = await iconeNaArvore();
+  checar('e a arvore troca a pasta pelo icone escolhido',
+    servidorSvg !== pastaSvg && servidorSvg.startsWith('<rect'), servidorSvg.slice(0, 40));
+
+  const galTorta = JSON.parse(await cdp.avaliar(`(async () => JSON.stringify(
+    await window.orq.projetosDefinirIcone(${idQ}, { galeria: '../x' })))()`));
+  checar('nome de icone torto e recusado', galTorta.ok === false, JSON.stringify(galTorta));
+
+  // PNG de 1x1 de verdade.
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  const origem = path.join(COR, 'logo.png');
+  fs.writeFileSync(origem, PNG);
+  const img = JSON.parse(await cdp.avaliar(`(async () => {
+    const r = await window.orq.projetosDefinirIcone(${idQ}, { imagem: ${JSON.stringify(origem)} });
+    await window.OrqProjetos.carregarProjetos();
+    const p = window.OrqProjetos.lista().find((x) => x.id === ${idQ});
+    return JSON.stringify({ ok: r.ok, erro: r.erro, icone: p.icone, url: (p.iconeUrl || '').slice(0, 22) });
+  })()`));
+  checar('imagem propria vira copia em <dados>/icones e data URL',
+    img.ok && img.icone?.imagem && fs.existsSync(path.join(PASTA_ICONES, img.icone.imagem))
+      && img.url === 'data:image/png;base64,', JSON.stringify(img));
+  checar('e a arvore mostra a imagem', await iconeNaArvore() === 'img');
+  fs.rmSync(origem);
+  checar('a copia sobrevive a origem apagada',
+    JSON.parse(await cdp.avaliar(`(async () => JSON.stringify((await window.orq.projetosListar())
+      .find((x) => x.id === ${idQ}).iconeUrl ? 1 : 0))()`)) === 1);
+
+  const grande = path.join(COR, 'grande.png');
+  fs.writeFileSync(grande, Buffer.alloc(600 * 1024));
+  const recusou = JSON.parse(await cdp.avaliar(`(async () => JSON.stringify(
+    await window.orq.projetosDefinirIcone(${idQ}, { imagem: ${JSON.stringify(grande)} })))()`));
+  checar('imagem acima do teto e recusada', recusou.ok === false && /grande/.test(recusou.erro || ''), JSON.stringify(recusou));
+  const txt = path.join(COR, 'nao-e.txt');
+  fs.writeFileSync(txt, 'x');
+  const recusouTipo = JSON.parse(await cdp.avaliar(`(async () => JSON.stringify(
+    await window.orq.projetosDefinirIcone(${idQ}, { imagem: ${JSON.stringify(txt)} })))()`));
+  checar('arquivo que nao e imagem e recusado', recusouTipo.ok === false, JSON.stringify(recusouTipo));
+
+  const padrao = JSON.parse(await cdp.avaliar(`(async () => {
+    const r = await window.orq.projetosDefinirIcone(${idQ}, null);
+    await window.OrqProjetos.carregarProjetos();
+    const p = window.OrqProjetos.lista().find((x) => x.id === ${idQ});
+    return JSON.stringify({ ok: r.ok, icone: p.icone, url: p.iconeUrl });
+  })()`));
+  checar('"icone padrao" volta para a pasta e apaga a copia',
+    padrao.ok && padrao.icone === null && !padrao.url && !fs.existsSync(path.join(PASTA_ICONES, img.icone.imagem)),
+    JSON.stringify(padrao));
+  checar('e a arvore volta a pasta', await iconeNaArvore() === pastaSvg);
+
   await cdp.avaliar(`(async () => {
     for (const p of await window.orq.projetosListar()) {
       if (p.caminho.includes('orq-teste-cor-')) await window.orq.projetosRemover(p.id, false);

@@ -316,14 +316,15 @@
     const projetos = (window.OrqProjetos?.lista?.() || []).map((p) => {
       const s = p.scripts || {};
       const scripts = ['setup', 'run', 'arquivar'].filter((k) => s[k]).join(', ') || 'sem scripts';
-      const cor = criar('span', 'cfg-cor-projeto');
-      cor.style.background = window.OrqProjetos.tintaDaPasta?.(p.caminho) || '';
+      const cor = criar('span', 'cfg-icone-projeto');
+      cor.style.color = window.OrqProjetos.tintaDaPasta?.(p.caminho) || '';
+      cor.append(window.OrqProjetos.iconeDoProjeto(p));
       const titulo = document.createDocumentFragment();
       titulo.append(cor, p.nome);
       return linha(titulo, `${p.caminho} · ${scripts}`, [
         botao('Scripts…', 'cfg-botao', () => window.OrqScriptsProjeto?.abrir(p.id)),
-        botao('Cor…', 'cfg-botao cfg-botao-fraco', () => window.OrqCorProjeto?.abrir(p.id)),
-      ], 'projeto scripts setup run cor');
+        botao('Cor e ícone…', 'cfg-botao cfg-botao-fraco', () => window.OrqCorProjeto?.abrir(p.id)),
+      ], 'projeto scripts setup run cor icone');
     });
     if (!projetos.length) {
       projetos.push(linha('Nenhum projeto cadastrado', 'Cadastre pela lateral (ícone de pasta) ou pela paleta.',

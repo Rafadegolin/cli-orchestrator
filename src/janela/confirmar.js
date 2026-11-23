@@ -47,23 +47,38 @@
     const h = criar('h2', '', titulo);
     h.id = 'confirmar-titulo';
     caixa.setAttribute('aria-labelledby', 'confirmar-titulo');
+    // Titulo em cima e rodape + botoes embaixo ficam FIXOS; so o corpo rola.
+    // Sem isso, um lote de 20 worktrees esticava a caixa para fora da tela e o
+    // botao de confirmar sumia.
     const partes = [h];
-    if (texto) partes.push(criar('p', 'modal-explica', texto));
+    const corpo = criar('div', 'confirmar-corpo');
+    if (texto) corpo.append(criar('p', 'modal-explica', texto));
     for (const b of blocos) {
       if (!b || !b.itens || !b.itens.length) continue;
-      if (b.rotulo) partes.push(criar('div', 'modal-rotulo', b.rotulo));
+      if (b.rotulo) {
+        const rot = b.itens.length > 3 ? `${b.rotulo} · ${b.itens.length}` : b.rotulo;
+        corpo.append(criar('div', 'modal-rotulo', rot));
+      }
       const lista = criar('ul', `confirmar-lista${b.tom ? ` confirmar-${b.tom}` : ''}`);
       for (const it of b.itens) {
         const li = criar('li', it.tom ? `confirmar-item-${it.tom}` : '');
         if (typeof it === 'string') li.textContent = it;
         else {
-          li.append(criar('span', 'confirmar-item-texto', it.texto));
-          if (it.sub) li.append(criar('span', 'confirmar-item-sub mono', it.sub));
+          const elTexto = criar('span', 'confirmar-item-texto', it.texto);
+          elTexto.title = it.texto;
+          li.append(elTexto);
+          if (it.sub) {
+            const sub = criar('span', 'confirmar-item-sub mono', it.sub);
+            sub.title = it.sub;
+            li.append(sub);
+          }
+          if (it.extra) li.append(criar('span', 'confirmar-item-extra mono', it.extra));
         }
         lista.append(li);
       }
-      partes.push(lista);
+      corpo.append(lista);
     }
+    partes.push(corpo);
     if (rodape) partes.push(criar('p', 'confirmar-rodape', rodape));
     const acoes = criar('div', 'modal-acoes');
     const cancelar = criar('button', '', 'Cancelar');
@@ -93,7 +108,8 @@
     const uma = p.aptas.length === 1;
     const itens = p.aptas.map((w) => ({
       texto: w.nome,
-      sub: w.branch + (w.ignorados.length ? `  ·  também apaga: ${w.ignorados.join(', ')}` : ''),
+      sub: w.branch,
+      extra: w.ignorados.length ? `também apaga: ${w.ignorados.join(', ')}` : '',
     }));
     const recusadas = (p.recusadas || []).map((r) => ({ texto: r.nome, sub: r.texto, tom: 'aviso' }));
     const ok = await pedir({

@@ -365,10 +365,17 @@
        pastas podem cair na mesma cor -- e a cor so serve se distinguir. -->
   <div id="cor-projeto" class="overlay" hidden>
     <div class="modal-caixa">
-      <h2 id="cor-titulo">Cor do projeto</h2>
-      <p class="modal-explica">Ela aparece na faixa do painel, na lista de sessões e aqui na
-        árvore. Worktrees usam um tom mais claro da mesma cor.</p>
+      <h2 id="cor-titulo">Cor e ícone do projeto</h2>
+      <p class="modal-explica">A cor aparece na faixa do painel, na lista de sessões e aqui na
+        árvore (worktrees usam um tom mais claro dela). O ícone identifica o projeto na árvore.</p>
+      <div class="modal-rotulo">Cor</div>
       <div class="cor-grade" id="cor-grade"></div>
+      <div class="modal-rotulo">Ícone</div>
+      <div class="icone-grade" id="icone-grade"></div>
+      <div class="icone-acoes">
+        <button id="icone-imagem">Usar uma imagem…</button>
+        <button id="icone-padrao">Ícone padrão</button>
+      </div>
       <div class="modal-acoes">
         <button id="cor-automatica">Automática</button>
         <!-- `cor-pronto`, e nao `cor-fechar`: existe uma regra generica
